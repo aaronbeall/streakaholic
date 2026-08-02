@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
@@ -20,10 +20,16 @@ const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export const AddTaskScreen: React.FC = () => {
   const router = useRouter();
-  const { addTask, tasks } = useTaskContext();
+  const { taskId } = useLocalSearchParams<{ taskId?: string }>();
+  const { addTask, updateTask, tasks } = useTaskContext();
 
-  // Find first unused icon and color
+  const editingTask = useMemo(() => tasks.find(t => t.id === taskId), [tasks, taskId]);
+  const isEditing = !!editingTask;
+
+  // Find first unused icon and color -- unless editing, in which case keep the task's own.
   const { initialIcon, initialColor } = useMemo(() => {
+    if (editingTask) return { initialIcon: editingTask.icon, initialColor: editingTask.color };
+
     const usedIcons = new Set(tasks.map(task => task.icon));
     const usedColors = new Set(tasks.map(task => task.color));
 
@@ -31,22 +37,22 @@ export const AddTaskScreen: React.FC = () => {
     const unusedColor = DEFAULT_COLORS.find(color => !usedColors.has(color)) || DEFAULT_COLORS[0];
 
     return { initialIcon: unusedIcon, initialColor: unusedColor };
-  }, [tasks]);
+  }, [tasks, editingTask]);
 
-  const [name, setName] = useState('');
+  const [name, setName] = useState(editingTask?.name ?? '');
   const [selectedIcon, setSelectedIcon] = useState<MaterialCommunityIconName>(initialIcon);
   const [selectedColor, setSelectedColor] = useState(initialColor);
-  const [frequency, setFrequency] = useState<FrequencyType>('daily');
-  const [daysOfWeek, setDaysOfWeek] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
-  const [daysPerWeek, setDaysPerWeek] = useState(3);
-  const [daysPerMonth, setDaysPerMonth] = useState(15);
-  const [timesPerDay, setTimesPerDay] = useState(1);
+  const [frequency, setFrequency] = useState<FrequencyType>(editingTask?.frequency ?? 'daily');
+  const [daysOfWeek, setDaysOfWeek] = useState<number[]>(editingTask?.daysOfWeek ?? [0, 1, 2, 3, 4, 5, 6]);
+  const [daysPerWeek, setDaysPerWeek] = useState(editingTask?.daysPerWeek ?? 3);
+  const [daysPerMonth, setDaysPerMonth] = useState(editingTask?.daysPerMonth ?? 15);
+  const [timesPerDay, setTimesPerDay] = useState(editingTask?.timesPerDay ?? 1);
 
   const isNameValid = useMemo(() => {
     const trimmedName = name.trim();
     if (!trimmedName) return false;
-    return !tasks.some(task => task.name.toLowerCase() === trimmedName.toLowerCase());
-  }, [name, tasks]);
+    return !tasks.some(task => task.id !== editingTask?.id && task.name.toLowerCase() === trimmedName.toLowerCase());
+  }, [name, tasks, editingTask]);
 
   const handleSave = async () => {
     if (!isNameValid) {
@@ -54,7 +60,7 @@ export const AddTaskScreen: React.FC = () => {
       return;
     }
 
-    const task = {
+    const taskData = {
       name: name.trim(),
       icon: selectedIcon,
       color: selectedColor,
@@ -66,10 +72,14 @@ export const AddTaskScreen: React.FC = () => {
     };
 
     try {
-      await addTask(task);
+      if (editingTask) {
+        await updateTask({ ...editingTask, ...taskData });
+      } else {
+        await addTask(taskData);
+      }
       router.back();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to create task');
+    } catch {
+      Alert.alert('Error', `Failed to ${isEditing ? 'update' : 'create'} task`);
     }
   };
 
@@ -83,6 +93,7 @@ export const AddTaskScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.container}>
+      <Stack.Screen options={{ title: isEditing ? 'Edit Task' : 'Add New Task' }} />
       <View style={styles.section}>
         <Text style={styles.label}>Task Name</Text>
         <View style={styles.card}>
@@ -254,7 +265,7 @@ export const AddTaskScreen: React.FC = () => {
         disabled={!isNameValid}
       >
         <Text style={[styles.saveButtonText, !isNameValid && styles.saveButtonTextDisabled]}>
-          Save Task
+          {isEditing ? 'Save Changes' : 'Save Task'}
         </Text>
       </TouchableOpacity>
     </ScrollView>

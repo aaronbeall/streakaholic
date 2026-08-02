@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TaskHeader } from '../components/TaskHeader';
 import { useTaskContext } from '../context/TaskContext';
@@ -8,8 +8,7 @@ import { useTaskContext } from '../context/TaskContext';
 export default function TaskDetailsScreen() {
   const router = useRouter();
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
-  const { tasks, updateTask, deleteTask } = useTaskContext();
-  const [isEditing, setIsEditing] = useState(false);
+  const { tasks, deleteTask } = useTaskContext();
 
   const task = tasks.find(t => t.id === taskId);
   if (!task) {
