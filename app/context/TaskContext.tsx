@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { differenceInDays, format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { StreakStatus, Task, TaskCompletion, TaskStats } from '../types';
+import { Task, TaskCompletion } from '../types';
+import { calculateTaskStats } from '../utils/streaks';
 
 interface TaskContextType {
   tasks: Task[];
@@ -21,95 +22,6 @@ export const useTaskContext = () => {
     throw new Error('useTaskContext must be used within a TaskProvider');
   }
   return context;
-};
-
-const calculateTaskStats = (completions: TaskCompletion[]): TaskStats => {
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
-
-  // Sort completions by date in ascending order
-  const sortedCompletions = [...completions].sort((a, b) => a.date.localeCompare(b.date));
-  
-  // Find all streaks
-  const streaks: { start: string; end: string; length: number }[] = [];
-  let currentStreak: { start: string; end: string; length: number } | null = null;
-
-  for (let i = 0; i < sortedCompletions.length; i++) {
-    const current = sortedCompletions[i];
-    const next = sortedCompletions[i + 1];
-    
-    if (!currentStreak) {
-      currentStreak = {
-        start: current.date,
-        end: current.date,
-        length: 1
-      };
-    }
-
-    if (next) {
-      const currentDate = new Date(current.date);
-      const nextDate = new Date(next.date);
-      const dayDiff = differenceInDays(nextDate, currentDate);
-      
-      if (dayDiff === 1) {
-        // Continue streak
-        currentStreak.end = next.date;
-        currentStreak.length++;
-      } else {
-        // End streak
-        streaks.push(currentStreak);
-        currentStreak = {
-          start: next.date,
-          end: next.date,
-          length: 1
-        };
-      }
-    } else {
-      // Last completion
-      streaks.push(currentStreak);
-    }
-  }
-
-  // Sort streaks by end date (most recent first)
-  streaks.sort((a, b) => b.end.localeCompare(a.end));
-
-  // Find best streak
-  const bestStreak = streaks.length > 0 
-    ? Math.max(...streaks.map(s => s.length))
-    : 0;
-
-  // Determine current streak and streak status
-  let currentStreakLength = 0;
-  let lastStreakLength = 0;
-  let streakStatus: StreakStatus = 'never_started';
-
-  if (streaks.length > 0) {
-    const mostRecentStreak = streaks[0];
-    lastStreakLength = mostRecentStreak.length;
-
-    if (mostRecentStreak.end === today) {
-      currentStreakLength = mostRecentStreak.length;
-      streakStatus = 'up_to_date';
-    } else if (mostRecentStreak.end === yesterday) {
-      currentStreakLength = mostRecentStreak.length;
-      streakStatus = 'expiring';
-    } else {
-      streakStatus = 'expired';
-    }
-  }
-
-  // Calculate completion rate
-  const totalDays = differenceInDays(new Date(), new Date(sortedCompletions[0]?.date || today)) + 1;
-  const completionRate = totalDays > 0 ? completions.length / totalDays : 0;
-
-  return {
-    currentStreak: currentStreakLength,
-    lastStreak: lastStreakLength,
-    bestStreak,
-    totalCompletions: completions.length,
-    completionRate,
-    streakStatus,
-  };
 };
 
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -140,7 +52,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const loadedTasks: Task[] = JSON.parse(storedTasks);
         const tasksWithStats = loadedTasks.map(task => ({
           ...task,
-          stats: calculateTaskStats(task.completions || []),
+          stats: calculateTaskStats(task, task.completions || []),
         }));
         setTasks(tasksWithStats);
       }
@@ -158,7 +70,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastDate = currentDate;
         const updatedTasks = tasks.map(task => ({
           ...task,
-          stats: calculateTaskStats(task.completions || []),
+          stats: calculateTaskStats(task, task.completions || []),
         }));
         setTasks(updatedTasks);
       }
@@ -182,7 +94,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       completions: [],
-      stats: calculateTaskStats([]),
+      stats: calculateTaskStats(taskData, []),
     };
     await saveTasks([...tasks, newTask]);
   };
@@ -191,7 +103,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updatedTask = {
       ...task,
       updatedAt: new Date().toISOString(),
-      stats: calculateTaskStats(task.completions || []),
+      stats: calculateTaskStats(task, task.completions || []),
     };
     const updatedTasks = tasks.map(t => 
       t.id === task.id ? updatedTask : t

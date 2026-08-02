@@ -62,27 +62,38 @@ export default function TaskDetailsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Frequency</Text>
           <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Days of Week</Text>
-              <View style={styles.daysContainer}>
-                {weekDays.map((day, index) => (
-                  <View
-                    key={day}
-                    style={[
-                      styles.dayChip,
-                      task.daysOfWeek.includes(index) && { backgroundColor: task.color }
-                    ]}
-                  >
-                    <Text style={[
-                      styles.dayText,
-                      task.daysOfWeek.includes(index) && styles.selectedDayText
-                    ]}>
-                      {day[0]}
-                    </Text>
-                  </View>
-                ))}
+            {task.frequency === 'specific_days_of_week' ? (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Days of Week</Text>
+                <View style={styles.daysContainer}>
+                  {weekDays.map((day, index) => (
+                    <View
+                      key={day}
+                      style={[
+                        styles.dayChip,
+                        task.daysOfWeek.includes(index) && { backgroundColor: task.color }
+                      ]}
+                    >
+                      <Text style={[
+                        styles.dayText,
+                        task.daysOfWeek.includes(index) && styles.selectedDayText
+                      ]}>
+                        {day[0]}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
               </View>
-            </View>
+            ) : (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Schedule</Text>
+                <Text style={styles.infoValue}>
+                  {task.frequency === 'daily' && 'Every day'}
+                  {task.frequency === 'days_per_week' && `${task.daysPerWeek} days per week`}
+                  {task.frequency === 'days_per_month' && `${task.daysPerMonth} days per month`}
+                </Text>
+              </View>
+            )}
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Times Per Day</Text>
               <Text style={styles.infoValue}>{task.timesPerDay}</Text>

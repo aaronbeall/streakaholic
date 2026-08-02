@@ -12,6 +12,7 @@ export interface Task {
   frequency: FrequencyType;
   daysOfWeek: number[];
   daysPerWeek: number;
+  daysPerMonth: number;
   timesPerDay: number;
   createdAt: string;
   updatedAt: string;
