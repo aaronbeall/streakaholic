@@ -118,6 +118,8 @@ export const HomeScreen: React.FC = () => {
     return true;
   }), [tasks, filter]);
 
+  const hasAnyTasks = useMemo(() => tasks.some(task => !task.archived), [tasks]);
+
   const getColumnCount = () => {
     if (width >= 1200) return 4;
     if (width >= 900) return 3;
@@ -154,18 +156,35 @@ export const HomeScreen: React.FC = () => {
           <TaskCard
             task={item}
             size={cardSize}
-            onLongPressCalendar={() => router.push({ 
-              pathname: '/task-calendar', 
-              params: { taskId: item.id } 
+            onLongPressCalendar={() => router.push({
+              pathname: '/task-calendar',
+              params: { taskId: item.id }
             })}
-            onLongPressStats={() => router.push({ 
-              pathname: '/task-stats', 
-              params: { taskId: item.id } 
+            onLongPressStats={() => router.push({
+              pathname: '/task-stats',
+              params: { taskId: item.id }
             })}
             onLongPressTask={() => handleTaskLongPress(item)}
           />
         )}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, filteredTasks.length === 0 && styles.emptyListContent]}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <MaterialCommunityIcons
+              name={hasAnyTasks ? 'filter-off-outline' : 'plus-circle-outline'}
+              size={48}
+              color="#ccc"
+            />
+            <Text style={styles.emptyStateTitle}>
+              {hasAnyTasks ? 'No tasks match this filter' : 'No tasks yet'}
+            </Text>
+            <Text style={styles.emptyStateSubtitle}>
+              {hasAnyTasks
+                ? 'Try a different filter, or tap the streak count again to clear it.'
+                : 'Tap the + button to create your first habit to track.'}
+            </Text>
+          </View>
+        }
       />
       <TouchableOpacity style={styles.addButton} onPress={() => router.push('/add-task')}>
         <MaterialCommunityIcons name="plus" size={32} color="#fff" />
@@ -217,6 +236,27 @@ const styles = StyleSheet.create({
   listContent: {
     padding: SIDE_PADDING,
     gap: GRID_SPACING,
+  },
+  emptyListContent: {
+    flexGrow: 1,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 32,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#666',
+    textAlign: 'center',
+  },
+  emptyStateSubtitle: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
   },
   row: {
     justifyContent: 'space-between',
