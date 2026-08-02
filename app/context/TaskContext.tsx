@@ -13,6 +13,7 @@ interface TaskContextType {
   uncompleteTask: (taskId: string, date: Date) => Promise<void>;
   archiveTask: (taskId: string) => Promise<void>;
   restoreTask: (taskId: string) => Promise<void>;
+  importTasks: (tasks: Task[]) => Promise<void>;
   isTaskCompleted: (task: Task, date?: Date) => boolean;
   getCompletionCount: (task: Task, date?: Date) => number;
 }
@@ -177,6 +178,14 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await updateTask({ ...task, archived: false });
   };
 
+  const importTasks = async (importedTasks: Task[]) => {
+    const tasksWithStats = importedTasks.map(task => ({
+      ...task,
+      stats: calculateTaskStats(task, task.completions || []),
+    }));
+    await saveTasks(tasksWithStats);
+  };
+
   const getCount = (task: Task, date: Date = new Date()) => {
     const dateString = format(date, 'yyyy-MM-dd');
     return completionCache.get(task.id)?.get(dateString) ?? 0;
@@ -197,6 +206,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         uncompleteTask,
         archiveTask,
         restoreTask,
+        importTasks,
         isTaskCompleted: isCompleted,
         getCompletionCount: getCount,
       }}

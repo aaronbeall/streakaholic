@@ -1,13 +1,97 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { format } from 'date-fns';
 import Constants from 'expo-constants';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { useRouter } from 'expo-router';
-import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as Sharing from 'expo-sharing';
+import React, { useState } from 'react';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useTaskContext } from '../context/TaskContext';
+import { Task } from '../types';
+
+const isImportableTask = (value: unknown): value is Task =>
+  typeof value === 'object' && value !== null
+    && typeof (value as Task).id === 'string'
+    && typeof (value as Task).name === 'string';
 
 export const SettingsScreen: React.FC = () => {
   const router = useRouter();
+  const { tasks, importTasks } = useTaskContext();
+  const [isBusy, setIsBusy] = useState(false);
   const appName = Constants.expoConfig?.name ?? 'Streakaholic';
   const version = Constants.expoConfig?.version ?? '';
+
+  const handleExport = async () => {
+    setIsBusy(true);
+    try {
+      const json = JSON.stringify(tasks, null, 2);
+      const filename = `streakaholic-export-${format(new Date(), 'yyyy-MM-dd')}.json`;
+
+      if (Platform.OS === 'web') {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } else {
+        const fileUri = FileSystem.documentDirectory + filename;
+        await FileSystem.writeAsStringAsync(fileUri, json);
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, { mimeType: 'application/json' });
+        } else {
+          Alert.alert('Export complete', `Saved to ${fileUri}`);
+        }
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to export data');
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleImport = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
+      if (result.canceled || !result.assets?.[0]) return;
+
+      setIsBusy(true);
+      const uri = result.assets[0].uri;
+      const content = Platform.OS === 'web'
+        ? await (await fetch(uri)).text()
+        : await FileSystem.readAsStringAsync(uri);
+
+      const parsed: unknown = JSON.parse(content);
+      if (!Array.isArray(parsed) || !parsed.every(isImportableTask)) {
+        Alert.alert('Invalid file', "This doesn't look like a Streakaholic export file.");
+        return;
+      }
+
+      Alert.alert(
+        'Replace all data?',
+        `This will replace your current ${tasks.length} task(s) with ${parsed.length} task(s) from the file. This cannot be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Replace',
+            style: 'destructive',
+            onPress: async () => {
+              await importTasks(parsed);
+              Alert.alert('Import complete', `Imported ${parsed.length} task(s).`);
+            },
+          },
+        ]
+      );
+    } catch {
+      Alert.alert('Error', 'Failed to import data');
+    } finally {
+      setIsBusy(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -26,6 +110,18 @@ export const SettingsScreen: React.FC = () => {
             <MaterialCommunityIcons name="archive-outline" size={22} color="#666" />
             <Text style={styles.rowLabel}>Archived Tasks</Text>
             <MaterialCommunityIcons name="chevron-right" size={22} color="#ccc" />
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.row} onPress={handleExport} disabled={isBusy}>
+            <MaterialCommunityIcons name="export-variant" size={22} color="#666" />
+            <Text style={styles.rowLabel}>Export Data</Text>
+            {isBusy && <ActivityIndicator size="small" />}
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.row} onPress={handleImport} disabled={isBusy}>
+            <MaterialCommunityIcons name="import" size={22} color="#666" />
+            <Text style={styles.rowLabel}>Import Data</Text>
+            {isBusy && <ActivityIndicator size="small" />}
           </TouchableOpacity>
         </View>
 
@@ -99,6 +195,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     padding: 16,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#f0f0f0',
+    marginLeft: 16,
   },
   rowLabel: {
     flex: 1,
