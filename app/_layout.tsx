@@ -18,6 +18,18 @@ export default function Layout() {
           }}
         />
         <Stack.Screen
+          name="settings"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="archived-tasks"
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
           name="add-task"
           options={{
             title: 'Add New Task',

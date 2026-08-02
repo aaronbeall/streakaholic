@@ -23,11 +23,12 @@ const DashboardHeader: React.FC<{
 }> = ({ selectedTimeFrame, onTimeFrameChange, selectedTasks, onTaskToggle, dateRangeLabel }) => {
   const { tasks } = useTaskContext();
   const router = useRouter();
+  const visibleTasks = tasks.filter(task => !task.archived);
 
   return (
     <View style={styles.header}>
       <View style={styles.headerTop}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.headerButton}
           onPress={() => router.push('/')}
         >
@@ -42,7 +43,7 @@ const DashboardHeader: React.FC<{
 
       <View style={styles.headerContent}>
         <View style={styles.taskFilterContainer}>
-          {tasks.map((task) => (
+          {visibleTasks.map((task) => (
             <TouchableOpacity
               key={task.id}
               style={[
@@ -88,7 +89,8 @@ const DashboardHeader: React.FC<{
 };
 
 export const DashboardScreen: React.FC = () => {
-  const { tasks } = useTaskContext();
+  const { tasks: allTasks } = useTaskContext();
+  const tasks = useMemo(() => allTasks.filter(task => !task.archived), [allTasks]);
   const { width } = useWindowDimensions();
   const [selectedTimeFrame, setSelectedTimeFrame] = useState<TimeFrame>('week');
   const [selectedTasks, setSelectedTasks] = useState<string[]>(tasks.map(t => t.id));

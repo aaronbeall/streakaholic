@@ -8,7 +8,7 @@ import { useTaskContext } from '../context/TaskContext';
 export default function TaskDetailsScreen() {
   const router = useRouter();
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
-  const { tasks, deleteTask } = useTaskContext();
+  const { tasks, deleteTask, archiveTask, restoreTask } = useTaskContext();
 
   const task = tasks.find(t => t.id === taskId);
   if (!task) {
@@ -25,6 +25,15 @@ export default function TaskDetailsScreen() {
       pathname: '/add-task',
       params: { taskId }
     });
+  };
+
+  const handleArchiveToggle = () => {
+    if (task.archived) {
+      restoreTask(taskId);
+    } else {
+      archiveTask(taskId);
+      router.back();
+    }
   };
 
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -104,6 +113,10 @@ export default function TaskDetailsScreen() {
           <TouchableOpacity style={[styles.button, styles.editButton]} onPress={handleEdit}>
             <MaterialCommunityIcons name="pencil" size={20} color="#fff" />
             <Text style={styles.buttonText}>Edit Task</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.button, styles.archiveButton]} onPress={handleArchiveToggle}>
+            <MaterialCommunityIcons name={task.archived ? 'archive-arrow-up-outline' : 'archive-outline'} size={20} color="#fff" />
+            <Text style={styles.buttonText}>{task.archived ? 'Restore Task' : 'Archive Task'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.button, styles.deleteButton]} onPress={handleDelete}>
             <MaterialCommunityIcons name="delete" size={20} color="#fff" />
@@ -209,6 +222,9 @@ const styles = StyleSheet.create({
   },
   editButton: {
     backgroundColor: '#007AFF',
+  },
+  archiveButton: {
+    backgroundColor: '#8E8E93',
   },
   deleteButton: {
     backgroundColor: '#FF3B30',

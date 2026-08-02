@@ -16,6 +16,7 @@ export interface Task {
   timesPerDay: number;
   createdAt: string;
   updatedAt: string;
+  archived?: boolean;
   stats?: TaskStats;
   completions?: TaskCompletion[];
 }

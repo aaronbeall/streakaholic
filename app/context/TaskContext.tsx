@@ -11,6 +11,8 @@ interface TaskContextType {
   deleteTask: (taskId: string) => Promise<void>;
   completeTask: (taskId: string, date?: Date) => Promise<void>;
   uncompleteTask: (taskId: string, date: Date) => Promise<void>;
+  archiveTask: (taskId: string) => Promise<void>;
+  restoreTask: (taskId: string) => Promise<void>;
   isTaskCompleted: (task: Task, date?: Date) => boolean;
   getCompletionCount: (task: Task, date?: Date) => number;
 }
@@ -163,6 +165,18 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await updateTask(updatedTask);
   };
 
+  const archiveTask = async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    await updateTask({ ...task, archived: true });
+  };
+
+  const restoreTask = async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    await updateTask({ ...task, archived: false });
+  };
+
   const getCount = (task: Task, date: Date = new Date()) => {
     const dateString = format(date, 'yyyy-MM-dd');
     return completionCache.get(task.id)?.get(dateString) ?? 0;
@@ -181,6 +195,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteTask,
         completeTask,
         uncompleteTask,
+        archiveTask,
+        restoreTask,
         isTaskCompleted: isCompleted,
         getCompletionCount: getCount,
       }}

@@ -24,7 +24,7 @@ const HomeHeader = React.memo(({ onFilterChange }: { onFilterChange: (filter: Fi
   const { tasks } = useTaskContext();
   const [activeFilter, setActiveFilter] = useState<FilterType>(null);
 
-  const streakStats = useMemo(() => getStreakStats(tasks), [tasks]);
+  const streakStats = useMemo(() => getStreakStats(tasks.filter(task => !task.archived)), [tasks]);
 
   const handleFilterPress = (filter: FilterType) => {
     const newFilter = activeFilter === filter ? null : filter;
@@ -88,9 +88,9 @@ const HomeHeader = React.memo(({ onFilterChange }: { onFilterChange: (filter: Fi
         )}
       </View>
 
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.headerButton}
-        onPress={() => router.push('/')}
+        onPress={() => router.push('/settings')}
       >
         <MaterialCommunityIcons name="cog" size={24} color="#333" />
       </TouchableOpacity>
@@ -107,6 +107,7 @@ export const HomeScreen: React.FC = () => {
   const [filter, setFilter] = useState<FilterType>(null);
 
   const filteredTasks = useMemo(() => tasks.filter(task => {
+    if (task.archived) return false;
     if (!filter) return true;
     if (filter === 'up_to_date') {
       return task.stats?.streakStatus === 'up_to_date' && task.stats.currentStreak > 0;
