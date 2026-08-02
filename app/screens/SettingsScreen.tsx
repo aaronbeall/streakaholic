@@ -5,9 +5,10 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTaskContext } from '../context/TaskContext';
+import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 
 const isImportableTask = (value: unknown): value is Task =>
@@ -19,6 +20,8 @@ export const SettingsScreen: React.FC = () => {
   const router = useRouter();
   const { tasks, importTasks } = useTaskContext();
   const [isBusy, setIsBusy] = useState(false);
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const appName = Constants.expoConfig?.name ?? 'Streakaholic';
   const version = Constants.expoConfig?.version ?? '';
 
@@ -97,7 +100,7 @@ export const SettingsScreen: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color="#333" />
+          <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
         <View style={styles.headerButton} />
@@ -107,19 +110,19 @@ export const SettingsScreen: React.FC = () => {
         <Text style={styles.sectionTitle}>Data</Text>
         <View style={styles.card}>
           <TouchableOpacity style={styles.row} onPress={() => router.push('/archived-tasks')}>
-            <MaterialCommunityIcons name="archive-outline" size={22} color="#666" />
+            <MaterialCommunityIcons name="archive-outline" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>Archived Tasks</Text>
-            <MaterialCommunityIcons name="chevron-right" size={22} color="#ccc" />
+            <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
           </TouchableOpacity>
           <View style={styles.divider} />
           <TouchableOpacity style={styles.row} onPress={handleExport} disabled={isBusy}>
-            <MaterialCommunityIcons name="export-variant" size={22} color="#666" />
+            <MaterialCommunityIcons name="export-variant" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>Export Data</Text>
             {isBusy && <ActivityIndicator size="small" />}
           </TouchableOpacity>
           <View style={styles.divider} />
           <TouchableOpacity style={styles.row} onPress={handleImport} disabled={isBusy}>
-            <MaterialCommunityIcons name="import" size={22} color="#666" />
+            <MaterialCommunityIcons name="import" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>Import Data</Text>
             {isBusy && <ActivityIndicator size="small" />}
           </TouchableOpacity>
@@ -128,7 +131,7 @@ export const SettingsScreen: React.FC = () => {
         <Text style={styles.sectionTitle}>About</Text>
         <View style={styles.card}>
           <View style={styles.row}>
-            <MaterialCommunityIcons name="information-outline" size={22} color="#666" />
+            <MaterialCommunityIcons name="information-outline" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>{appName}</Text>
             <Text style={styles.rowValue}>{version}</Text>
           </View>
@@ -138,10 +141,10 @@ export const SettingsScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -150,22 +153,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 48,
     paddingBottom: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.border,
   },
   headerButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.iconButtonBackground,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#333',
+    color: colors.text,
   },
   content: {
     flex: 1,
@@ -174,13 +177,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#666',
+    color: colors.textSecondary,
     marginBottom: 8,
     marginTop: 8,
     textTransform: 'uppercase',
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     marginBottom: 24,
     elevation: 2,
@@ -198,16 +201,16 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: colors.border,
     marginLeft: 16,
   },
   rowLabel: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
+    color: colors.text,
   },
   rowValue: {
     fontSize: 14,
-    color: '#999',
+    color: colors.textTertiary,
   },
 });

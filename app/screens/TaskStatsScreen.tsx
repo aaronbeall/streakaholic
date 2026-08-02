@@ -6,6 +6,7 @@ import { BarChart, LineChart } from 'react-native-chart-kit';
 import tinycolor from 'tinycolor2';
 import { TaskHeader } from '../components/TaskHeader';
 import { useTaskContext } from '../context/TaskContext';
+import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { TimeFrame, dayOfWeekLabels, getChartData, getCompletionPatterns, getDateRange, hourOfDayLabels } from '../utils/data';
 
 interface TimeRangeButtonProps {
@@ -16,16 +17,20 @@ interface TimeRangeButtonProps {
   onPress: (range: TimeFrame) => void;
 }
 
-const TimeRangeButton: React.FC<TimeRangeButtonProps> = ({ range, label, isSelected, color, onPress }) => (
-  <TouchableOpacity
-    style={[styles.timeRangeButton, isSelected && { backgroundColor: color }]}
-    onPress={() => onPress(range)}
-  >
-    <Text style={[styles.timeRangeButtonText, isSelected && { color: '#fff' }]}>
-      {label}
-    </Text>
-  </TouchableOpacity>
-);
+const TimeRangeButton: React.FC<TimeRangeButtonProps> = ({ range, label, isSelected, color, onPress }) => {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  return (
+    <TouchableOpacity
+      style={[styles.timeRangeButton, isSelected && { backgroundColor: color }]}
+      onPress={() => onPress(range)}
+    >
+      <Text style={[styles.timeRangeButtonText, isSelected && { color: '#fff' }]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+};
 
 export default function TaskStatsScreen() {
   const router = useRouter();
@@ -33,6 +38,8 @@ export default function TaskStatsScreen() {
   const { tasks } = useTaskContext();
   const [timeRange, setTimeRange] = useState<TimeFrame>('month');
   const [isCumulative, setIsCumulative] = useState(false);
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const task = tasks.find(t => t.id === taskId);
   if (!task) {
@@ -60,8 +67,24 @@ export default function TaskStatsScreen() {
     return tinycolor({
       h: colorObj.toHsl().h,
       s: 90,
-      l: 98
+      l: colors.isDark ? 16 : 98
     }).toString();
+  };
+
+  const baseChartConfig = {
+    backgroundColor: colors.surface,
+    backgroundGradientFrom: colors.surface,
+    backgroundGradientTo: colors.surface,
+    decimalPlaces: 0,
+    labelColor: () => colors.textSecondary,
+    style: {
+      borderRadius: 16,
+    },
+    propsForLabels: {
+      fontSize: 11,
+      fontFamily: 'System',
+      fontWeight: '400' as const,
+    },
   };
 
   const dayOfWeekChartData = {
@@ -161,27 +184,15 @@ export default function TaskStatsScreen() {
                 width={Dimensions.get('window').width - 48}
                 height={180}
                 chartConfig={{
-                  backgroundColor: '#fff',
-                  backgroundGradientFrom: '#fff',
-                  backgroundGradientTo: '#fff',
-                  decimalPlaces: 0,
+                  ...baseChartConfig,
                   color: (opacity = 1) => task.color,
-                  labelColor: (opacity = 1) => '#999',
-                  style: {
-                    borderRadius: 16,
-                  },
                   propsForDots: {
                     r: '4',
                   },
                   propsForBackgroundLines: {
                     strokeDasharray: '',
-                    stroke: '#f0f0f0',
+                    stroke: colors.border,
                     strokeWidth: 1,
-                  },
-                  propsForLabels: {
-                    fontSize: 11,
-                    fontFamily: 'System',
-                    fontWeight: '400',
                   },
                   fillShadowGradient: task.color,
                   fillShadowGradientOpacity:.2,
@@ -199,10 +210,10 @@ export default function TaskStatsScreen() {
                 style={[styles.cumulativeToggle, isCumulative && { backgroundColor: task.color }]}
                 onPress={() => setIsCumulative(!isCumulative)}
               >
-                <MaterialCommunityIcons 
-                  name="chart-line-variant" 
-                  size={20} 
-                  color={isCumulative ? '#fff' : '#666'} 
+                <MaterialCommunityIcons
+                  name="chart-line-variant"
+                  size={20}
+                  color={isCumulative ? '#fff' : colors.textSecondary}
                 />
               </TouchableOpacity>
             </View>
@@ -216,20 +227,8 @@ export default function TaskStatsScreen() {
               yAxisLabel=""
               yAxisSuffix=""
               chartConfig={{
-                backgroundColor: '#fff',
-                backgroundGradientFrom: '#fff',
-                backgroundGradientTo: '#fff',
-                decimalPlaces: 0,
+                ...baseChartConfig,
                 color: (opacity = 1) => task.color,
-                labelColor: (opacity = 1) => '#999',
-                style: {
-                  borderRadius: 16,
-                },
-                propsForLabels: {
-                  fontSize: 11,
-                  fontFamily: 'System',
-                  fontWeight: '400',
-                },
                 propsForBackgroundLines: {
                   strokeDasharray: '',
                   stroke: 'rgba(0,0,0,0)',
@@ -247,27 +246,15 @@ export default function TaskStatsScreen() {
               width={Dimensions.get('window').width - 48}
               height={180}
               chartConfig={{
-                backgroundColor: '#fff',
-                backgroundGradientFrom: '#fff',
-                backgroundGradientTo: '#fff',
-                decimalPlaces: 0,
+                ...baseChartConfig,
                 color: (opacity = 1) => task.color,
-                labelColor: (opacity = 1) => '#999',
-                style: {
-                  borderRadius: 16,
-                },
                 propsForDots: {
                   r: '4',
                 },
                 propsForBackgroundLines: {
                   strokeDasharray: '',
-                  stroke: '#f0f0f0',
+                  stroke: colors.border,
                   strokeWidth: 1,
-                },
-                propsForLabels: {
-                  fontSize: 11,
-                  fontFamily: 'System',
-                  fontWeight: '400',
                 },
                 fillShadowGradient: task.color,
                 fillShadowGradientOpacity: .2,
@@ -288,10 +275,10 @@ export default function TaskStatsScreen() {
   );
 } 
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
@@ -306,7 +293,7 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     minWidth: '45%',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
@@ -323,7 +310,7 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   chartSection: {
@@ -338,7 +325,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: colors.text,
     marginBottom: 16,
   },
   timeRangeContainer: {
@@ -349,14 +336,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: colors.surfaceSecondary,
   },
   timeRangeButtonText: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
   },
   chartCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     marginBottom: 16,
     elevation: 2,
@@ -379,7 +366,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(240, 240, 240, 0.9)',
+    backgroundColor: colors.isDark ? colors.surfaceSecondary : 'rgba(240, 240, 240, 0.9)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',

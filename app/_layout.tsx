@@ -1,7 +1,10 @@
 import { Stack } from 'expo-router';
 import { TaskProvider } from './context/TaskContext';
+import { useThemeColors } from './hooks/useThemeColors';
 
 export default function Layout() {
+  const colors = useThemeColors();
+
   return (
     <TaskProvider>
       <Stack>
@@ -35,8 +38,12 @@ export default function Layout() {
             title: 'Add New Task',
             presentation: 'modal',
             headerStyle: {
-              backgroundColor: '#fff',
+              backgroundColor: colors.surface,
             },
+            headerTitleStyle: {
+              color: colors.text,
+            },
+            headerTintColor: colors.text,
             headerShadowVisible: false,
           }}
         />

@@ -3,10 +3,13 @@ import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTaskContext } from '../context/TaskContext';
+import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 
 export const ArchivedTasksScreen: React.FC = () => {
   const router = useRouter();
   const { tasks, restoreTask } = useTaskContext();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const archivedTasks = useMemo(() => tasks.filter(task => task.archived), [tasks]);
 
@@ -14,7 +17,7 @@ export const ArchivedTasksScreen: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color="#333" />
+          <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Archived Tasks</Text>
         <View style={styles.headerButton} />
@@ -22,7 +25,7 @@ export const ArchivedTasksScreen: React.FC = () => {
 
       {archivedTasks.length === 0 ? (
         <View style={styles.emptyState}>
-          <MaterialCommunityIcons name="archive-outline" size={48} color="#ccc" />
+          <MaterialCommunityIcons name="archive-outline" size={48} color={colors.textTertiary} />
           <Text style={styles.emptyStateText}>No archived tasks</Text>
         </View>
       ) : (
@@ -51,10 +54,10 @@ export const ArchivedTasksScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -63,22 +66,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 48,
     paddingBottom: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.border,
   },
   headerButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.iconButtonBackground,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#333',
+    color: colors.text,
   },
   listContent: {
     padding: 16,
@@ -88,7 +91,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 12,
     marginBottom: 12,
@@ -109,7 +112,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
+    color: colors.text,
   },
   restoreButton: {
     flexDirection: 'row',
@@ -133,6 +136,6 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#999',
+    color: colors.textTertiary,
   },
 });

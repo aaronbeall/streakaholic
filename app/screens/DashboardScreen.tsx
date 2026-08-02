@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { BarChart, LineChart } from 'react-native-chart-kit';
 import { useTaskContext } from '../context/TaskContext';
+import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { TimeFrame, calculateAggregateStats, dayOfWeekLabels, getChartData, getCompletionPatterns, getDateRange, getDateRangeLabel, hourOfDayLabels } from '../utils/data';
 
 const DashboardHeader: React.FC<{
@@ -23,6 +24,8 @@ const DashboardHeader: React.FC<{
 }> = ({ selectedTimeFrame, onTimeFrameChange, selectedTasks, onTaskToggle, dateRangeLabel }) => {
   const { tasks } = useTaskContext();
   const router = useRouter();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const visibleTasks = tasks.filter(task => !task.archived);
 
   return (
@@ -32,10 +35,10 @@ const DashboardHeader: React.FC<{
           style={styles.headerButton}
           onPress={() => router.push('/')}
         >
-          <MaterialCommunityIcons name="arrow-left" size={24} color="#333" />
+          <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <MaterialCommunityIcons name="calendar" size={16} color="#666" style={styles.headerIcon} />
+          <MaterialCommunityIcons name="calendar" size={16} color={colors.textSecondary} style={styles.headerIcon} />
           <Text style={styles.headerTitle}>{dateRangeLabel}</Text>
         </View>
         <View style={styles.headerButton} />
@@ -48,7 +51,7 @@ const DashboardHeader: React.FC<{
               key={task.id}
               style={[
                 styles.taskFilterButton,
-                { backgroundColor: 'rgba(0, 0, 0, 0.05)' },
+                { backgroundColor: colors.overlay },
                 selectedTasks.includes(task.id) && { backgroundColor: task.color },
               ]}
               onPress={() => onTaskToggle(task.id)}
@@ -92,6 +95,8 @@ export const DashboardScreen: React.FC = () => {
   const { tasks: allTasks } = useTaskContext();
   const tasks = useMemo(() => allTasks.filter(task => !task.archived), [allTasks]);
   const { width } = useWindowDimensions();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [selectedTimeFrame, setSelectedTimeFrame] = useState<TimeFrame>('week');
   const [selectedTasks, setSelectedTasks] = useState<string[]>(tasks.map(t => t.id));
   const [isCumulative, setIsCumulative] = useState(false);
@@ -140,6 +145,25 @@ export const DashboardScreen: React.FC = () => {
     }],
   };
 
+  const baseChartConfig = {
+    backgroundColor: colors.surface,
+    backgroundGradientFrom: colors.surface,
+    backgroundGradientTo: colors.surface,
+    decimalPlaces: 0,
+    color: (opacity = 1) => `rgba(0, 122, 255, ${opacity})`,
+    labelColor: () => colors.textSecondary,
+    style: {
+      borderRadius: 16,
+    },
+    propsForLabels: {
+      fontSize: 11,
+      fontFamily: 'System',
+      fontWeight: '400',
+    },
+  };
+
+  const statCardBackground = (light: string) => colors.isDark ? colors.surfaceSecondary : light;
+
   return (
     <View style={styles.container}>
       <DashboardHeader
@@ -157,22 +181,22 @@ export const DashboardScreen: React.FC = () => {
       />
       <ScrollView style={styles.content}>
         <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { backgroundColor: '#E8F5E9' }]}>
+          <View style={[styles.statCard, { backgroundColor: statCardBackground('#E8F5E9') }]}>
             <MaterialCommunityIcons name="check-circle" size={24} color="#2E7D32" />
             <Text style={[styles.statLabel, { color: '#2E7D32' }]}>Total Completions</Text>
             <Text style={[styles.statValue, { color: '#2E7D32' }]}>{stats.totalCompletions}</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: '#E3F2FD' }]}>
+          <View style={[styles.statCard, { backgroundColor: statCardBackground('#E3F2FD') }]}>
             <MaterialCommunityIcons name="chart-line" size={24} color="#1976D2" />
             <Text style={[styles.statLabel, { color: '#1976D2' }]}>Completion Rate</Text>
             <Text style={[styles.statValue, { color: '#1976D2' }]}>{Math.round(stats.completionRate * 100)}%</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: '#FFF3E0' }]}>
+          <View style={[styles.statCard, { backgroundColor: statCardBackground('#FFF3E0') }]}>
             <MaterialCommunityIcons name="fire" size={24} color="#E65100" />
             <Text style={[styles.statLabel, { color: '#E65100' }]}>Current Streak</Text>
             <Text style={[styles.statValue, { color: '#E65100' }]}>{stats.currentStreak}</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: '#FFF8E1' }]}>
+          <View style={[styles.statCard, { backgroundColor: statCardBackground('#FFF8E1') }]}>
             <MaterialCommunityIcons name="trophy" size={24} color="#FFA000" />
             <Text style={[styles.statLabel, { color: '#FFA000' }]}>Best Streak</Text>
             <Text style={[styles.statValue, { color: '#FFA000' }]}>{stats.bestStreak}</Text>
@@ -186,10 +210,10 @@ export const DashboardScreen: React.FC = () => {
               style={[styles.cumulativeToggle, isCumulative && styles.cumulativeToggleActive]}
               onPress={() => setIsCumulative(!isCumulative)}
             >
-              <MaterialCommunityIcons 
-                name="chart-line-variant" 
-                size={20} 
-                color={isCumulative ? '#fff' : '#666'} 
+              <MaterialCommunityIcons
+                name="chart-line-variant"
+                size={20}
+                color={isCumulative ? '#fff' : colors.textSecondary}
               />
             </TouchableOpacity>
           </View>
@@ -198,27 +222,14 @@ export const DashboardScreen: React.FC = () => {
             width={width - 48}
             height={220}
             chartConfig={{
-              backgroundColor: '#ffffff',
-              backgroundGradientFrom: '#ffffff',
-              backgroundGradientTo: '#ffffff',
-              decimalPlaces: 0,
-              color: (opacity = 1) => `rgba(0, 122, 255, ${opacity})`,
-              labelColor: (opacity = 1) => '#999',
-              style: {
-                borderRadius: 16,
-              },
+              ...baseChartConfig,
               propsForDots: {
                 r: '4',
               },
               propsForBackgroundLines: {
                 strokeDasharray: '',
-                stroke: '#f0f0f0',
+                stroke: colors.border,
                 strokeWidth: 1,
-              },
-              propsForLabels: {
-                fontSize: 11,
-                fontFamily: 'System',
-                fontWeight: '400',
               },
               fillShadowGradient: '#007AFF',
               fillShadowGradientOpacity: 0.2,
@@ -243,20 +254,7 @@ export const DashboardScreen: React.FC = () => {
             yAxisLabel=""
             yAxisSuffix=""
             chartConfig={{
-              backgroundColor: '#ffffff',
-              backgroundGradientFrom: '#ffffff',
-              backgroundGradientTo: '#ffffff',
-              decimalPlaces: 0,
-              color: (opacity = 1) => `rgba(0, 122, 255, ${opacity})`,
-              labelColor: (opacity = 1) => '#999',
-              style: {
-                borderRadius: 16,
-              },
-              propsForLabels: {
-                fontSize: 11,
-                fontFamily: 'System',
-                fontWeight: '400',
-              },
+              ...baseChartConfig,
               propsForBackgroundLines: {
                 strokeDasharray: '',
                 stroke: 'rgba(0,0,0,0)',
@@ -275,27 +273,14 @@ export const DashboardScreen: React.FC = () => {
             width={width - 48}
             height={220}
             chartConfig={{
-              backgroundColor: '#ffffff',
-              backgroundGradientFrom: '#ffffff',
-              backgroundGradientTo: '#ffffff',
-              decimalPlaces: 0,
-              color: (opacity = 1) => `rgba(0, 122, 255, ${opacity})`,
-              labelColor: (opacity = 1) => '#999',
-              style: {
-                borderRadius: 16,
-              },
+              ...baseChartConfig,
               propsForDots: {
                 r: '4',
               },
               propsForBackgroundLines: {
                 strokeDasharray: '',
-                stroke: '#f0f0f0',
+                stroke: colors.border,
                 strokeWidth: 1,
-              },
-              propsForLabels: {
-                fontSize: 11,
-                fontFamily: 'System',
-                fontWeight: '400',
               },
               fillShadowGradient: '#007AFF',
               fillShadowGradientOpacity: 0.2,
@@ -315,17 +300,17 @@ export const DashboardScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   header: {
     paddingTop: 48,
     paddingBottom: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.border,
   },
   headerTop: {
     flexDirection: 'row',
@@ -342,7 +327,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#666',
+    color: colors.textSecondary,
   },
   headerIcon: {
     marginTop: 1,
@@ -355,7 +340,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.iconButtonBackground,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -368,7 +353,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.iconButtonBackground,
   },
   selectedTimeFrame: {
     backgroundColor: '#007AFF',
@@ -376,7 +361,7 @@ const styles = StyleSheet.create({
   timeFrameText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#333',
+    color: colors.text,
   },
   selectedTimeFrameText: {
     color: '#fff',
@@ -421,7 +406,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   chartContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     margin: 16,
@@ -440,13 +425,13 @@ const styles = StyleSheet.create({
   chartTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: colors.text,
   },
   cumulativeToggle: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(240, 240, 240, 0.9)',
+    backgroundColor: colors.isDark ? colors.surfaceSecondary : 'rgba(240, 240, 240, 0.9)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',

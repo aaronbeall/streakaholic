@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import tinycolor from 'tinycolor2';
 import { DEFAULT_COLORS } from '../constants/task';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 interface ColorPickerProps {
   selectedColor: string;
@@ -13,6 +14,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
   selectedColor,
   onColorSelect,
 }) => {
+  const themeColors = useThemeColors();
   const [colors, setColors] = useState(() => {
     // Initialize with default colors, ensuring selected color is included
     return DEFAULT_COLORS.includes(selectedColor) 
@@ -85,10 +87,10 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
             style={styles.moreButton}
             onPress={handleShowMore}
           >
-            <MaterialCommunityIcons 
-              name="dots-horizontal" 
-              size={24} 
-              color="#999" 
+            <MaterialCommunityIcons
+              name="dots-horizontal"
+              size={24}
+              color={themeColors.textTertiary}
             />
           </TouchableOpacity>
         </View>

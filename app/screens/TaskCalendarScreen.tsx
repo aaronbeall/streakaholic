@@ -5,6 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TaskHeader } from '../components/TaskHeader';
 import { useTaskContext } from '../context/TaskContext';
+import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 
 // Add type definitions at the top of the file
 type CalendarDay = {
@@ -27,6 +28,8 @@ export default function TaskCalendarScreen() {
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
   const { tasks, completeTask, uncompleteTask, isTaskCompleted } = useTaskContext();
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const task = tasks.find(t => t.id === taskId);
   if (!task) {
@@ -82,11 +85,11 @@ export default function TaskCalendarScreen() {
       <View style={styles.content}>
         <View style={styles.navigation}>
           <TouchableOpacity onPress={handlePrevMonth} style={styles.navButton}>
-            <MaterialCommunityIcons name="chevron-left" size={24} color="#333" />
+            <MaterialCommunityIcons name="chevron-left" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.monthText}>{format(currentMonth, 'MMMM yyyy')}</Text>
           <TouchableOpacity onPress={handleNextMonth} style={styles.navButton}>
-            <MaterialCommunityIcons name="chevron-right" size={24} color="#333" />
+            <MaterialCommunityIcons name="chevron-right" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
 
@@ -136,7 +139,7 @@ export default function TaskCalendarScreen() {
                     isToday && !isCompleted && { borderWidth: 2, borderColor: task.color }
                   ]}>
                     {isMissed ? (
-                      <MaterialCommunityIcons name="close" size={20} color="#E0E0E0" />
+                      <MaterialCommunityIcons name="close" size={20} color={colors.textTertiary} />
                     ) : (
                       <Text style={[
                         styles.dayNumber,
@@ -161,10 +164,10 @@ export default function TaskCalendarScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
@@ -182,7 +185,7 @@ const styles = StyleSheet.create({
   monthText: {
     fontSize: 18,
     fontWeight: '500',
-    color: '#333',
+    color: colors.text,
   },
   calendar: {
     flex: 1,
@@ -197,7 +200,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
     fontWeight: '500',
-    color: '#666',
+    color: colors.textSecondary,
   },
   day: {
     flex: 1,
@@ -216,7 +219,7 @@ const styles = StyleSheet.create({
   dayNumber: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: colors.text,
   },
   completedDayNumber: {
     color: '#fff',
@@ -224,4 +227,4 @@ const styles = StyleSheet.create({
   futureDay: {
     opacity: 0.4,
   },
-}); 
+});

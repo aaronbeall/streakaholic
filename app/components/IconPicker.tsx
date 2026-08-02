@@ -1,8 +1,9 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useDebounce } from 'use-debounce';
 import { ALL_ICONS, DEFAULT_ICONS } from '../constants/task';
+import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { MaterialCommunityIconName } from '../types';
 
 const PAGE_SIZE = 12;
@@ -26,6 +27,8 @@ export const IconPicker: React.FC<IconPickerProps> = ({
   selectedColor,
   onIconSelect,
 }) => {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery] = useDebounce(searchQuery, 300);
@@ -124,13 +127,13 @@ export const IconPicker: React.FC<IconPickerProps> = ({
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholder="Search all icons..."
-          placeholderTextColor="#999"
+          placeholderTextColor={colors.textTertiary}
           autoFocus
         />
-        <MaterialCommunityIcons 
-          name="magnify" 
-          size={20} 
-          color="#999" 
+        <MaterialCommunityIcons
+          name="magnify"
+          size={20}
+          color={colors.textTertiary}
           style={styles.searchIcon}
         />
       </Animated.View>
@@ -152,7 +155,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
               <MaterialCommunityIcons
                 name={icon}
                 size={24}
-                color={selectedIcon === icon ? '#fff' : '#333'}
+                color={selectedIcon === icon ? '#fff' : colors.text}
               />
             </TouchableOpacity>
           ))}
@@ -164,10 +167,10 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                 handleShowMore();
               }}
             >
-              <MaterialCommunityIcons 
-                name="dots-horizontal" 
-                size={24} 
-                color="#999" 
+              <MaterialCommunityIcons
+                name="dots-horizontal"
+                size={24}
+                color={colors.textTertiary}
               />
             </TouchableOpacity>
           )}
@@ -190,19 +193,20 @@ export const IconPicker: React.FC<IconPickerProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   searchContainer: {
     position: 'relative',
     overflow: 'hidden',
   },
   searchInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.border,
     borderRadius: 8,
     padding: 12,
     paddingRight: 40, // Make room for the icon
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
+    color: colors.text,
   },
   searchIcon: {
     position: 'absolute',
@@ -225,7 +229,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: colors.surfaceSecondary,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -247,7 +251,7 @@ const styles = StyleSheet.create({
   },
   searchHint: {
     textAlign: 'center',
-    color: '#999',
+    color: colors.textTertiary,
     fontSize: 14,
     marginTop: 8,
     fontStyle: 'italic',

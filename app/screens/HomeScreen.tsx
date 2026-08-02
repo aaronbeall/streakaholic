@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { TaskCard } from '../components/TaskCard';
 import { useTaskContext } from '../context/TaskContext';
+import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getStreakStats } from '../utils/data';
 
@@ -23,6 +24,8 @@ const HomeHeader = React.memo(({ onFilterChange }: { onFilterChange: (filter: Fi
   const router = useRouter();
   const { tasks } = useTaskContext();
   const [activeFilter, setActiveFilter] = useState<FilterType>(null);
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const streakStats = useMemo(() => getStreakStats(tasks.filter(task => !task.archived)), [tasks]);
 
@@ -34,11 +37,11 @@ const HomeHeader = React.memo(({ onFilterChange }: { onFilterChange: (filter: Fi
 
   return (
     <View style={styles.header}>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.headerButton}
         onPress={() => router.push({ pathname: '/dashboard' })}
       >
-        <MaterialCommunityIcons name="chart-bar" size={24} color="#333" />
+        <MaterialCommunityIcons name="chart-bar" size={24} color={colors.text} />
       </TouchableOpacity>
 
       <View style={styles.streakBubbles}>
@@ -92,7 +95,7 @@ const HomeHeader = React.memo(({ onFilterChange }: { onFilterChange: (filter: Fi
         style={styles.headerButton}
         onPress={() => router.push('/settings')}
       >
-        <MaterialCommunityIcons name="cog" size={24} color="#333" />
+        <MaterialCommunityIcons name="cog" size={24} color={colors.text} />
       </TouchableOpacity>
     </View>
   );
@@ -105,6 +108,8 @@ export const HomeScreen: React.FC = () => {
   const { tasks, completeTask, isTaskCompleted } = useTaskContext();
   const { width } = useWindowDimensions();
   const [filter, setFilter] = useState<FilterType>(null);
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const filteredTasks = useMemo(() => tasks.filter(task => {
     if (task.archived) return false;
@@ -173,7 +178,7 @@ export const HomeScreen: React.FC = () => {
             <MaterialCommunityIcons
               name={hasAnyTasks ? 'filter-off-outline' : 'plus-circle-outline'}
               size={48}
-              color="#ccc"
+              color={colors.textTertiary}
             />
             <Text style={styles.emptyStateTitle}>
               {hasAnyTasks ? 'No tasks match this filter' : 'No tasks yet'}
@@ -193,10 +198,10 @@ export const HomeScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -205,15 +210,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 48,
     paddingBottom: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.border,
   },
   headerButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.iconButtonBackground,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -250,12 +255,12 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#666',
+    color: colors.textSecondary,
     textAlign: 'center',
   },
   emptyStateSubtitle: {
     fontSize: 14,
-    color: '#999',
+    color: colors.textTertiary,
     textAlign: 'center',
   },
   row: {

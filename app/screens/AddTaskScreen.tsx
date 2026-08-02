@@ -14,6 +14,7 @@ import { ColorPicker } from '../components/ColorPicker';
 import { IconPicker } from '../components/IconPicker';
 import { DEFAULT_COLORS, DEFAULT_ICONS } from '../constants/task';
 import { useTaskContext } from '../context/TaskContext';
+import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { FrequencyType, MaterialCommunityIconName } from '../types';
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -22,6 +23,8 @@ export const AddTaskScreen: React.FC = () => {
   const router = useRouter();
   const { taskId } = useLocalSearchParams<{ taskId?: string }>();
   const { addTask, updateTask, tasks } = useTaskContext();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const editingTask = useMemo(() => tasks.find(t => t.id === taskId), [tasks, taskId]);
   const isEditing = !!editingTask;
@@ -102,7 +105,7 @@ export const AddTaskScreen: React.FC = () => {
             value={name}
             onChangeText={setName}
             placeholder="Enter task name"
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.textTertiary}
           />
           {!isNameValid && !!name.trim() && (
             <Text style={styles.errorText}>This task name already exists</Text>
@@ -272,10 +275,10 @@ export const AddTaskScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
     padding: 16,
   },
   section: {
@@ -285,10 +288,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
-    color: '#333',
+    color: colors.text,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     elevation: 2,
@@ -307,7 +310,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   optionCard: {
-    backgroundColor: '#f8f8f8',
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 12,
     padding: 16,
     gap: 12,
@@ -315,15 +318,15 @@ const styles = StyleSheet.create({
   optionLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#666',
+    color: colors.textSecondary,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    color: '#333',
+    color: colors.text,
   },
   inputError: {
     borderColor: '#FF3B30',
@@ -337,12 +340,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: colors.surfaceSecondary,
   },
   frequencyTypeText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#666',
+    color: colors.textSecondary,
   },
   selectedText: {
     color: '#fff',
@@ -356,14 +359,14 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: colors.surfaceSecondary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   dayText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#666',
+    color: colors.textSecondary,
   },
   numberInputRow: {
     flexDirection: 'row',
@@ -374,14 +377,14 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: colors.surfaceSecondary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   numberInputValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#333',
+    color: colors.text,
     minWidth: 40,
     textAlign: 'center',
   },
@@ -394,7 +397,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   saveButtonDisabled: {
-    backgroundColor: '#E5E5EA',
+    backgroundColor: colors.border,
   },
   saveButtonText: {
     color: '#fff',
@@ -404,4 +407,4 @@ const styles = StyleSheet.create({
   saveButtonTextDisabled: {
     color: '#8E8E93',
   },
-}); 
+});

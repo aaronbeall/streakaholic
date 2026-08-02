@@ -19,6 +19,7 @@ import Reanimated, {
 } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useTaskContext } from '../context/TaskContext';
+import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { ParticleSystem } from './ParticleSystem';
 
@@ -43,6 +44,8 @@ interface CardTaskProps {
 
 const CardTask = React.memo(({ task, progress, isCompleting, onCompleted }: CardTaskProps) => {
   const { isTaskCompleted, getCompletionCount } = useTaskContext();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const checkmarkOpacity = useSharedValue(0);
   const iconOpacity = useSharedValue(1);
   const scale = useSharedValue(1);
@@ -272,6 +275,8 @@ CardTask.displayName = 'CardTask';
 
 const CardCalendar = React.memo(({ task }: { task: Task }) => {
   const { isTaskCompleted } = useTaskContext();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const today = format(new Date(), 'yyyy-MM-dd');
   const currentMonth = new Date();
   const daysInMonth = getDaysInMonth(currentMonth);
@@ -316,7 +321,7 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
                   ) : day.isToday ? (
                     <View style={[styles.calendarDot, { borderWidth: 2, borderColor: task.color, backgroundColor: 'transparent' }]} />
                   ) : day.isMissed ? (
-                    <MaterialCommunityIcons name="close" size={20} color="#E0E0E0" />
+                    <MaterialCommunityIcons name="close" size={20} color={colors.textTertiary} />
                   ) : (
                     <View style={[styles.calendarDot, styles.calendarDotFuture]} />
                   )}
@@ -336,6 +341,8 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
 CardCalendar.displayName = 'CardCalendar';
 
 const CardStats = React.memo(({ task }: { task: Task }) => {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const requiredTimes = task.timesPerDay || 1;
 
   const getWeeklyStats = () => {
@@ -437,6 +444,8 @@ export const TaskCard = React.memo(({
   onLongPressStats,
   onLongPressTask,
 }: TaskCardProps) => {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const flipAnim = useSharedValue(0);
   const scaleAnim = useSharedValue(1);
   const progressAnim = useSharedValue(0);
@@ -560,7 +569,7 @@ export const TaskCard = React.memo(({
 
 TaskCard.displayName = 'TaskCard';
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -576,7 +585,7 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     elevation: 4,
@@ -608,7 +617,7 @@ const styles = StyleSheet.create({
   taskName: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#333',
+    color: colors.text,
     textAlign: 'center',
   },
   progressCountText: {
@@ -661,7 +670,7 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     fontSize: 10,
-    color: '#666',
+    color: colors.textSecondary,
   },
   calendarDay: {
     flex: 1,
@@ -682,7 +691,7 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -707,12 +716,12 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
   },
   statValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#333',
+    color: colors.text,
   },
   progressBar: {
     height: 6,

@@ -1,7 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 
 interface TaskHeaderProps {
@@ -11,6 +12,8 @@ interface TaskHeaderProps {
 export const TaskHeader: React.FC<TaskHeaderProps> = ({ task }) => {
   const router = useRouter();
   const pathname = usePathname();
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const isCalendarScreen = pathname.includes('calendar');
   const isStatsScreen = pathname.includes('stats');
@@ -96,7 +99,7 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task }) => {
           <MaterialCommunityIcons 
             name="calendar" 
             size={20} 
-            color={isCalendarScreen ? task.color : '#666'} 
+            color={isCalendarScreen ? task.color : colors.textSecondary}
           />
           <Text style={[styles.tabText, isCalendarScreen && { color: task.color }]}>
             Calendar
@@ -110,7 +113,7 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task }) => {
           <MaterialCommunityIcons 
             name="chart-bar" 
             size={20} 
-            color={isStatsScreen ? task.color : '#666'} 
+            color={isStatsScreen ? task.color : colors.textSecondary} 
           />
           <Text style={[styles.tabText, isStatsScreen && { color: task.color }]}>
             Stats
@@ -121,7 +124,7 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   header: {
     paddingTop: 48,
     paddingBottom: 24,
@@ -186,11 +189,11 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.border,
   },
   tab: {
     flex: 1,
@@ -202,11 +205,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   activeTab: {
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    backgroundColor: colors.overlay,
   },
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#666',
+    color: colors.textSecondary,
   },
 }); 
