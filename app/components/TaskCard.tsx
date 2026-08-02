@@ -1,8 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { addDays, format, getDay, getDaysInMonth, parseISO, startOfMonth, startOfWeek } from 'date-fns';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Animated,
   FlatList,
   Pressable,
   StyleSheet,
@@ -10,7 +9,7 @@ import {
   View
 } from 'react-native';
 import Reanimated, {
-  SharedValue,
+  Easing,
   useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
@@ -39,7 +38,7 @@ type CardSide = 'task' | 'calendar' | 'stats';
 
 interface CardTaskProps {
   task: Task;
-  progress: SharedValue<number>;
+  progress: Reanimated.SharedValue<number>;
   isCompleting: boolean;
   onCompleted: () => void;
 }
@@ -145,7 +144,7 @@ const CardTask = React.memo(({ task, progress, isCompleting, onCompleted }: Card
       );
       setShowParticles(true);
     }
-  }, [task.stats?.currentStreak, streakBadgeStyle?.icon, badgeScale]);
+  }, [task.stats?.currentStreak, streakBadgeStyle?.icon]);
 
   useEffect(() => {
     if (isCompleting) {
@@ -156,7 +155,7 @@ const CardTask = React.memo(({ task, progress, isCompleting, onCompleted }: Card
       );
       
       // Fade out icon and show checkmark
-      iconOpacity.value = 0;
+      iconOpacity.value = withTiming(0, { duration: 200 });
       checkmarkOpacity.value = withTiming(1, { duration: 200 });
 
       // After delay, fade out checkmark and show icon
@@ -408,32 +407,20 @@ export const TaskCard = React.memo(({
   onLongPressStats,
   onLongPressTask,
 }: TaskCardProps) => {
-  const flipAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const flipAnim = useSharedValue(0);
+  const scaleAnim = useSharedValue(1);
   const progressAnim = useSharedValue(0);
   const [sides, setSides] = useState<[CardSide, CardSide]>(['task', 'calendar']);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
 
   const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.95,
-      useNativeDriver: true,
-      speed: 50,
-      bounciness: 4
-    }).start();
-
-    progressAnim.value = withTiming(.99999, { duration: 500 });
+    scaleAnim.value = withSpring(0.95, { damping: 8, stiffness: 100 });
+    progressAnim.value = withTiming(0.99999, { duration: 500 });
   };
 
   const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: 50,
-      bounciness: 4
-    }).start();
-
+    scaleAnim.value = withSpring(1, { damping: 8, stiffness: 100 });
     progressAnim.value = withTiming(0, { duration: 200 });
   };
 
@@ -445,7 +432,6 @@ export const TaskCard = React.memo(({
       onLongPressStats();
     } else if (visibleSide === 'task' && onLongPressTask) {
       setIsCompleting(true);
-      // handlePressOut();
     }
   };
 
@@ -473,37 +459,29 @@ export const TaskCard = React.memo(({
     setSides(nextSides);
     setIsFlipped(!isFlipped);
     
-    Animated.spring(flipAnim, {
-      toValue: isFlipped ? 0 : 1,
-      friction: 8,
-      tension: 10,
-      useNativeDriver: true,
-    }).start();
+    flipAnim.value = withTiming(isFlipped ? 0 : 1, {
+      duration: 800,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+    });
   };
 
-  const frontAnimatedStyle = {
+  const frontAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
       {
-        rotateY: flipAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: ['0deg', '180deg'],
-        }),
+        rotateY: `${flipAnim.value * 180}deg`,
       },
-      { scale: scaleAnim }
+      { scale: scaleAnim.value }
     ],
-  };
+  }));
 
-  const backAnimatedStyle = {
+  const backAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
       {
-        rotateY: flipAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: ['180deg', '360deg'],
-        }),
+        rotateY: `${180 + flipAnim.value * 180}deg`,
       },
-      { scale: scaleAnim }
+      { scale: scaleAnim.value }
     ],
-  };
+  }));
 
   const handleTaskCompleted = useCallback(() => {
     onLongPressTask?.();
@@ -534,17 +512,17 @@ export const TaskCard = React.memo(({
         delayLongPress={500}
         style={styles.touchable}
       >
-        <Animated.View style={[styles.cardContainer, frontAnimatedStyle]}>
+        <Reanimated.View style={[styles.cardContainer, frontAnimatedStyle]}>
           <View style={[styles.card]}>
             {renderContent(sides[0])}
           </View>
-        </Animated.View>
+        </Reanimated.View>
 
-        <Animated.View style={[styles.cardContainer, styles.cardBack, backAnimatedStyle]}>
+        <Reanimated.View style={[styles.cardContainer, styles.cardBack, backAnimatedStyle]}>
           <View style={[styles.card]}>
             {renderContent(sides[1])}
           </View>
-        </Animated.View>
+        </Reanimated.View>
       </Pressable>
     </View>
   );
