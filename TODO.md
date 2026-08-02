@@ -1,16 +1,16 @@
 # Todo
 
 ## MVP
-* [ ] "Streakoholic" vs "Streakaholic"
-* [ ] Implement frequency settings for streaks
-* [ ] Implement times per day
-* [ ] Edit task
-* [ ] Dark mode
-* [ ] Settings screen
-* [ ] Export/import data
-* [ ] Archive tasks
-  * [ ] Restore archived task
-* [ ] Initial empty state
+* [x] "Streakoholic" vs "Streakaholic" (kept Streakaholic)
+* [x] Implement frequency settings for streaks
+* [x] Implement times per day
+* [x] Edit task
+* [x] Dark mode
+* [x] Settings screen
+* [x] Export/import data
+* [x] Archive tasks
+  * [x] Restore archived task
+* [x] Initial empty state
 
 ## MVP+
 * [ ] Calendar year map

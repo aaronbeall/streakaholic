@@ -1,67 +1,66 @@
 # Streakaholic (aka Streakoholic)
 
-A playful habit/streak tracker for iOS/Android/web, inspired by the iOS "Streaks" app. React Native + Expo (Router), TypeScript, local-only persistence via AsyncStorage. Solo indie project, pre-MVP.
+A playful habit/streak tracker for iOS/Android/web, inspired by the iOS "Streaks" app. React Native + Expo (Router), TypeScript, local-only persistence via AsyncStorage. Solo indie project.
 
-Naming note: `package.json`/`app.json`/bundle id all say "Streakaholic"; TODO.md's first line asks whether it should be "Streakoholic" instead. Unresolved — check before touching branding/config.
+Naming: resolved as "Streakaholic" (kept as-is — user confirmed 2026-08-01, no config changes needed).
 
 ## Stack
 
 - Expo SDK 53, expo-router (file-based routing, typed routes enabled), React 19 / RN 0.79
 - State: React Context (`TaskContext`) + AsyncStorage, no external state lib (Zustand migration floated in TODO.md but not started)
-- Animation: mid-migration from RN `Animated` to `react-native-reanimated` (see Gaps)
+- Animation: `react-native-reanimated` throughout `TaskCard.tsx`/`ParticleSystem.tsx` (migrated off the legacy `Animated` API)
 - Charts: `react-native-chart-kit` (Dashboard + per-task Stats screens)
 - Icons: `@expo/vector-icons` MaterialCommunityIcons — `MaterialCommunityIconName` type is derived directly from the glyph map
+- Data export/import: `expo-file-system`, `expo-sharing`, `expo-document-picker`
+- Theming: `app/hooks/useThemeColors.ts` — `useColorScheme()`-backed semantic palette (`background`, `surface`, `surfaceSecondary`, `text`, `textSecondary`, `textTertiary`, `border`, `iconButtonBackground`, `overlay`, `isDark`). Every screen/component builds its `StyleSheet` via `createStyles(colors)` + `useMemo` instead of a static object. Task-specific/status/brand colors (task.color, streak red/orange, primary blue, destructive red, trophy gold) are intentionally left un-themed — they read fine on both schemes.
 - No test suite, no CI config present.
 
 ## Architecture
 
 Routing is file-based under `app/`. Each route file is a thin re-export of a screen in `app/screens/`:
 
-- `index` → `HomeScreen`: grid of `TaskCard`s (2–4 columns responsive), streak filter bubbles, FAB to add task
-- `dashboard` → `DashboardScreen`: aggregate stats + charts across all/selected tasks
-- `add-task` → `AddTaskScreen`: create task form (name, icon, color, frequency)
+- `index` → `HomeScreen`: grid of `TaskCard`s (2–4 columns responsive), streak filter bubbles, FAB to add task, empty state when no (non-archived) tasks or a filter matches nothing
+- `dashboard` → `DashboardScreen`: aggregate stats + charts across all/selected **non-archived** tasks
+- `add-task` → `AddTaskScreen`: create **or edit** task form (reads optional `taskId` search param; prefills + calls `updateTask` when editing, `addTask` otherwise)
+- `settings` → `SettingsScreen`: Data section (Archived Tasks, Export/Import Data), About section
+- `archived-tasks` → `ArchivedTasksScreen`: list of archived tasks with one-tap restore
 - `task-details`, `task-calendar`, `task-stats` (all modals) → per-task screens, share `TaskHeader`
 
-Shared state: `app/context/TaskContext.tsx` — single source of truth for `tasks`, loads/saves to AsyncStorage under key `"tasks"`, computes `TaskStats` (streak length/status/best/completion rate) by walking `completions` and looking for **consecutive calendar days**. It does not currently take a task's `frequency`/`daysOfWeek`/`daysPerWeek` into account (see Gaps — this is the single biggest correctness gap).
+Shared state: `app/context/TaskContext.tsx` — single source of truth for `tasks`, loads/saves to AsyncStorage under key `"tasks"`. Delegates streak/stat calculation to `app/utils/streaks.ts` (see below). Also exposes `archiveTask`/`restoreTask` (flip `task.archived`, same `updateTask` path), `importTasks` (bulk replace + recompute stats, used by Settings' Import), and `getCompletionCount(task, date)` (today's progress toward `timesPerDay`, backed by a `Map<taskId, Map<date, timesCompleted>>` cache).
+
+`app/utils/streaks.ts` — frequency-aware streak engine, extracted from `TaskContext`:
+- Filters completions to "qualifying" ones first (`timesCompleted >= task.timesPerDay`) — a partially-logged day doesn't count.
+- `daily` / `specific_days_of_week`: builds the due-day sequence and only breaks a streak on a missed **due** day; non-due days are skipped, not counted as gaps.
+- `days_per_week` / `days_per_month`: the streak unit is the period (week/month) — a period counts as "met" once enough distinct qualifying days land in it, including mid-period for the current one (so hitting the weekly quota early still keeps the streak alive without waiting for the week to end).
 
 Data model (`app/types/index.ts`):
-- `Task`: id, name, icon, color, `frequency` (`daily | specific_days_of_week | days_per_week | days_per_month`), `daysOfWeek`, `daysPerWeek`, `timesPerDay`, timestamps, optional `stats`/`completions`
-- `TaskCompletion`: id, taskId, `date` (yyyy-MM-dd, the day it counts for), `completedAt` (actual timestamp), `timesCompleted`
-- Note: `Task` has no `daysPerMonth` field even though `days_per_month` is a valid `FrequencyType` and `AddTaskScreen` collects it — see Gaps.
+- `Task`: id, name, icon, color, `frequency` (`daily | specific_days_of_week | days_per_week | days_per_month`), `daysOfWeek`, `daysPerWeek`, `daysPerMonth`, `timesPerDay`, timestamps, optional `archived`, `stats`, `completions`
+- `TaskCompletion`: id, taskId, `date` (yyyy-MM-dd, the day it counts for), `completedAt` (actual timestamp), `timesCompleted` (increments per press up to `timesPerDay`, rather than one record per press)
 
 `app/utils/data.ts` holds pure chart/date-range helpers (time-frame bucketing, day-of-week/hour-of-day histograms, aggregate stats) used by Dashboard and per-task Stats screens.
 
-`TaskCard.tsx` is the most complex component: a flip card with three faces (task/calendar/stats) cycled via long-press-context-dependent actions, plus its own completion animation (progress ring, checkmark swap, streak badge pop, confetti-style `ParticleSystem`). It's mid-refactor from `Animated` to `Reanimated` (uncommitted changes on `TaskCard.tsx` as of this writing — finish or revert before building on top of it).
+`TaskCard.tsx` is the most complex component: a flip card with three faces (task/calendar/stats) cycled via long-press-context-dependent actions, plus its own completion animation (progress ring, checkmark swap, streak badge pop, confetti-style `ParticleSystem`), and a secondary static progress ring + "`n`/`timesPerDay`" label for multi-rep tasks.
 
 ## Known gaps / bugs (found by reading, not yet fixed)
 
-Ordered roughly by impact:
+1. **`TaskCalendarScreen` and `TaskStatsScreen` throw synchronously if the task isn't found yet.** Both do `if (!task) throw new Error('Missing task')` on first render. `tasks` loads asynchronously from AsyncStorage in `TaskContext`, so a hard page reload / direct deep link on web (or a cold app launch landing straight on one of these routes) hits this before `loadTasks()` resolves, showing a crash screen instead of a loading state. Reproducible by navigating straight to `/task-calendar?taskId=...` via a fresh page load rather than in-app navigation. Fix: show a loading/`null` state while `tasks` is empty-but-still-loading, rather than throwing.
+2. **`calculateAggregateStats` averages completion rate incorrectly** (`utils/data.ts`): `stats.completionRate = (stats.completionRate + task.stats.completionRate) / 2` run in a `reduce` is a running average that overweights later tasks in the array, not a true mean. Low priority (dashboard cosmetic only).
+3. No delete confirmation on `TaskDetailsScreen`'s "Delete Task" (hard delete, no `Alert.alert` guard) — archiving is the safer path now that it exists, but delete itself is still a single tap with no undo.
 
-1. **Frequency settings don't affect streak logic.** `calculateTaskStats` in `TaskContext.tsx` only checks for consecutive-day completions. A task scheduled "Mon/Wed/Fri" will show `expired` on Tuesday even though Tuesday was never expected. This is TODO.md's "Implement frequency settings for streaks" — currently the frequency picker in `AddTaskScreen` is cosmetic only.
-2. **`daysPerMonth` isn't part of the `Task` type** (`app/types/index.ts`) but `AddTaskScreen.tsx:64` saves it anyway. It round-trips through AsyncStorage/JSON silently (TS doesn't flag it because the object isn't a fresh literal at the call site) but nothing reads it back. Needs adding to the type once frequency logic is implemented.
-3. **Editing a task doesn't actually load it.** `TaskDetailsScreen.handleEdit` pushes to `/add-task` with a `taskId` param, but `AddTaskScreen` never reads `useLocalSearchParams` — it always renders a blank "create" form. TODO.md's "Edit task" is unimplemented, and the current wiring looks functional but silently isn't.
-4. **`TaskCard`'s `onPress`/`onComplete` props are dead code.** `HomeScreen` passes `onPress` (→ navigate to task-details) and `onComplete` (→ `completeTask`) into `TaskCard`, but internally the `Pressable`'s `onPress` is hardwired to `flipCard`, and `onComplete` is never invoked at all. The real completion path is long-press → `onLongPressTask` → `handleTaskLongPress` in `HomeScreen`, which itself decides between "already completed → open details" and "not completed → complete". Worth deciding whether the unused props are vestigial (delete them) or whether a plain tap was meant to do something (restore behavior).
-5. **Settings button is a dead end.** `HomeScreen`'s gear icon (`HomeHeader`) navigates to `/` (itself). No Settings screen exists yet (tracked in TODO.md).
-6. **`times per day` is collected but not enforced.** `timesPerDay` is stored per task and shown read-only in `TaskDetailsScreen`, but `completeTask` always records exactly one completion; there's no UI or logic for multi-completion-per-day tasks or partial-day progress.
-7. **`calculateAggregateStats` averages completion rate incorrectly** (`utils/data.ts`): `stats.completionRate = (stats.completionRate + task.stats.completionRate) / 2` run in a `reduce` is a running average that overweights later tasks in the array, not a true mean. Low priority (dashboard cosmetic only).
-8. No empty state for zero tasks, no archive/restore, no dark mode, no settings screen, no data export/import — all explicitly still open in TODO.md and confirmed absent in the code.
+## MVP status
 
-## MVP plan
+All items from the original MVP checklist are implemented as of 2026-08-01:
 
-Based on TODO.md's "MVP" checklist plus the gaps above. Suggested order — earlier items unblock or de-risk later ones:
+- ✅ Naming resolved (kept "Streakaholic")
+- ✅ Reanimated migration (committed, user-verified on-device)
+- ✅ Frequency-aware streak logic (`utils/streaks.ts`) + `daysPerMonth` field
+- ✅ Times-per-day tracking (increment-based completions, progress ring, verified end-to-end)
+- ✅ Real edit-task flow (verified: prefills, updates in place, no duplicates)
+- ✅ `TaskCard`'s dead `onPress`/`onComplete` props removed
+- ✅ Archive + restore (verified end-to-end)
+- ✅ Initial empty state (two variants: no tasks / filter matches nothing)
+- ✅ Settings screen, gear icon fixed
+- ✅ Dark mode (verified visually across all screens)
+- ✅ Export/import data (export verified on web; import's file-picker UI couldn't be driven via browser automation in this session — logic reuses the same save/stats pipeline as everything else, but do one manual smoke test: Settings → Import Data → pick an exported file → confirm replace)
 
-1. **Resolve naming** ("Streakoholic" vs "Streakaholic") — trivial, but touches `app.json`, `package.json`, bundle id, README; do it once, early, before more config/branding work.
-2. **Finish the Reanimated migration on `TaskCard.tsx`** (currently uncommitted/in-progress) — land it before building more features on top of that file.
-3. **Implement frequency-aware streak logic** (gap #1) — this is the core value prop ("streak tracking") and currently silently wrong for anything but daily tasks. Needs `calculateTaskStats` to know each day's "was this task due" rule (daily / specific days of week / N-per-week / N-per-month) and redefine "streak break" accordingly. Add `daysPerMonth` to the `Task` type (gap #2) as part of this.
-4. **Implement times-per-day** — extend `completeTask`/`isTaskCompleted` to track partial progress toward `timesPerDay` and reflect it in `TaskCard`'s progress ring instead of the current binary complete/incomplete.
-5. **Real edit-task flow** (gap #3) — have `AddTaskScreen` read an optional `taskId`, prefill state from the existing task, and call `updateTask` instead of `addTask` on save. Rename/generalize screen if needed.
-6. **Decide and fix `TaskCard`'s dead props** (gap #4) — either restore tap-to-view-details or delete `onPress`/`onComplete` from the props/type.
-7. **Archive tasks + restore** — soft-delete instead of `deleteTask`'s hard delete; add an archived-tasks view.
-8. **Initial empty state** — HomeScreen when `tasks.length === 0`.
-9. **Settings screen** — minimum viable: naming/theme placeholder, wire up the gear icon (gap #5) to it instead of `/`.
-10. **Dark mode** — `userInterfaceStyle: automatic` is already set in `app.json`; needs actual themed styles (currently all screens hardcode light colors in `StyleSheet.create`).
-11. **Export/import data** — straightforward given everything lives under one AsyncStorage key (`"tasks"`); JSON dump/restore via share sheet or file picker.
-
-Items 3 and 4 are the largest/riskiest (touch core data model + stats engine + card UI simultaneously) — worth their own focused sessions rather than bundling with smaller items.
-
-Not in MVP scope per TODO.md: calendar year map, sharing, reminders (MVP+); monetization, widgets, sync, onboarding (MMP); timeline/heatmap views, points/ranks, social features (Future).
+Remaining backlog is MVP+/MMP/Future tier per `TODO.md` (calendar year map, sharing, reminders, monetization, widgets, sync, onboarding, timeline/heatmap views, points/ranks, social features) plus the gaps listed above.
