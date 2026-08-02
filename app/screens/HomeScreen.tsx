@@ -152,8 +152,6 @@ export const HomeScreen: React.FC = () => {
         renderItem={({ item }) => (
           <TaskCard
             task={item}
-            onPress={() => router.push({ pathname: '/task-details', params: { taskId: item.id } })}
-            onComplete={() => completeTask(item.id)}
             size={cardSize}
             onLongPressCalendar={() => router.push({ 
               pathname: '/task-calendar', 

@@ -26,8 +26,6 @@ const AnimatedPath = Reanimated.createAnimatedComponent(Path);
 
 interface TaskCardProps {
   task: Task;
-  onPress: () => void;
-  onComplete: () => void;
   size: number;
   onLongPressCalendar?: () => void;
   onLongPressStats?: () => void;
@@ -432,10 +430,8 @@ const CardStats = React.memo(({ task }: { task: Task }) => {
 
 CardStats.displayName = 'CardStats';
 
-export const TaskCard = React.memo(({ 
-  task, 
-  onPress, 
-  onComplete, 
+export const TaskCard = React.memo(({
+  task,
   size,
   onLongPressCalendar,
   onLongPressStats,
