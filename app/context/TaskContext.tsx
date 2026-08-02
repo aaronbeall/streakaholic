@@ -12,6 +12,7 @@ interface TaskContextType {
   completeTask: (taskId: string, date?: Date) => Promise<void>;
   uncompleteTask: (taskId: string, date: Date) => Promise<void>;
   isTaskCompleted: (task: Task, date?: Date) => boolean;
+  getCompletionCount: (task: Task, date?: Date) => number;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -26,15 +27,15 @@ export const useTaskContext = () => {
 
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [completionCache, setCompletionCache] = useState<Map<string, Set<string>>>(new Map());
+  const [completionCache, setCompletionCache] = useState<Map<string, Map<string, number>>>(new Map());
 
   // Update completion cache when tasks change
   useEffect(() => {
-    const newCache = new Map<string, Set<string>>();
+    const newCache = new Map<string, Map<string, number>>();
     tasks.forEach(task => {
       if (task.completions) {
-        const dates = new Set(task.completions.map(c => c.date));
-        newCache.set(task.id, dates);
+        const counts = new Map(task.completions.map(c => [c.date, c.timesCompleted]));
+        newCache.set(task.id, counts);
       }
     });
     setCompletionCache(newCache);
@@ -121,15 +122,25 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!task) return;
 
     const dateString = format(date, 'yyyy-MM-dd');
-    const completion: TaskCompletion = {
-      id: Date.now().toString(),
-      taskId,
-      date: dateString,
-      completedAt: new Date().toISOString(),
-      timesCompleted: 1,
-    };
+    const existing = (task.completions || []).find(c => c.date === dateString);
 
-    const newCompletions = [...(task.completions || []), completion];
+    const newCompletions: TaskCompletion[] = existing
+      ? (task.completions || []).map(c =>
+          c.date === dateString
+            ? { ...c, timesCompleted: c.timesCompleted + 1, completedAt: new Date().toISOString() }
+            : c
+        )
+      : [
+          ...(task.completions || []),
+          {
+            id: Date.now().toString(),
+            taskId,
+            date: dateString,
+            completedAt: new Date().toISOString(),
+            timesCompleted: 1,
+          },
+        ];
+
     const updatedTask = {
       ...task,
       completions: newCompletions,
@@ -152,10 +163,13 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await updateTask(updatedTask);
   };
 
-  const isCompleted = (task: Task, date: Date = new Date()) => {
+  const getCount = (task: Task, date: Date = new Date()) => {
     const dateString = format(date, 'yyyy-MM-dd');
-    const taskDates = completionCache.get(task.id);
-    return taskDates?.has(dateString) ?? false;
+    return completionCache.get(task.id)?.get(dateString) ?? 0;
+  };
+
+  const isCompleted = (task: Task, date: Date = new Date()) => {
+    return getCount(task, date) >= (task.timesPerDay || 1);
   };
 
   return (
@@ -168,6 +182,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         completeTask,
         uncompleteTask,
         isTaskCompleted: isCompleted,
+        getCompletionCount: getCount,
       }}
     >
       {children}

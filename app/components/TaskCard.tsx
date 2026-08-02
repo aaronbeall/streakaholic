@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { addDays, format, getDay, getDaysInMonth, parseISO, startOfMonth, startOfWeek } from 'date-fns';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -44,7 +44,7 @@ interface CardTaskProps {
 }
 
 const CardTask = React.memo(({ task, progress, isCompleting, onCompleted }: CardTaskProps) => {
-  const { isTaskCompleted } = useTaskContext();
+  const { isTaskCompleted, getCompletionCount } = useTaskContext();
   const checkmarkOpacity = useSharedValue(0);
   const iconOpacity = useSharedValue(1);
   const scale = useSharedValue(1);
@@ -117,6 +117,28 @@ const CardTask = React.memo(({ task, progress, isCompleting, onCompleted }: Card
     };
   });
 
+  const timesPerDayCount = task.timesPerDay || 1;
+  const completionCount = getCompletionCount(task);
+  const dayProgressFraction = Math.min(completionCount / timesPerDayCount, 1);
+
+  // Static (non-animated) pie slice showing how many of today's timesPerDay reps are
+  // logged so far -- separate from `animatedProps` above, which is the transient
+  // press-and-hold confirmation ring.
+  const dayProgressPath = useMemo(() => {
+    if (timesPerDayCount <= 1 || dayProgressFraction <= 0) return null;
+    const angle = dayProgressFraction * 360;
+    const radians = (angle - 90) * (Math.PI / 180);
+    const x = CIRCLE_CENTER + INNER_CIRCLE_RADIUS * Math.cos(radians);
+    const y = CIRCLE_CENTER + INNER_CIRCLE_RADIUS * Math.sin(radians);
+    const largeArcFlag = angle > 180 ? 1 : 0;
+    return [
+      `M ${CIRCLE_CENTER} ${CIRCLE_CENTER}`,
+      `L ${CIRCLE_CENTER} ${CIRCLE_CENTER - INNER_CIRCLE_RADIUS}`,
+      `A ${INNER_CIRCLE_RADIUS} ${INNER_CIRCLE_RADIUS} 0 ${largeArcFlag} 1 ${x} ${y}`,
+      'Z'
+    ].join(' ');
+  }, [dayProgressFraction, timesPerDayCount, CIRCLE_CENTER, INNER_CIRCLE_RADIUS]);
+
   const checkmarkStyle = useAnimatedStyle(() => ({
     opacity: checkmarkOpacity.value,
     transform: [{ scale: checkmarkOpacity.value }]
@@ -180,6 +202,10 @@ const CardTask = React.memo(({ task, progress, isCompleting, onCompleted }: Card
             strokeWidth={CIRCLE_STROKE_WIDTH}
             fill={completed ? task.color : 'none'}
           />
+          {/* Today's times-per-day progress, when this task requires more than one rep a day */}
+          {!completed && dayProgressPath && (
+            <Path fill={task.color} opacity={0.35} d={dayProgressPath} />
+          )}
           {/* Inner circle (progress) */}
           {!completed && (
             <AnimatedPath
@@ -213,6 +239,11 @@ const CardTask = React.memo(({ task, progress, isCompleting, onCompleted }: Card
           />
         </Reanimated.View>
       </Reanimated.View>
+      {timesPerDayCount > 1 && (
+        <Text style={[styles.progressCountText, { color: task.color }]}>
+          {completionCount}/{timesPerDayCount}
+        </Text>
+      )}
       <Text style={styles.taskName} numberOfLines={1}>{task.name}</Text>
       {streakBadgeStyle && (
         <Reanimated.View style={[styles.streakBadge, badgeStyle]}>
@@ -242,16 +273,17 @@ const CardTask = React.memo(({ task, progress, isCompleting, onCompleted }: Card
 CardTask.displayName = 'CardTask';
 
 const CardCalendar = React.memo(({ task }: { task: Task }) => {
+  const { isTaskCompleted } = useTaskContext();
   const today = format(new Date(), 'yyyy-MM-dd');
   const currentMonth = new Date();
   const daysInMonth = getDaysInMonth(currentMonth);
   const firstDayOfMonth = startOfMonth(currentMonth);
   const startingDayOfWeek = getDay(firstDayOfMonth);
-  
+
   const days = Array.from({ length: daysInMonth }, (_, i) => {
     const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i + 1);
     const dateString = format(date, 'yyyy-MM-dd');
-    const isCompleted = task.completions?.some(completion => completion.date === dateString);
+    const isCompleted = isTaskCompleted(task, date);
     const isToday = dateString === today;
     const isPast = dateString < today;
     const isMissed = isPast && !isCompleted;
@@ -306,12 +338,14 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
 CardCalendar.displayName = 'CardCalendar';
 
 const CardStats = React.memo(({ task }: { task: Task }) => {
+  const requiredTimes = task.timesPerDay || 1;
+
   const getWeeklyStats = () => {
     const today = new Date();
     const weekStart = startOfWeek(today);
     const completions = task.completions?.filter(completion => {
       const date = parseISO(completion.date);
-      return date >= weekStart && date <= today;
+      return date >= weekStart && date <= today && completion.timesCompleted >= requiredTimes;
     }) || [];
     return {
       completed: completions.length,
@@ -324,7 +358,7 @@ const CardStats = React.memo(({ task }: { task: Task }) => {
     const thirtyDaysAgo = addDays(today, -30);
     const completions = task.completions?.filter(completion => {
       const date = parseISO(completion.date);
-      return date >= thirtyDaysAgo && date <= today;
+      return date >= thirtyDaysAgo && date <= today && completion.timesCompleted >= requiredTimes;
     }) || [];
     return {
       completed: completions.length,
@@ -580,6 +614,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#333',
     textAlign: 'center',
+  },
+  progressCountText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 2,
   },
   streakBadge: {
     position: 'absolute',

@@ -6,6 +6,7 @@ export interface StreakScheduleInfo {
   daysOfWeek: number[];
   daysPerWeek: number;
   daysPerMonth: number;
+  timesPerDay: number;
 }
 
 const emptyStats: TaskStats = {
@@ -193,16 +194,21 @@ const calculateQuotaStats = (task: StreakScheduleInfo, completions: TaskCompleti
 };
 
 export const calculateTaskStats = (task: StreakScheduleInfo, completions: TaskCompletion[]): TaskStats => {
-  if (completions.length === 0) return emptyStats;
+  // A day only "counts" once it's hit the task's timesPerDay quota -- a completion record
+  // that's only partially filled in (e.g. 2 of 8 reps) shouldn't count as a done day yet.
+  const requiredTimes = Math.max(1, task.timesPerDay || 1);
+  const qualifyingCompletions = completions.filter(c => c.timesCompleted >= requiredTimes);
+
+  if (qualifyingCompletions.length === 0) return emptyStats;
 
   switch (task.frequency) {
     case 'days_per_week':
-      return calculateQuotaStats(task, completions, 'week', task.daysPerWeek);
+      return calculateQuotaStats(task, qualifyingCompletions, 'week', task.daysPerWeek);
     case 'days_per_month':
-      return calculateQuotaStats(task, completions, 'month', task.daysPerMonth);
+      return calculateQuotaStats(task, qualifyingCompletions, 'month', task.daysPerMonth);
     case 'daily':
     case 'specific_days_of_week':
     default:
-      return calculateDueDayStats(task, completions);
+      return calculateDueDayStats(task, qualifyingCompletions);
   }
 };
