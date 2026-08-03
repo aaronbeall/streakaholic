@@ -17,6 +17,8 @@ import { getStreakStats } from '../utils/data';
 
 const GRID_SPACING = 16;
 const SIDE_PADDING = 16;
+const FAB_SIZE = 56;
+const FAB_OFFSET = 24;
 
 type FilterType = 'up_to_date' | 'expiring' | null;
 
@@ -239,7 +241,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontWeight: '600',
   },
   listContent: {
-    padding: SIDE_PADDING,
+    paddingHorizontal: SIDE_PADDING,
+    paddingTop: SIDE_PADDING,
+    paddingBottom: FAB_OFFSET + FAB_SIZE + GRID_SPACING,
     gap: GRID_SPACING,
   },
   emptyListContent: {
@@ -269,11 +273,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   addButton: {
     position: 'absolute',
-    right: 24,
-    bottom: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    right: FAB_OFFSET,
+    bottom: FAB_OFFSET,
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: FAB_SIZE / 2,
     backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
