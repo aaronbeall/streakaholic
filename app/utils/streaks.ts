@@ -18,36 +18,42 @@ const emptyStats: TaskStats = {
   streakStatus: 'never_started',
 };
 
-const longestRun = (flags: boolean[]): number => {
+// A streak is always measured in days. `weights` lets a single flag stand in for more than
+// one day -- e.g. a week/month period whose quota was met contributes however many distinct
+// days were actually logged in it, not just "1 period". For daily/specific-days-of-week,
+// every flag is worth exactly 1 day, so these behave as plain day counts.
+const longestRun = (flags: boolean[], weights: number[]): number => {
   let best = 0;
   let run = 0;
-  for (const flag of flags) {
-    run = flag ? run + 1 : 0;
+  for (let i = 0; i < flags.length; i++) {
+    run = flags[i] ? run + weights[i] : 0;
     best = Math.max(best, run);
   }
   return best;
 };
 
-const trailingRun = (flags: boolean[]): number => {
+const trailingRun = (flags: boolean[], weights: number[]): number => {
   let run = 0;
   for (let i = flags.length - 1; i >= 0; i--) {
     if (!flags[i]) break;
-    run++;
+    run += weights[i];
   }
   return run;
 };
 
-// Length of the most recently completed run, skipping over any trailing misses first.
-const mostRecentCompletedRun = (flags: boolean[]): number => {
+// Day-sum of the most recently completed run, skipping over any trailing misses first.
+const mostRecentCompletedRun = (flags: boolean[], weights: number[]): number => {
   let i = flags.length - 1;
   while (i >= 0 && !flags[i]) i--;
   let run = 0;
   while (i >= 0 && flags[i]) {
-    run++;
+    run += weights[i];
     i--;
   }
   return run;
 };
+
+const ones = (length: number): number[] => Array(length).fill(1);
 
 const isDueOnDate = (task: StreakScheduleInfo, date: Date): boolean => {
   if (task.frequency === 'specific_days_of_week') {
@@ -86,10 +92,11 @@ const calculateDueDayStats = (task: StreakScheduleInfo, completions: TaskComplet
   // the "settled" history used to detect breaks.
   const settledDueDates = todayIsDue && !todayCompleted ? dueDates.slice(0, -1) : dueDates;
   const settledFlags = settledDueDates.map(d => completedDates.has(d));
+  const weights = ones(settledFlags.length);
 
-  const bestStreak = longestRun(settledFlags);
-  const trailing = trailingRun(settledFlags);
-  const lastStreak = trailing > 0 ? trailing : mostRecentCompletedRun(settledFlags);
+  const bestStreak = longestRun(settledFlags, weights);
+  const trailing = trailingRun(settledFlags, weights);
+  const lastStreak = trailing > 0 ? trailing : mostRecentCompletedRun(settledFlags, weights);
 
   let streakStatus: StreakStatus;
   let currentStreak: number;
@@ -133,9 +140,12 @@ const getPeriodBounds = (date: Date, unit: QuotaUnit) =>
 const nextPeriodStart = (start: Date, unit: QuotaUnit) =>
   unit === 'month' ? startOfMonth(addMonths(start, 1)) : addDays(start, 7);
 
-// For 'days_per_week' / 'days_per_month': the streak unit is the period (week/month), not
-// the day. A period counts as "met" once enough distinct days are completed within it --
-// reaching the quota early in an in-progress period already counts toward the streak.
+// For 'days_per_week' / 'days_per_month': frequency only decides whether a period counts as
+// "on schedule" (its quota was met) -- the streak itself is still a day count, not a period
+// count. A met period contributes however many distinct qualifying days actually landed in
+// it. An unmet *elapsed* period breaks the chain; the in-progress current period never
+// "fails" until it's actually over, so its days-so-far always extend an intact chain (and
+// reaching quota mid-period already counts, without waiting for the period to end).
 const calculateQuotaStats = (task: StreakScheduleInfo, completions: TaskCompletion[], unit: QuotaUnit, quota: number): TaskStats => {
   const safeQuota = Math.max(1, quota || 1);
   const distinctDates = Array.from(new Set(completions.map(c => c.date))).sort();
@@ -156,28 +166,36 @@ const calculateQuotaStats = (task: StreakScheduleInfo, completions: TaskCompleti
   }
 
   const flags = periods.map(p => p.met);
-  const bestStreak = longestRun(flags);
+  const dayCounts = periods.map(p => p.count);
+  const bestStreak = longestRun(flags, dayCounts);
+
   const currentPeriodMet = flags[flags.length - 1];
+  const currentPeriodDays = dayCounts[dayCounts.length - 1];
+  const priorFlags = flags.slice(0, -1);
+  const priorDayCounts = dayCounts.slice(0, -1);
+  const priorTrailingDays = trailingRun(priorFlags, priorDayCounts);
+  const priorChainIntact = priorFlags.length === 0 || priorTrailingDays > 0;
 
   let streakStatus: StreakStatus;
   let currentStreak: number;
   let lastStreak: number;
 
   if (currentPeriodMet) {
-    currentStreak = trailingRun(flags);
+    currentStreak = priorChainIntact ? priorTrailingDays + currentPeriodDays : currentPeriodDays;
     lastStreak = currentStreak;
     streakStatus = 'up_to_date';
+  } else if (priorChainIntact) {
+    // Not yet met this period, but the prior chain hasn't failed -- still time to add to it.
+    currentStreak = priorTrailingDays + currentPeriodDays;
+    lastStreak = currentStreak;
+    streakStatus = 'expiring';
   } else {
-    const priorTrailing = trailingRun(flags.slice(0, -1));
-    if (priorTrailing > 0) {
-      currentStreak = priorTrailing;
-      lastStreak = priorTrailing;
-      streakStatus = 'expiring';
-    } else {
-      currentStreak = 0;
-      lastStreak = mostRecentCompletedRun(flags.slice(0, -1));
-      streakStatus = lastStreak > 0 ? 'expired' : 'never_started';
-    }
+    // The most recent elapsed period missed its quota -- chain broken. Any days already
+    // logged this period are a fresh mini-streak forming, not a continuation.
+    currentStreak = currentPeriodDays;
+    const priorRun = mostRecentCompletedRun(priorFlags, priorDayCounts);
+    lastStreak = currentStreak > 0 ? currentStreak : priorRun;
+    streakStatus = currentStreak > 0 ? 'expiring' : (priorRun > 0 ? 'expired' : 'never_started');
   }
 
   const totalDays = differenceInDays(today, firstDate) + 1;
