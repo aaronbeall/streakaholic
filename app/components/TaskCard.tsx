@@ -46,7 +46,7 @@ interface CardTaskProps {
 
 const CardTask = React.memo(({ task, size, progress, isCompleting, onCompleted }: CardTaskProps) => {
   const { isTaskCompleted, getCompletionCount } = useTaskContext();
-  const { showTaskName, showTaskCounter } = useSettings();
+  const { showTaskName, showTaskCounter, showCardBackground } = useSettings();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const checkmarkOpacity = useSharedValue(0);
@@ -57,9 +57,13 @@ const CardTask = React.memo(({ task, size, progress, isCompleting, onCompleted }
 
   // Scale the icon with the actual card size instead of a fixed 128px -- on a small grid
   // (3+ columns, narrow phones) a fixed-size icon left no room for the name/counter text
-  // below it, silently squeezing them to zero height.
-  const iconSize = Math.max(48, Math.min(size * 0.55, 128));
+  // below it, silently squeezing them to zero height. Without a card background there's no
+  // visual boundary to respect, so let the graphic claim even more of the tile.
+  const iconSize = showCardBackground
+    ? Math.max(48, Math.min(size * 0.68, 148))
+    : Math.max(48, Math.min(size * 0.8, 176));
   const iconFontSize = iconSize / 2;
+  const iconMarginBottom = Math.max(2, Math.min(size * 0.03, 8));
 
   const getStreakBadgeStyle = () => {
     const currentStreak = task.stats?.currentStreak || 0;
@@ -201,7 +205,7 @@ const CardTask = React.memo(({ task, size, progress, isCompleting, onCompleted }
 
   return (
     <View style={styles.contentContainer}>
-      <Reanimated.View style={[styles.iconContainer, { width: iconSize, height: iconSize, borderRadius: iconSize / 2, backgroundColor: 'transparent' }, containerStyle]}>
+      <Reanimated.View style={[styles.iconContainer, { width: iconSize, height: iconSize, borderRadius: iconSize / 2, marginBottom: iconMarginBottom, backgroundColor: 'transparent' }, containerStyle]}>
         <Svg width={iconSize} height={iconSize} viewBox="0 0 128 128">
           {/* Outer circle (border) */}
           <Circle
@@ -249,13 +253,17 @@ const CardTask = React.memo(({ task, size, progress, isCompleting, onCompleted }
           />
         </Reanimated.View>
       </Reanimated.View>
-      {timesPerDayCount > 1 && showTaskCounter && (
-        <Text style={[styles.progressCountText, { color: task.color }]}>
-          {completionCount}/{timesPerDayCount}
-        </Text>
-      )}
-      {showTaskName && (
-        <Text style={styles.taskName} numberOfLines={1}>{task.name}</Text>
+      {(showTaskName || (timesPerDayCount > 1 && showTaskCounter)) && (
+        <View style={styles.titleRow}>
+          {showTaskName && (
+            <Text style={styles.taskName} numberOfLines={1}>{task.name}</Text>
+          )}
+          {timesPerDayCount > 1 && showTaskCounter && (
+            <Text style={[styles.progressCountText, { color: task.color }]}>
+              {completionCount}/{timesPerDayCount}
+            </Text>
+          )}
+        </View>
       )}
       {streakBadgeStyle && (
         <Reanimated.View style={[styles.streakBadge, badgeStyle]}>
@@ -310,6 +318,13 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
     };
   });
 
+  // Pad the tail to a full multiple of 7 too, matching the leading padding -- otherwise
+  // an incomplete final week renders with fewer than 7 cells, and since each cell is
+  // flex:1, the FlatList stretches those few cells across the whole row width instead of
+  // leaving them in their correct weekday columns.
+  const totalCells = Math.ceil((startingDayOfWeek + days.length) / 7) * 7;
+  const trailingBlanks = totalCells - startingDayOfWeek - days.length;
+
   return (
     <View style={styles.calendarContainer}>
       <View style={styles.calendarGrid}>
@@ -321,7 +336,8 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
         <FlatList
           data={[
             ...Array(startingDayOfWeek).fill(null),
-            ...days
+            ...days,
+            ...Array(trailingBlanks).fill(null)
           ]}
           renderItem={({ item: day, index }) => (
             <View style={styles.calendarDay}>
@@ -599,7 +615,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     height: '100%',
     backgroundColor: colors.surface,
     borderRadius: 16,
-    padding: 16,
+    padding: 8,
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: {
@@ -616,6 +632,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: 'transparent',
     elevation: 0,
     shadowOpacity: 0,
+    padding: 2,
   },
   contentContainer: {
     flex: 1,
@@ -623,24 +640,28 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
   },
   iconContainer: {
-    width: 128,
-    height: 128,
-    borderRadius: 64,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
     position: 'relative',
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+    gap: 6,
+    maxWidth: '100%',
+  },
   taskName: {
+    flexShrink: 1,
     fontSize: 14,
     fontWeight: '500',
     color: colors.text,
     textAlign: 'center',
   },
   progressCountText: {
+    flexShrink: 0,
     fontSize: 12,
     fontWeight: '600',
-    marginBottom: 2,
   },
   streakBadge: {
     position: 'absolute',

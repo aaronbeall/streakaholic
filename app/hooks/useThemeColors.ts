@@ -29,7 +29,7 @@ const light: ThemeColors = {
 
 const dark: ThemeColors = {
   isDark: true,
-  background: '#000000',
+  background: '#121214',
   surface: '#1c1c1e',
   surfaceSecondary: '#2c2c2e',
   text: '#f2f2f2',

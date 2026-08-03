@@ -17,6 +17,12 @@ const isImportableTask = (value: unknown): value is Task =>
     && typeof (value as Task).id === 'string'
     && typeof (value as Task).name === 'string';
 
+// react-native-web's Switch splits the thumb color into two props: `thumbColor` (off state)
+// and `activeThumbColor` (on state, defaulting to Material teal if unset). Native RN's own
+// Switch type doesn't know about `activeThumbColor` since it's a web-only extension, so it's
+// typed here rather than reached for with `any`.
+const WebSwitch = Switch as React.ComponentType<React.ComponentProps<typeof Switch> & { activeThumbColor?: string }>;
+
 const THEME_MODE_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: 'system', label: 'System' },
   { value: 'light', label: 'Light' },
@@ -146,30 +152,36 @@ export const SettingsScreen: React.FC = () => {
           <View style={styles.row}>
             <MaterialCommunityIcons name="card-outline" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>Show Card Background</Text>
-            <Switch
+            <WebSwitch
               value={showCardBackground}
               onValueChange={setShowCardBackground}
               trackColor={{ false: colors.border, true: '#007AFF' }}
+              thumbColor="#fff"
+              activeThumbColor="#fff"
             />
           </View>
           <View style={styles.divider} />
           <View style={styles.row}>
             <MaterialCommunityIcons name="format-text" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>Show Task Name</Text>
-            <Switch
+            <WebSwitch
               value={showTaskName}
               onValueChange={setShowTaskName}
               trackColor={{ false: colors.border, true: '#007AFF' }}
+              thumbColor="#fff"
+              activeThumbColor="#fff"
             />
           </View>
           <View style={styles.divider} />
           <View style={styles.row}>
             <MaterialCommunityIcons name="counter" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>Show Completion Counter</Text>
-            <Switch
+            <WebSwitch
               value={showTaskCounter}
               onValueChange={setShowTaskCounter}
               trackColor={{ false: colors.border, true: '#007AFF' }}
+              thumbColor="#fff"
+              activeThumbColor="#fff"
             />
           </View>
         </View>
