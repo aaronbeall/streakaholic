@@ -135,23 +135,32 @@ const CardTask = React.memo(({ task, size, progress, isCompleting, onCompleted }
   const completionCount = getCompletionCount(task);
   const dayProgressFraction = Math.min(completionCount / timesPerDayCount, 1);
 
-  // Static (non-animated) pie slice showing how many of today's timesPerDay reps are
-  // logged so far -- separate from `animatedProps` above, which is the transient
-  // press-and-hold confirmation ring.
-  const dayProgressPath = useMemo(() => {
-    if (timesPerDayCount <= 1 || dayProgressFraction <= 0) return null;
-    const angle = dayProgressFraction * 360;
+  // Animated pie slice showing how many of today's timesPerDay reps are logged so far --
+  // eases toward the new fraction whenever a rep is logged, echoing the same sweep-in
+  // motion as `animatedProps` above (the transient press-and-hold confirmation ring).
+  const dayProgress = useSharedValue(dayProgressFraction);
+
+  useEffect(() => {
+    dayProgress.value = withTiming(dayProgressFraction, { duration: 500 });
+  }, [dayProgressFraction]);
+
+  const dayProgressAnimatedProps = useAnimatedProps(() => {
+    const angle = dayProgress.value * 360;
+    if (angle <= 0) {
+      return { d: '' };
+    }
     const radians = (angle - 90) * (Math.PI / 180);
     const x = CIRCLE_CENTER + INNER_CIRCLE_RADIUS * Math.cos(radians);
     const y = CIRCLE_CENTER + INNER_CIRCLE_RADIUS * Math.sin(radians);
     const largeArcFlag = angle > 180 ? 1 : 0;
-    return [
+    const path = [
       `M ${CIRCLE_CENTER} ${CIRCLE_CENTER}`,
       `L ${CIRCLE_CENTER} ${CIRCLE_CENTER - INNER_CIRCLE_RADIUS}`,
       `A ${INNER_CIRCLE_RADIUS} ${INNER_CIRCLE_RADIUS} 0 ${largeArcFlag} 1 ${x} ${y}`,
       'Z'
     ].join(' ');
-  }, [dayProgressFraction, timesPerDayCount, CIRCLE_CENTER, INNER_CIRCLE_RADIUS]);
+    return { d: path };
+  });
 
   const checkmarkStyle = useAnimatedStyle(() => ({
     opacity: checkmarkOpacity.value,
@@ -217,8 +226,8 @@ const CardTask = React.memo(({ task, size, progress, isCompleting, onCompleted }
             fill={completed ? task.color : 'none'}
           />
           {/* Today's times-per-day progress, when this task requires more than one rep a day */}
-          {!completed && dayProgressPath && (
-            <Path fill={task.color} opacity={0.35} d={dayProgressPath} />
+          {!completed && timesPerDayCount > 1 && (
+            <AnimatedPath fill={task.color} opacity={0.35} animatedProps={dayProgressAnimatedProps} />
           )}
           {/* Inner circle (progress) */}
           {!completed && (
