@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import Reanimated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { TaskCard } from '../components/TaskCard';
 import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
@@ -22,19 +23,16 @@ const FAB_OFFSET = 24;
 
 type FilterType = 'up_to_date' | 'expiring' | null;
 
-const HomeHeader = React.memo(({ onFilterChange }: { onFilterChange: (filter: FilterType) => void }) => {
+const HomeHeader = React.memo(({ activeFilter, onFilterChange }: { activeFilter: FilterType; onFilterChange: (filter: FilterType) => void }) => {
   const router = useRouter();
   const { tasks } = useTaskContext();
-  const [activeFilter, setActiveFilter] = useState<FilterType>(null);
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const streakStats = useMemo(() => getStreakStats(tasks.filter(task => !task.archived)), [tasks]);
 
   const handleFilterPress = (filter: FilterType) => {
-    const newFilter = activeFilter === filter ? null : filter;
-    setActiveFilter(newFilter);
-    onFilterChange(newFilter);
+    onFilterChange(activeFilter === filter ? null : filter);
   };
 
   return (
@@ -147,7 +145,7 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <HomeHeader onFilterChange={setFilter} />
+      <HomeHeader activeFilter={filter} onFilterChange={setFilter} />
       <FlatList
         key={columnCount}
         data={filteredTasks}
@@ -177,19 +175,39 @@ export const HomeScreen: React.FC = () => {
         contentContainerStyle={[styles.listContent, filteredTasks.length === 0 && styles.emptyListContent]}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <MaterialCommunityIcons
-              name={hasAnyTasks ? 'filter-off-outline' : 'plus-circle-outline'}
-              size={48}
-              color={colors.textTertiary}
-            />
-            <Text style={styles.emptyStateTitle}>
-              {hasAnyTasks ? 'No tasks match this filter' : 'No tasks yet'}
-            </Text>
-            <Text style={styles.emptyStateSubtitle}>
-              {hasAnyTasks
-                ? 'Try a different filter, or tap the streak count again to clear it.'
-                : 'Tap the + button to create your first habit to track.'}
-            </Text>
+            <Reanimated.View
+              entering={FadeIn.duration(400)}
+              style={[
+                styles.emptyIconBadge,
+                { backgroundColor: hasAnyTasks ? colors.surfaceSecondary : 'rgba(255, 107, 107, 0.12)' },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={hasAnyTasks ? 'filter-off-outline' : 'fire'}
+                size={40}
+                color={hasAnyTasks ? colors.textTertiary : '#FF6B6B'}
+              />
+            </Reanimated.View>
+            <Reanimated.View entering={FadeInDown.duration(400).delay(100)} style={styles.emptyStateTextGroup}>
+              <Text style={styles.emptyStateTitle}>
+                {hasAnyTasks ? 'No tasks match this filter' : 'Start your first streak'}
+              </Text>
+              <Text style={styles.emptyStateSubtitle}>
+                {hasAnyTasks
+                  ? 'Try a different filter, or clear it to see everything.'
+                  : 'Track a daily habit and watch your streak grow.'}
+              </Text>
+              {hasAnyTasks ? (
+                <TouchableOpacity style={styles.emptyStateButtonSecondary} onPress={() => setFilter(null)}>
+                  <Text style={styles.emptyStateButtonSecondaryText}>Clear Filter</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.emptyStateButton} onPress={() => router.push('/add-task')}>
+                  <MaterialCommunityIcons name="plus" size={18} color="#fff" />
+                  <Text style={styles.emptyStateButtonText}>Add a Habit</Text>
+                </TouchableOpacity>
+              )}
+            </Reanimated.View>
           </View>
         }
       />
@@ -253,19 +271,60 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
     paddingHorizontal: 32,
   },
+  emptyIconBadge: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emptyStateTextGroup: {
+    alignItems: 'center',
+    gap: 8,
+  },
   emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.textSecondary,
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
     textAlign: 'center',
   },
   emptyStateSubtitle: {
     fontSize: 14,
-    color: colors.textTertiary,
+    color: colors.textSecondary,
     textAlign: 'center',
+    lineHeight: 20,
+    maxWidth: 260,
+  },
+  emptyStateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    marginTop: 12,
+  },
+  emptyStateButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  emptyStateButtonSecondary: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginTop: 12,
+  },
+  emptyStateButtonSecondaryText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
   },
   row: {
     justifyContent: 'space-between',
