@@ -55,6 +55,38 @@ const mostRecentCompletedRun = (flags: boolean[], weights: number[]): number => 
 
 const ones = (length: number): number[] => Array(length).fill(1);
 
+// Quota periods (days_per_week/days_per_month) need a different kind of "run" than due-days.
+// A missed due-day has zero real completions, so it correctly contributes nothing. But a
+// *failed* quota period (under quota) still had real qualifying days happen in it -- frequency
+// only decides whether that period *links forward* into the next one, not whether its own
+// days count at all. So the period that finally breaks the chain still contributes its full
+// day count to the run that's ending; only the period *after* it starts over.
+
+// Longest run where every period's days count, including the one that closes it out.
+const longestRunIncludingClose = (flags: boolean[], weights: number[]): number => {
+  let best = 0;
+  let run = 0;
+  for (let i = 0; i < flags.length; i++) {
+    run += weights[i];
+    best = Math.max(best, run);
+    if (!flags[i]) run = 0;
+  }
+  return best;
+};
+
+// Day-total of the most recently closed (or still-open) run, including its closing period's
+// own days even when that period is the one that failed to meet quota.
+const mostRecentRunIncludingClose = (flags: boolean[], weights: number[]): number => {
+  if (flags.length === 0) return 0;
+  let total = weights[weights.length - 1];
+  let i = flags.length - 2;
+  while (i >= 0 && flags[i]) {
+    total += weights[i];
+    i--;
+  }
+  return total;
+};
+
 const isDueOnDate = (task: StreakScheduleInfo, date: Date): boolean => {
   if (task.frequency === 'specific_days_of_week') {
     // Treat "no days selected" as always-due rather than never-due, so a misconfigured
@@ -140,12 +172,13 @@ const getPeriodBounds = (date: Date, unit: QuotaUnit) =>
 const nextPeriodStart = (start: Date, unit: QuotaUnit) =>
   unit === 'month' ? startOfMonth(addMonths(start, 1)) : addDays(start, 7);
 
-// For 'days_per_week' / 'days_per_month': frequency only decides whether a period counts as
-// "on schedule" (its quota was met) -- the streak itself is still a day count, not a period
-// count. A met period contributes however many distinct qualifying days actually landed in
-// it. An unmet *elapsed* period breaks the chain; the in-progress current period never
-// "fails" until it's actually over, so its days-so-far always extend an intact chain (and
-// reaching quota mid-period already counts, without waiting for the period to end).
+// For 'days_per_week' / 'days_per_month': frequency only decides whether days *link* across
+// a period boundary into the next period -- it never decides whether a day counts at all.
+// A met period's days link forward, extending the streak into the next period. An unmet
+// (failed) *elapsed* period still contributes its own real days to the streak that's ending,
+// it just doesn't link forward -- the *next* period starts fresh. The in-progress current
+// period hasn't closed yet, so its days-so-far are always provisionally included in whatever
+// streak is currently open, win or lose, until it actually closes.
 const calculateQuotaStats = (task: StreakScheduleInfo, completions: TaskCompletion[], unit: QuotaUnit, quota: number): TaskStats => {
   const safeQuota = Math.max(1, quota || 1);
   const distinctDates = Array.from(new Set(completions.map(c => c.date))).sort();
@@ -167,7 +200,7 @@ const calculateQuotaStats = (task: StreakScheduleInfo, completions: TaskCompleti
 
   const flags = periods.map(p => p.met);
   const dayCounts = periods.map(p => p.count);
-  const bestStreak = longestRun(flags, dayCounts);
+  const bestStreak = longestRunIncludingClose(flags, dayCounts);
 
   const currentPeriodMet = flags[flags.length - 1];
   const currentPeriodDays = dayCounts[dayCounts.length - 1];
@@ -190,12 +223,13 @@ const calculateQuotaStats = (task: StreakScheduleInfo, completions: TaskCompleti
     lastStreak = currentStreak;
     streakStatus = 'expiring';
   } else {
-    // The most recent elapsed period missed its quota -- chain broken. Any days already
-    // logged this period are a fresh mini-streak forming, not a continuation.
+    // The most recent elapsed period missed its quota -- chain broken as of that period, but
+    // its own days still count toward the streak that just closed. A fresh mini-streak may
+    // already be forming in the current (still-open) period.
     currentStreak = currentPeriodDays;
-    const priorRun = mostRecentCompletedRun(priorFlags, priorDayCounts);
-    lastStreak = currentStreak > 0 ? currentStreak : priorRun;
-    streakStatus = currentStreak > 0 ? 'expiring' : (priorRun > 0 ? 'expired' : 'never_started');
+    const closedRun = mostRecentRunIncludingClose(priorFlags, priorDayCounts);
+    lastStreak = currentStreak > 0 ? currentStreak : closedRun;
+    streakStatus = currentStreak > 0 ? 'expiring' : (closedRun > 0 ? 'expired' : 'never_started');
   }
 
   const totalDays = differenceInDays(today, firstDate) + 1;
