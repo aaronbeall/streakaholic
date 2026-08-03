@@ -18,6 +18,7 @@ import Reanimated, {
   withTiming
 } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
+import { useSettings } from '../context/SettingsContext';
 import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
@@ -37,13 +38,15 @@ type CardSide = 'task' | 'calendar' | 'stats';
 
 interface CardTaskProps {
   task: Task;
+  size: number;
   progress: Reanimated.SharedValue<number>;
   isCompleting: boolean;
   onCompleted: () => void;
 }
 
-const CardTask = React.memo(({ task, progress, isCompleting, onCompleted }: CardTaskProps) => {
+const CardTask = React.memo(({ task, size, progress, isCompleting, onCompleted }: CardTaskProps) => {
   const { isTaskCompleted, getCompletionCount } = useTaskContext();
+  const { showTaskName, showTaskCounter } = useSettings();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const checkmarkOpacity = useSharedValue(0);
@@ -51,6 +54,12 @@ const CardTask = React.memo(({ task, progress, isCompleting, onCompleted }: Card
   const scale = useSharedValue(1);
   const badgeScale = useSharedValue(1);
   const [showParticles, setShowParticles] = useState(false);
+
+  // Scale the icon with the actual card size instead of a fixed 128px -- on a small grid
+  // (3+ columns, narrow phones) a fixed-size icon left no room for the name/counter text
+  // below it, silently squeezing them to zero height.
+  const iconSize = Math.max(48, Math.min(size * 0.55, 128));
+  const iconFontSize = iconSize / 2;
 
   const getStreakBadgeStyle = () => {
     const currentStreak = task.stats?.currentStreak || 0;
@@ -192,8 +201,8 @@ const CardTask = React.memo(({ task, progress, isCompleting, onCompleted }: Card
 
   return (
     <View style={styles.contentContainer}>
-      <Reanimated.View style={[styles.iconContainer, { backgroundColor: 'transparent' }, containerStyle]}>
-        <Svg width={128} height={128} viewBox="0 0 128 128">
+      <Reanimated.View style={[styles.iconContainer, { width: iconSize, height: iconSize, borderRadius: iconSize / 2, backgroundColor: 'transparent' }, containerStyle]}>
+        <Svg width={iconSize} height={iconSize} viewBox="0 0 128 128">
           {/* Outer circle (border) */}
           <Circle
             cx={CIRCLE_CENTER}
@@ -216,36 +225,38 @@ const CardTask = React.memo(({ task, progress, isCompleting, onCompleted }: Card
           )}
         </Svg>
         <Reanimated.View style={[StyleSheet.absoluteFill, iconStyle]}>
-          <MaterialCommunityIcons 
-            name={task.icon} 
-            size={64} 
-            color={completed ? '#fff' : task.color} 
-            style={{ 
+          <MaterialCommunityIcons
+            name={task.icon}
+            size={iconFontSize}
+            color={completed ? '#fff' : task.color}
+            style={{
               textAlign: 'center',
               textAlignVertical: 'center',
-              lineHeight: 128
-            }} 
+              lineHeight: iconSize
+            }}
           />
         </Reanimated.View>
         <Reanimated.View style={[StyleSheet.absoluteFill, checkmarkStyle, { justifyContent: 'center', alignItems: 'center' }]}>
-          <MaterialCommunityIcons 
-            name="check" 
-            size={64} 
-            color="#fff" 
-            style={{ 
+          <MaterialCommunityIcons
+            name="check"
+            size={iconFontSize}
+            color="#fff"
+            style={{
               textAlign: 'center',
               textAlignVertical: 'center',
-              lineHeight: 128
-            }} 
+              lineHeight: iconSize
+            }}
           />
         </Reanimated.View>
       </Reanimated.View>
-      {timesPerDayCount > 1 && (
+      {timesPerDayCount > 1 && showTaskCounter && (
         <Text style={[styles.progressCountText, { color: task.color }]}>
           {completionCount}/{timesPerDayCount}
         </Text>
       )}
-      <Text style={styles.taskName} numberOfLines={1}>{task.name}</Text>
+      {showTaskName && (
+        <Text style={styles.taskName} numberOfLines={1}>{task.name}</Text>
+      )}
       {streakBadgeStyle && (
         <Reanimated.View style={[styles.streakBadge, badgeStyle]}>
           <View style={[styles.streakBubble, { backgroundColor: streakBadgeStyle.backgroundColor }]}>
@@ -444,6 +455,7 @@ export const TaskCard = React.memo(({
   onLongPressStats,
   onLongPressTask,
 }: TaskCardProps) => {
+  const { showCardBackground } = useSettings();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const flipAnim = useSharedValue(0);
@@ -533,7 +545,7 @@ export const TaskCard = React.memo(({
   const renderContent = (side: CardSide) => {
     switch (side) {
       case 'task':
-        return <CardTask task={task} progress={progressAnim} isCompleting={isCompleting} onCompleted={handleTaskCompleted} />;
+        return <CardTask task={task} size={size} progress={progressAnim} isCompleting={isCompleting} onCompleted={handleTaskCompleted} />;
       case 'calendar':
         return <CardCalendar task={task} />;
       case 'stats':
@@ -552,13 +564,13 @@ export const TaskCard = React.memo(({
         style={styles.touchable}
       >
         <Reanimated.View style={[styles.cardContainer, frontAnimatedStyle]}>
-          <View style={[styles.card]}>
+          <View style={[styles.card, !showCardBackground && styles.cardTransparent]}>
             {renderContent(sides[0])}
           </View>
         </Reanimated.View>
 
         <Reanimated.View style={[styles.cardContainer, styles.cardBack, backAnimatedStyle]}>
-          <View style={[styles.card]}>
+          <View style={[styles.card, !showCardBackground && styles.cardTransparent]}>
             {renderContent(sides[1])}
           </View>
         </Reanimated.View>
@@ -599,6 +611,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   cardBack: {
     transform: [{ rotateY: '180deg' }],
+  },
+  cardTransparent: {
+    backgroundColor: 'transparent',
+    elevation: 0,
+    shadowOpacity: 0,
   },
   contentContainer: {
     flex: 1,

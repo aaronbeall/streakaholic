@@ -6,7 +6,8 @@ import * as FileSystem from 'expo-file-system';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ThemeMode, useSettings } from '../context/SettingsContext';
 import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
@@ -16,9 +17,21 @@ const isImportableTask = (value: unknown): value is Task =>
     && typeof (value as Task).id === 'string'
     && typeof (value as Task).name === 'string';
 
+const THEME_MODE_OPTIONS: { value: ThemeMode; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+];
+
 export const SettingsScreen: React.FC = () => {
   const router = useRouter();
   const { tasks, importTasks } = useTaskContext();
+  const {
+    themeMode, setThemeMode,
+    showCardBackground, setShowCardBackground,
+    showTaskName, setShowTaskName,
+    showTaskCounter, setShowTaskCounter,
+  } = useSettings();
   const [isBusy, setIsBusy] = useState(false);
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -107,6 +120,60 @@ export const SettingsScreen: React.FC = () => {
       </View>
 
       <ScrollView style={styles.content}>
+        <Text style={styles.sectionTitle}>Appearance</Text>
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <MaterialCommunityIcons name="theme-light-dark" size={22} color={colors.textSecondary} />
+            <Text style={styles.rowLabel}>Theme</Text>
+          </View>
+          <View style={styles.themeSelector}>
+            {THEME_MODE_OPTIONS.map(option => (
+              <TouchableOpacity
+                key={option.value}
+                style={[styles.themeOption, themeMode === option.value && styles.themeOptionActive]}
+                onPress={() => setThemeMode(option.value)}
+              >
+                <Text style={[styles.themeOptionText, themeMode === option.value && styles.themeOptionTextActive]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>Task Cards</Text>
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <MaterialCommunityIcons name="card-outline" size={22} color={colors.textSecondary} />
+            <Text style={styles.rowLabel}>Show Card Background</Text>
+            <Switch
+              value={showCardBackground}
+              onValueChange={setShowCardBackground}
+              trackColor={{ false: colors.border, true: '#007AFF' }}
+            />
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <MaterialCommunityIcons name="format-text" size={22} color={colors.textSecondary} />
+            <Text style={styles.rowLabel}>Show Task Name</Text>
+            <Switch
+              value={showTaskName}
+              onValueChange={setShowTaskName}
+              trackColor={{ false: colors.border, true: '#007AFF' }}
+            />
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <MaterialCommunityIcons name="counter" size={22} color={colors.textSecondary} />
+            <Text style={styles.rowLabel}>Show Completion Counter</Text>
+            <Switch
+              value={showTaskCounter}
+              onValueChange={setShowTaskCounter}
+              trackColor={{ false: colors.border, true: '#007AFF' }}
+            />
+          </View>
+        </View>
+
         <Text style={styles.sectionTitle}>Data</Text>
         <View style={styles.card}>
           <TouchableOpacity style={styles.row} onPress={() => router.push('/archived-tasks')}>
@@ -212,5 +279,29 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   rowValue: {
     fontSize: 14,
     color: colors.textTertiary,
+  },
+  themeSelector: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  themeOption: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSecondary,
+  },
+  themeOptionActive: {
+    backgroundColor: '#007AFF',
+  },
+  themeOptionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  themeOptionTextActive: {
+    color: '#fff',
   },
 });

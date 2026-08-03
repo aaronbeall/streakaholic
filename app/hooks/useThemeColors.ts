@@ -1,4 +1,5 @@
 import { useColorScheme } from 'react-native';
+import { useSettings } from '../context/SettingsContext';
 
 export interface ThemeColors {
   isDark: boolean;
@@ -40,6 +41,8 @@ const dark: ThemeColors = {
 };
 
 export const useThemeColors = (): ThemeColors => {
-  const scheme = useColorScheme();
-  return scheme === 'dark' ? dark : light;
+  const systemScheme = useColorScheme();
+  const { themeMode } = useSettings();
+  const effectiveScheme = themeMode === 'system' ? systemScheme : themeMode;
+  return effectiveScheme === 'dark' ? dark : light;
 };
