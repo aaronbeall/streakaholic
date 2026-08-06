@@ -1,8 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import tinycolor from 'tinycolor2';
-import { DEFAULT_COLORS } from '../constants/task';
+import { DEFAULT_COLORS, EXTENDED_COLOR_BATCHES } from '../constants/task';
 import { useThemeColors } from '../hooks/useThemeColors';
 
 interface ColorPickerProps {
@@ -10,47 +10,42 @@ interface ColorPickerProps {
   onColorSelect: (color: string) => void;
 }
 
+const TOTAL_BATCHES = EXTENDED_COLOR_BATCHES.length;
+
 export const ColorPicker: React.FC<ColorPickerProps> = ({
   selectedColor,
   onColorSelect,
 }) => {
   const themeColors = useThemeColors();
-  const [colors, setColors] = useState(() => {
-    // Initialize with default colors, ensuring selected color is included
-    return DEFAULT_COLORS.includes(selectedColor) 
-      ? DEFAULT_COLORS 
-      : [selectedColor, ...DEFAULT_COLORS];
-  });
+  // How many batches of EXTENDED_COLOR_BATCHES are revealed, beyond the 12 defaults always shown.
+  const [batchesShown, setBatchesShown] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
-  
-  // Generate 10 random colors using tinycolor
-  const generateRandomColors = () => {
-    return Array.from({ length: 10 }, () => {
-      const hue = Math.floor(Math.random() * 360);
-      return tinycolor({ h: hue, s: 85, l: 65 }).toHexString();
-    });
-  };
+
+  const colors = useMemo(() => {
+    const revealed = [...DEFAULT_COLORS, ...EXTENDED_COLOR_BATCHES.slice(0, batchesShown).flat()];
+    // Keep the task's current color visible/selectable even if it predates this palette
+    // (e.g. picked via a since-removed default, or the old random generator).
+    return revealed.includes(selectedColor) ? revealed : [selectedColor, ...revealed];
+  }, [batchesShown, selectedColor]);
+
+  const hasMore = batchesShown < TOTAL_BATCHES;
 
   const handleShowMore = () => {
-    setColors(prev => [...new Set([...prev, ...generateRandomColors()])]);
+    setBatchesShown(prev => Math.min(prev + 1, TOTAL_BATCHES));
   };
 
   const handleShowLess = () => {
-    // Reset to default colors, ensuring selected color is included
-    setColors(DEFAULT_COLORS.includes(selectedColor) 
-      ? DEFAULT_COLORS 
-      : [selectedColor, ...DEFAULT_COLORS]
-    );
+    setBatchesShown(0);
   };
 
-  // Scroll to bottom when additional colors are added
+  // Scroll to bottom when additional colors are revealed
   useEffect(() => {
-    if (colors.length > DEFAULT_COLORS.length) {
+    if (batchesShown > 0) {
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [colors]);
+  }, [batchesShown]);
 
   return (
     <View>
@@ -83,20 +78,22 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
               )}
             </TouchableOpacity>
           ))}
-          <TouchableOpacity
-            style={styles.moreButton}
-            onPress={handleShowMore}
-          >
-            <MaterialCommunityIcons
-              name="dots-horizontal"
-              size={24}
-              color={themeColors.textTertiary}
-            />
-          </TouchableOpacity>
+          {hasMore && (
+            <TouchableOpacity
+              style={styles.moreButton}
+              onPress={handleShowMore}
+            >
+              <MaterialCommunityIcons
+                name="dots-horizontal"
+                size={24}
+                color={themeColors.textTertiary}
+              />
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
-      
-      {colors.length > DEFAULT_COLORS.length && (
+
+      {batchesShown > 0 && (
         <TouchableOpacity
           style={styles.showLessButton}
           onPress={handleShowLess}
