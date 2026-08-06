@@ -8,7 +8,10 @@ function RootStack() {
   const colors = useThemeColors();
 
   return (
-    <Stack>
+    // `slide_from_right` gives push/pop a direction-aware slide for free -- native-stack
+    // plays it forward on push and automatically reverses it on pop (back), on native and
+    // (via react-native-screens' web CSS-animation support) on web too.
+    <Stack screenOptions={{ animation: 'slide_from_right' }}>
       <Stack.Screen
         name="index"
         options={{
@@ -38,6 +41,7 @@ function RootStack() {
         options={{
           title: 'Add New Task',
           presentation: 'modal',
+          animation: 'slide_from_bottom',
           headerStyle: {
             backgroundColor: colors.surface,
           },
@@ -53,6 +57,7 @@ function RootStack() {
         options={{
           headerShown: false,
           presentation: 'modal',
+          animation: 'slide_from_bottom',
         }}
       />
       <Stack.Screen
@@ -60,6 +65,7 @@ function RootStack() {
         options={{
           headerShown: false,
           presentation: 'modal',
+          animation: 'slide_from_bottom',
         }}
       />
       <Stack.Screen
@@ -67,6 +73,7 @@ function RootStack() {
         options={{
           headerShown: false,
           presentation: 'modal',
+          animation: 'slide_from_bottom',
         }}
       />
     </Stack>
