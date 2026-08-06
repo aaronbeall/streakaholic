@@ -17,6 +17,14 @@
 * [ ] Sharing
 * [ ] Reminders/notifications
 
+## UX / Usability
+* [ ] Onboarding for core gestures (tap to cycle task/calendar/stats views, hold to complete)
+* [ ] Confirmation dialog before deleting a task (currently instant, no undo)
+* [ ] Quick undo for accidental task completions (uncompleteTask is currently only reachable via the full-screen calendar)
+* [ ] Touch target sizes below platform minimums (Add/Edit Task's +/- steppers and day-of-week buttons)
+* [ ] Accessibility support (no accessibilityLabel/Role/Hint anywhere in app/ — icon-only buttons are silent to screen readers)
+* [ ] Haptic feedback (expo-haptics is installed but unused; completions/streaks/celebrations are natural fits)
+
 ## MMP
 * [ ] Monetization
   * [ ] Freemium
@@ -25,7 +33,6 @@
 * [ ] Rate this app
 * [ ] Widgets
 * [ ] Sync (Drive or Dropbox)
-* [ ] Onboarding tour
 
 ## Future
 * [ ] Timeline view
