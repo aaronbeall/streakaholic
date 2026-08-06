@@ -1,6 +1,6 @@
 # Streakaholic
 
-A playful habit/streak tracker for iOS/Android/web, inspired by the iOS "Streaks" app. React Native + Expo (Router), TypeScript, local-only persistence via AsyncStorage. Solo indie project.
+A playful habit/streak tracker for Android. React Native + Expo (Router), TypeScript, local-only persistence via AsyncStorage. Solo indie project. Web is used only for quick functional testing during development — not a target platform (see "No web-specific polish" guidance).
 
 Naming: resolved as "Streakaholic" (kept as-is — user confirmed 2026-08-01, no config changes needed).
 
