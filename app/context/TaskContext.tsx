@@ -6,6 +6,7 @@ import { calculateTaskStats } from '../utils/streaks';
 
 interface TaskContextType {
   tasks: Task[];
+  isLoaded: boolean;
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateTask: (task: Task) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
@@ -30,6 +31,7 @@ export const useTaskContext = () => {
 
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [completionCache, setCompletionCache] = useState<Map<string, Map<string, number>>>(new Map());
 
   // Update completion cache when tasks change
@@ -62,6 +64,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('Error loading tasks:', error);
+    } finally {
+      setIsLoaded(true);
     }
   };
 
@@ -199,6 +203,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <TaskContext.Provider
       value={{
         tasks,
+        isLoaded,
         addTask,
         updateTask,
         deleteTask,

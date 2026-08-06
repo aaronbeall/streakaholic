@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 const STORAGE_KEY = 'appSettings';
 
 interface SettingsContextType extends AppSettings {
+  isLoaded: boolean;
   setThemeMode: (mode: ThemeMode) => void;
   setShowCardBackground: (value: boolean) => void;
   setShowTaskName: (value: boolean) => void;
@@ -38,6 +39,7 @@ export const useSettings = () => {
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -46,6 +48,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (stored) setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(stored) });
       } catch (error) {
         console.error('Error loading settings:', error);
+      } finally {
+        setIsLoaded(true);
       }
     })();
   }, []);
@@ -64,6 +68,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     <SettingsContext.Provider
       value={{
         ...settings,
+        isLoaded,
         setThemeMode: (themeMode) => updateSettings({ themeMode }),
         setShowCardBackground: (showCardBackground) => updateSettings({ showCardBackground }),
         setShowTaskName: (showTaskName) => updateSettings({ showTaskName }),

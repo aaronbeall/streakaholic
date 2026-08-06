@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
-import { SettingsProvider } from './context/SettingsContext';
-import { TaskProvider } from './context/TaskContext';
+import { ActivityIndicator, View } from 'react-native';
+import { SettingsProvider, useSettings } from './context/SettingsContext';
+import { TaskProvider, useTaskContext } from './context/TaskContext';
 import { useThemeColors } from './hooks/useThemeColors';
 
 function RootStack() {
@@ -72,11 +73,35 @@ function RootStack() {
   );
 }
 
+function LoadingScreen() {
+  const colors = useThemeColors();
+
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
+      <ActivityIndicator size="large" color="#007AFF" />
+    </View>
+  );
+}
+
+// Settings and tasks both load asynchronously from AsyncStorage -- without this gate, the
+// first frame renders with default settings (wrong theme override) and an empty task list
+// (a flash of the "no tasks yet" empty state) before either resolves.
+function AppGate() {
+  const { isLoaded: settingsLoaded } = useSettings();
+  const { isLoaded: tasksLoaded } = useTaskContext();
+
+  if (!settingsLoaded || !tasksLoaded) {
+    return <LoadingScreen />;
+  }
+
+  return <RootStack />;
+}
+
 export default function Layout() {
   return (
     <SettingsProvider>
       <TaskProvider>
-        <RootStack />
+        <AppGate />
       </TaskProvider>
     </SettingsProvider>
   );
