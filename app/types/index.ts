@@ -45,6 +45,15 @@ export interface TaskWithStats extends Task {
   completions: TaskCompletion[];
 }
 
+export interface TasksExport {
+  schemaVersion: number;
+  exportId: string;
+  exportedAt: string;
+  appVersion: string;
+  taskCount: number;
+  tasks: Task[];
+}
+
 export type RootStackParamList = {
   Home: undefined;
   AddTask: undefined;

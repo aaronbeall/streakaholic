@@ -2,11 +2,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format } from 'date-fns';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Task, TaskCompletion } from '../types';
+import { LastImportRecord, mergeTaskLists } from '../utils/importExport';
 import { calculateTaskStats } from '../utils/streaks';
+
+interface ImportOptions {
+  mode?: 'replace' | 'merge';
+  exportMeta?: { exportId: string };
+}
 
 interface TaskContextType {
   tasks: Task[];
   isLoaded: boolean;
+  lastImport: LastImportRecord | null;
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateTask: (task: Task) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
@@ -14,7 +21,7 @@ interface TaskContextType {
   uncompleteTask: (taskId: string, date: Date) => Promise<void>;
   archiveTask: (taskId: string) => Promise<void>;
   restoreTask: (taskId: string) => Promise<void>;
-  importTasks: (tasks: Task[]) => Promise<void>;
+  importTasks: (tasks: Task[], options?: ImportOptions) => Promise<void>;
   isTaskCompleted: (task: Task, date?: Date) => boolean;
   getCompletionCount: (task: Task, date?: Date) => number;
 }
@@ -32,6 +39,7 @@ export const useTaskContext = () => {
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [lastImport, setLastImport] = useState<LastImportRecord | null>(null);
   const [completionCache, setCompletionCache] = useState<Map<string, Map<string, number>>>(new Map());
 
   // Update completion cache when tasks change
@@ -49,6 +57,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Load tasks and calculate initial stats
   useEffect(() => {
     loadTasks();
+    loadLastImport();
   }, []);
 
   const loadTasks = async () => {
@@ -66,6 +75,15 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error loading tasks:', error);
     } finally {
       setIsLoaded(true);
+    }
+  };
+
+  const loadLastImport = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('lastImport');
+      if (stored) setLastImport(JSON.parse(stored));
+    } catch (error) {
+      console.error('Error loading last import record:', error);
     }
   };
 
@@ -182,12 +200,20 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await updateTask({ ...task, archived: false });
   };
 
-  const importTasks = async (importedTasks: Task[]) => {
-    const tasksWithStats = importedTasks.map(task => ({
+  const importTasks = async (importedTasks: Task[], options: ImportOptions = {}) => {
+    const mode = options.mode ?? 'replace';
+    const nextTasks = mode === 'merge' ? mergeTaskLists(tasks, importedTasks) : importedTasks;
+    const tasksWithStats = nextTasks.map(task => ({
       ...task,
       stats: calculateTaskStats(task, task.completions || []),
     }));
     await saveTasks(tasksWithStats);
+
+    if (options.exportMeta) {
+      const record: LastImportRecord = { exportId: options.exportMeta.exportId, importedAt: new Date().toISOString() };
+      setLastImport(record);
+      await AsyncStorage.setItem('lastImport', JSON.stringify(record));
+    }
   };
 
   const getCount = (task: Task, date: Date = new Date()) => {
@@ -204,6 +230,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         tasks,
         isLoaded,
+        lastImport,
         addTask,
         updateTask,
         deleteTask,

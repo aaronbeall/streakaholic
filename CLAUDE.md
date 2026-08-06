@@ -1,4 +1,4 @@
-# Streakaholic (aka Streakoholic)
+# Streakaholic
 
 A playful habit/streak tracker for iOS/Android/web, inspired by the iOS "Streaks" app. React Native + Expo (Router), TypeScript, local-only persistence via AsyncStorage. Solo indie project.
 
@@ -26,7 +26,7 @@ Routing is file-based under `app/`. Each route file is a thin re-export of a scr
 - `archived-tasks` → `ArchivedTasksScreen`: list of archived tasks with one-tap restore
 - `task-details`, `task-calendar`, `task-stats` (all modals) → per-task screens, share `TaskHeader`
 
-Shared state: `app/context/TaskContext.tsx` — single source of truth for `tasks`, loads/saves to AsyncStorage under key `"tasks"`. Delegates streak/stat calculation to `app/utils/streaks.ts` (see below). Also exposes `archiveTask`/`restoreTask` (flip `task.archived`, same `updateTask` path), `importTasks` (bulk replace + recompute stats, used by Settings' Import), and `getCompletionCount(task, date)` (today's progress toward `timesPerDay`, backed by a `Map<taskId, Map<date, timesCompleted>>` cache).
+Shared state: `app/context/TaskContext.tsx` — single source of truth for `tasks`, loads/saves to AsyncStorage under key `"tasks"`. Delegates streak/stat calculation to `app/utils/streaks.ts` (see below). Also exposes `archiveTask`/`restoreTask` (flip `task.archived`, same `updateTask` path), `importTasks(tasks, { mode, exportMeta })` (`'replace'` or `'merge'`, used by Settings' Import — see below), and `getCompletionCount(task, date)` (today's progress toward `timesPerDay`, backed by a `Map<taskId, Map<date, timesCompleted>>` cache). Also tracks `lastImport` (`{ exportId, importedAt }`, persisted under AsyncStorage key `"lastImport"`) so Settings can detect re-importing the same file.
 
 `app/utils/streaks.ts` — frequency-aware streak engine, extracted from `TaskContext`:
 - Filters completions to "qualifying" ones first (`timesCompleted >= task.timesPerDay`) — a partially-logged day doesn't count.
@@ -38,6 +38,12 @@ Data model (`app/types/index.ts`):
 - `TaskCompletion`: id, taskId, `date` (yyyy-MM-dd, the day it counts for), `completedAt` (actual timestamp), `timesCompleted` (increments per press up to `timesPerDay`, rather than one record per press)
 
 `app/utils/data.ts` holds pure chart/date-range helpers (time-frame bucketing, day-of-week/hour-of-day histograms, aggregate stats) used by Dashboard and per-task Stats screens.
+
+`app/utils/importExport.ts` — export/import logic used by `SettingsScreen`:
+- Export shape is `TasksExport` (`app/types/index.ts`): `{ schemaVersion, exportId, exportedAt, appVersion, taskCount, tasks }`. `schemaVersion` is currently always `1`; `migrateTasksExport` (a `switch` on `schemaVersion`) is the intended landing spot for future format migrations, but there's only the one case so far.
+- `parseTasksImport` accepts both the wrapped `TasksExport` format and the old bare-`Task[]`-array format (pre-schema exports) for backward compatibility — legacy imports parse with `meta: null`, so they skip the "already imported"/staleness comparison below.
+- Import is either `'replace'` (drop-in swap, previous-only behavior) or `'merge'` via `mergeTaskLists`: tasks are matched by `id`; for a match, the task with the newer `updatedAt` wins for top-level fields, and `completions` are unioned by completion `id` (not concatenated) so re-importing doesn't duplicate completions. Tasks only present in one list are kept as-is.
+- `SettingsScreen.promptImport` compares the file's `exportedAt`/`exportId` against `TaskContext.lastImport` and the current tasks' latest `updatedAt` (`getLatestModifiedAt`) to decide what to tell the user before they choose Merge/Replace: already-imported (same `exportId` as `lastImport`), newer, or older/stale. This is advisory text only — the user still explicitly picks Merge or Replace All.
 
 `TaskCard.tsx` is the most complex component: a flip card with three faces (task/calendar/stats) cycled via long-press-context-dependent actions, plus its own completion animation (progress ring, checkmark swap, streak badge pop, confetti-style `ParticleSystem`), and a secondary static progress ring + "`n`/`timesPerDay`" label for multi-rep tasks.
 
@@ -61,6 +67,6 @@ All items from the original MVP checklist are implemented as of 2026-08-01:
 - ✅ Initial empty state (two variants: no tasks / filter matches nothing)
 - ✅ Settings screen, gear icon fixed
 - ✅ Dark mode (verified visually across all screens)
-- ✅ Export/import data (export verified on web; import's file-picker UI couldn't be driven via browser automation in this session — logic reuses the same save/stats pipeline as everything else, but do one manual smoke test: Settings → Import Data → pick an exported file → confirm replace)
+- ✅ Export/import data with schema/versioning + merge-or-replace (2026-08-06: added `TasksExport` wrapper with `schemaVersion`/`exportId`/`exportedAt`, a merge mode alongside replace, and staleness/already-imported prompting — see `app/utils/importExport.ts`). Export verified on web (correct JSON shape) and the merge/parse/validation logic verified via a standalone script; the native file-picker UI itself still can't be driven via browser automation, so **do one manual smoke test**: Settings → Import Data → pick an exported file → confirm the Merge/Replace All prompt behaves as expected (including re-importing the same file to see the "already imported" message).
 
 Remaining backlog is MVP+/MMP/Future tier per `TODO.md` (calendar year map, sharing, reminders, monetization, widgets, sync, onboarding, timeline/heatmap views, points/ranks, social features) plus the gaps listed above.

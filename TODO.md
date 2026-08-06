@@ -15,7 +15,7 @@
 ## MVP+
 * [ ] Calendar year map
 * [ ] Sharing
-* [ ] Reminders
+* [ ] Reminders/notifications
 
 ## MMP
 * [ ] Monetization
@@ -35,7 +35,6 @@
 * [ ] Personal leaderboard
 * [ ] Login with google
 * [ ] Social features (friends, friend streaks, competitions, leaderboards)
-* [ ]
 
 ##  UI tweaks
 * [ ] Bottom margin and androind buttons

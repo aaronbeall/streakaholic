@@ -11,11 +11,7 @@ import { ThemeMode, useSettings } from '../context/SettingsContext';
 import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
-
-const isImportableTask = (value: unknown): value is Task =>
-  typeof value === 'object' && value !== null
-    && typeof (value as Task).id === 'string'
-    && typeof (value as Task).name === 'string';
+import { createTasksExport, getLatestModifiedAt, ParsedTasksImport, parseTasksImport } from '../utils/importExport';
 
 // react-native-web's Switch splits the thumb color into two props: `thumbColor` (off state)
 // and `activeThumbColor` (on state, defaulting to Material teal if unset). Native RN's own
@@ -31,7 +27,7 @@ const THEME_MODE_OPTIONS: { value: ThemeMode; label: string }[] = [
 
 export const SettingsScreen: React.FC = () => {
   const router = useRouter();
-  const { tasks, importTasks } = useTaskContext();
+  const { tasks, importTasks, lastImport } = useTaskContext();
   const {
     themeMode, setThemeMode,
     showCardBackground, setShowCardBackground,
@@ -47,7 +43,7 @@ export const SettingsScreen: React.FC = () => {
   const handleExport = async () => {
     setIsBusy(true);
     try {
-      const json = JSON.stringify(tasks, null, 2);
+      const json = JSON.stringify(createTasksExport(tasks, version), null, 2);
       const filename = `streakaholic-export-${format(new Date(), 'yyyy-MM-dd')}.json`;
 
       if (Platform.OS === 'web') {
@@ -87,27 +83,56 @@ export const SettingsScreen: React.FC = () => {
         ? await (await fetch(uri)).text()
         : await FileSystem.readAsStringAsync(uri);
 
-      const parsed: unknown = JSON.parse(content);
-      if (!Array.isArray(parsed) || !parsed.every(isImportableTask)) {
+      let parsedImport: ParsedTasksImport;
+      try {
+        parsedImport = parseTasksImport(content);
+      } catch {
         Alert.alert('Invalid file', "This doesn't look like a Streakaholic export file.");
         return;
       }
 
-      Alert.alert(
-        'Replace all data?',
-        `This will replace your current ${tasks.length} task(s) with ${parsed.length} task(s) from the file. This cannot be undone.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Replace',
-            style: 'destructive',
-            onPress: async () => {
-              await importTasks(parsed);
-              Alert.alert('Import complete', `Imported ${parsed.length} task(s).`);
-            },
-          },
-        ]
-      );
+      promptImport(parsedImport);
+    } catch {
+      Alert.alert('Error', 'Failed to import data');
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const promptImport = ({ tasks: importedTasks, meta }: ParsedTasksImport) => {
+    const alreadyImported = !!meta && meta.exportId === lastImport?.exportId;
+    const currentLatest = getLatestModifiedAt(tasks);
+    const incomingLatest = meta?.exportedAt ?? getLatestModifiedAt(importedTasks);
+
+    let context = '';
+    if (alreadyImported) {
+      context = `You already imported this file${lastImport ? ` on ${format(new Date(lastImport.importedAt), 'PP')}` : ''}. `;
+    } else if (currentLatest && incomingLatest && incomingLatest > currentLatest) {
+      context = 'This file looks newer than your current data. ';
+    } else if (currentLatest && incomingLatest && incomingLatest < currentLatest) {
+      context = 'This file looks older than your current data — importing may overwrite newer changes. ';
+    }
+
+    const exportMeta = meta ? { exportId: meta.exportId } : undefined;
+
+    Alert.alert(
+      'Import Data',
+      `${context}This file contains ${importedTasks.length} task(s); you currently have ${tasks.length}. How would you like to import?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Merge', onPress: () => runImport(importedTasks, 'merge', exportMeta) },
+        { text: 'Replace All', style: 'destructive', onPress: () => runImport(importedTasks, 'replace', exportMeta) },
+      ]
+    );
+  };
+
+  const runImport = async (importedTasks: Task[], mode: 'merge' | 'replace', exportMeta?: { exportId: string }) => {
+    setIsBusy(true);
+    try {
+      await importTasks(importedTasks, { mode, exportMeta });
+      Alert.alert('Import complete', mode === 'merge'
+        ? `Merged ${importedTasks.length} task(s) into your data.`
+        : `Replaced your data with ${importedTasks.length} task(s).`);
     } catch {
       Alert.alert('Error', 'Failed to import data');
     } finally {
