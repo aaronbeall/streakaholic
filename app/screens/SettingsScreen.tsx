@@ -33,6 +33,7 @@ export const SettingsScreen: React.FC = () => {
     showCardBackground, setShowCardBackground,
     showTaskName, setShowTaskName,
     showTaskCounter, setShowTaskCounter,
+    resetOnboardingHints,
   } = useSettings();
   const [isBusy, setIsBusy] = useState(false);
   const colors = useThemeColors();
@@ -229,6 +230,20 @@ export const SettingsScreen: React.FC = () => {
             <MaterialCommunityIcons name="import" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>Import Data</Text>
             {isBusy && <ActivityIndicator size="small" />}
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.sectionTitle}>Help</Text>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => {
+              resetOnboardingHints();
+              router.back();
+            }}
+          >
+            <MaterialCommunityIcons name="gesture-tap-hold" size={22} color={colors.textSecondary} />
+            <Text style={styles.rowLabel}>Replay Onboarding Hints</Text>
           </TouchableOpacity>
         </View>
 

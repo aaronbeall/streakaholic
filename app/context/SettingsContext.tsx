@@ -3,11 +3,25 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
+// Each of the three contextual hints on Home's first task card is dismissed independently --
+// seeing/dismissing one doesn't affect the others. Which hint (if any) is shown right now is
+// derived from that card's live state (completion + visible face), not stored here.
+export type OnboardingHintKey = 'hold-to-complete' | 'tap-to-cycle' | 'hold-to-expand';
+
+export type OnboardingHintsSeen = Record<OnboardingHintKey, boolean>;
+
+const DEFAULT_ONBOARDING_HINTS_SEEN: OnboardingHintsSeen = {
+  'hold-to-complete': false,
+  'tap-to-cycle': false,
+  'hold-to-expand': false,
+};
+
 export interface AppSettings {
   themeMode: ThemeMode;
   showCardBackground: boolean;
   showTaskName: boolean;
   showTaskCounter: boolean;
+  onboardingHintsSeen: OnboardingHintsSeen;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -15,6 +29,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   showCardBackground: true,
   showTaskName: true,
   showTaskCounter: true,
+  onboardingHintsSeen: DEFAULT_ONBOARDING_HINTS_SEEN,
 };
 
 const STORAGE_KEY = 'appSettings';
@@ -25,6 +40,8 @@ interface SettingsContextType extends AppSettings {
   setShowCardBackground: (value: boolean) => void;
   setShowTaskName: (value: boolean) => void;
   setShowTaskCounter: (value: boolean) => void;
+  setOnboardingHintSeen: (key: OnboardingHintKey, seen: boolean) => void;
+  resetOnboardingHints: () => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -54,9 +71,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     })();
   }, []);
 
-  const updateSettings = (patch: Partial<AppSettings>) => {
+  const updateSettings = (patch: Partial<AppSettings> | ((prev: AppSettings) => Partial<AppSettings>)) => {
     setSettings(prev => {
-      const next = { ...prev, ...patch };
+      const next = { ...prev, ...(typeof patch === 'function' ? patch(prev) : patch) };
       AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(error => {
         console.error('Error saving settings:', error);
       });
@@ -73,6 +90,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setShowCardBackground: (showCardBackground) => updateSettings({ showCardBackground }),
         setShowTaskName: (showTaskName) => updateSettings({ showTaskName }),
         setShowTaskCounter: (showTaskCounter) => updateSettings({ showTaskCounter }),
+        setOnboardingHintSeen: (key, seen) => updateSettings(prev => ({
+          onboardingHintsSeen: { ...prev.onboardingHintsSeen, [key]: seen },
+        })),
+        resetOnboardingHints: () => updateSettings({ onboardingHintsSeen: DEFAULT_ONBOARDING_HINTS_SEEN }),
       }}
     >
       {children}

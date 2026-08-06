@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   StyleSheet,
@@ -10,11 +10,19 @@ import {
   View,
 } from 'react-native';
 import Reanimated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { TaskCard } from '../components/TaskCard';
+import { OnboardingHint, TargetLayout } from '../components/OnboardingHint';
+import { CardSide, TaskCard } from '../components/TaskCard';
+import { OnboardingHintKey, useSettings } from '../context/SettingsContext';
 import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getStreakStats } from '../utils/data';
+
+const ONBOARDING_HINT_TEXT: Record<OnboardingHintKey, string> = {
+  'hold-to-complete': 'Press and hold to complete',
+  'tap-to-cycle': 'Tap to see calendar & stats',
+  'hold-to-expand': 'Press and hold to open the full screen and make changes',
+};
 
 const GRID_SPACING = 16;
 const SIDE_PADDING = 16;
@@ -106,8 +114,12 @@ HomeHeader.displayName = "HomeHeader";
 export const HomeScreen: React.FC = () => {
   const router = useRouter();
   const { tasks, completeTask, isTaskCompleted } = useTaskContext();
+  const { onboardingHintsSeen, setOnboardingHintSeen } = useSettings();
   const { width } = useWindowDimensions();
   const [filter, setFilter] = useState<FilterType>(null);
+  const [onboardingTargetLayout, setOnboardingTargetLayout] = useState<TargetLayout | null>(null);
+  const [onboardingTargetFace, setOnboardingTargetFace] = useState<CardSide>('task');
+  const onboardingTargetRef = useRef<View>(null);
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -135,11 +147,56 @@ export const HomeScreen: React.FC = () => {
   const availableWidth = width - (SIDE_PADDING * 2) - (GRID_SPACING * (columnCount - 1));
   const cardSize = Math.floor(availableWidth / columnCount);
 
+  // The onboarding hints walk through the first visible card only -- same task throughout,
+  // so the pointer/highlight never has to jump between cards. Once every hint has been seen
+  // (each dismissed independently), stop targeting a card at all.
+  const allOnboardingHintsSeen = Object.values(onboardingHintsSeen).every(Boolean);
+  const onboardingTargetTask = allOnboardingHintsSeen ? undefined : filteredTasks[0];
+  const onboardingTargetTaskId = onboardingTargetTask?.id;
+
+  // Which condition matches right now, purely a function of the target card's live state: its
+  // due-today completion status, and which face it's currently showing. Only shown if that
+  // specific hint hasn't already been seen/dismissed on its own.
+  const onboardingCandidateKey: OnboardingHintKey | null = !onboardingTargetTask
+    ? null
+    : onboardingTargetFace !== 'task'
+    ? 'hold-to-expand'
+    : isTaskCompleted(onboardingTargetTask)
+    ? 'tap-to-cycle'
+    : 'hold-to-complete';
+
+  const onboardingHintKey = onboardingCandidateKey && !onboardingHintsSeen[onboardingCandidateKey]
+    ? onboardingCandidateKey
+    : null;
+
+  const measureOnboardingTarget = () => {
+    onboardingTargetRef.current?.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+      setOnboardingTargetLayout({ x, y, width: measuredWidth, height: measuredHeight });
+    });
+  };
+
+  // `onLayout` (react-native-web's ResizeObserver-backed polyfill) doesn't reliably fire on
+  // initial mount, so a rAF-scheduled measurement after render is the primary trigger; onLayout
+  // and onScroll below are kept as supplementary re-measures for when layout genuinely shifts.
+  useEffect(() => {
+    if (!onboardingTargetTaskId) return;
+    const frame = requestAnimationFrame(measureOnboardingTarget);
+    return () => cancelAnimationFrame(frame);
+  }, [onboardingTargetTaskId, columnCount]);
+
+  // A new target card starts out showing its task face, until its own onFlip says otherwise.
+  useEffect(() => {
+    setOnboardingTargetFace('task');
+  }, [onboardingTargetTaskId]);
+
+  const markOnboardingHintSeen = (key: OnboardingHintKey) => setOnboardingHintSeen(key, true);
+
   const handleTaskLongPress = (task: Task) => {
     if (isTaskCompleted(task)) {
       router.push({ pathname: '/task-details', params: { taskId: task.id } });
     } else {
       completeTask(task.id);
+      if (task.id === onboardingTargetTaskId) markOnboardingHintSeen('hold-to-complete');
     }
   };
 
@@ -157,21 +214,32 @@ export const HomeScreen: React.FC = () => {
           offset: cardSize * Math.floor(index / columnCount),
           index,
         })}
-        renderItem={({ item }) => (
-          <TaskCard
-            task={item}
-            size={cardSize}
-            onLongPressCalendar={() => router.push({
-              pathname: '/task-calendar',
-              params: { taskId: item.id }
-            })}
-            onLongPressStats={() => router.push({
-              pathname: '/task-stats',
-              params: { taskId: item.id }
-            })}
-            onLongPressTask={() => handleTaskLongPress(item)}
-          />
-        )}
+        onScroll={onboardingTargetTaskId ? measureOnboardingTarget : undefined}
+        scrollEventThrottle={100}
+        renderItem={({ item }) => {
+          const isOnboardingTarget = item.id === onboardingTargetTaskId;
+          return (
+            <TaskCard
+              ref={isOnboardingTarget ? onboardingTargetRef : undefined}
+              onLayout={isOnboardingTarget ? measureOnboardingTarget : undefined}
+              task={item}
+              size={cardSize}
+              onLongPressCalendar={() => {
+                if (isOnboardingTarget) markOnboardingHintSeen('hold-to-expand');
+                router.push({ pathname: '/task-calendar', params: { taskId: item.id } });
+              }}
+              onLongPressStats={() => {
+                if (isOnboardingTarget) markOnboardingHintSeen('hold-to-expand');
+                router.push({ pathname: '/task-stats', params: { taskId: item.id } });
+              }}
+              onLongPressTask={() => handleTaskLongPress(item)}
+              onFlip={isOnboardingTarget ? (side) => {
+                setOnboardingTargetFace(side);
+                if (side !== 'task') markOnboardingHintSeen('tap-to-cycle');
+              } : undefined}
+            />
+          );
+        }}
         contentContainerStyle={[styles.listContent, filteredTasks.length === 0 && styles.emptyListContent]}
         ListEmptyComponent={
           <View style={styles.emptyState}>
@@ -214,6 +282,14 @@ export const HomeScreen: React.FC = () => {
       <TouchableOpacity style={styles.addButton} onPress={() => router.push('/add-task')}>
         <MaterialCommunityIcons name="plus" size={32} color="#fff" />
       </TouchableOpacity>
+      {onboardingHintKey && onboardingTargetLayout && (
+        <OnboardingHint
+          key={onboardingHintKey}
+          text={ONBOARDING_HINT_TEXT[onboardingHintKey]}
+          targetLayout={onboardingTargetLayout}
+          onDismiss={() => markOnboardingHintSeen(onboardingHintKey)}
+        />
+      )}
     </View>
   );
 };

@@ -26,15 +26,17 @@ import { ParticleSystem } from './ParticleSystem';
 
 const AnimatedPath = Reanimated.createAnimatedComponent(Path);
 
+export type CardSide = 'task' | 'calendar' | 'stats';
+
 interface TaskCardProps {
   task: Task;
   size: number;
   onLongPressCalendar?: () => void;
   onLongPressStats?: () => void;
   onLongPressTask?: () => void;
+  onFlip?: (visibleSide: CardSide) => void;
+  onLayout?: () => void;
 }
-
-type CardSide = 'task' | 'calendar' | 'stats';
 
 interface CardTaskProps {
   task: Task;
@@ -473,13 +475,15 @@ const CardStats = React.memo(({ task }: { task: Task }) => {
 
 CardStats.displayName = 'CardStats';
 
-export const TaskCard = React.memo(({
+export const TaskCard = React.memo(React.forwardRef<View, TaskCardProps>(({
   task,
   size,
   onLongPressCalendar,
   onLongPressStats,
   onLongPressTask,
-}: TaskCardProps) => {
+  onFlip,
+  onLayout,
+}: TaskCardProps, ref) => {
   const { showCardBackground } = useSettings();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -533,8 +537,10 @@ export const TaskCard = React.memo(({
       }
     }
     setSides(nextSides);
-    setIsFlipped(!isFlipped);
-    
+    const nextIsFlipped = !isFlipped;
+    setIsFlipped(nextIsFlipped);
+    onFlip?.(nextIsFlipped ? nextSides[1] : nextSides[0]);
+
     flipAnim.value = withTiming(isFlipped ? 0 : 1, {
       duration: 800,
       easing: Easing.bezier(0.25, 0.1, 0.25, 1),
@@ -579,8 +585,8 @@ export const TaskCard = React.memo(({
   };
 
   return (
-    <View style={[styles.container, { width: size, height: size }]}>
-      <Pressable 
+    <View ref={ref} onLayout={onLayout} style={[styles.container, { width: size, height: size }]}>
+      <Pressable
         onPress={flipCard} 
         onLongPress={handleLongPress}
         onPressIn={handlePressIn}
@@ -602,7 +608,7 @@ export const TaskCard = React.memo(({
       </Pressable>
     </View>
   );
-});
+}));
 
 TaskCard.displayName = 'TaskCard';
 
