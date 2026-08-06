@@ -12,5 +12,3 @@ A playful, modern habit and streak tracker for Android.
 - Archive tasks instead of deleting them, with one-tap restore
 - Export and import your data
 - Light and dark mode
-
-For setup and contributing instructions, see [DEVELOPMENT.md](DEVELOPMENT.md).
