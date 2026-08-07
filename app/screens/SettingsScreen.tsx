@@ -32,7 +32,7 @@ const THEME_MODE_OPTIONS: { value: ThemeMode; label: string }[] = [
 
 export const SettingsScreen: React.FC = () => {
   const router = useRouter();
-  const { tasks, importTasks, lastImport } = useTaskContext();
+  const { tasks, importTasks, lastImport, isTaskCompleted } = useTaskContext();
   const { showToast } = useToast();
   const {
     themeMode, setThemeMode,
@@ -224,7 +224,10 @@ export const SettingsScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.row}
             onPress={() => {
-              resetOnboardingHints();
+              // If a task's already been completed today, the "hold to complete" hint wouldn't
+              // make sense to replay -- the user's clearly already found that gesture.
+              const completedSomethingToday = tasks.some(task => !task.archived && isTaskCompleted(task));
+              resetOnboardingHints(completedSomethingToday ? { 'hold-to-complete': true } : undefined);
               router.back();
             }}
           >

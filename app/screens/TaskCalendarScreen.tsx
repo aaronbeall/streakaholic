@@ -1,15 +1,20 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { addMonths, addYears, format, getDay, getDaysInMonth, startOfMonth, subMonths, subYears } from 'date-fns';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { FlatList, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MissedDayMark } from '../components/MissedDayMark';
+import { OnboardingHint } from '../components/OnboardingHint';
 import { PartialDayPie } from '../components/PartialDayPie';
+import { useSettings } from '../context/SettingsContext';
 import { useTaskContext } from '../context/TaskContext';
 import { useToast } from '../context/ToastContext';
+import { useOnboardingTarget } from '../hooks/useOnboardingTarget';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
+
+const TAP_DAY_HINT_TEXT = 'Tap a day to mark a day complete, tap again to clear it';
 
 type ViewMode = 'month' | 'year';
 
@@ -47,12 +52,20 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
   const taskId = task.id;
   const { completeTask, uncompleteTask, undoCompleteTask, restoreCompletion, isTaskCompleted, getCompletionCount } = useTaskContext();
   const { showToast } = useToast();
+  const { onboardingHintsSeen, setOnboardingHintSeen } = useSettings();
   const [currentMonth, setCurrentMonth] = useState(initialMonth ?? new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [yearGridWidth, setYearGridWidth] = useState(0);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const containerRef = useRef<View>(null);
+  const calendarGridRef = useRef<View>(null);
+
+  // Only in month view -- the year view's dots aren't tappable.
+  const showTapDayHint = !onboardingHintsSeen['task-calendar-tap-day'] && viewMode === 'month';
+  const tapDayHintLayout = useOnboardingTarget(containerRef, calendarGridRef, showTapDayHint);
+  const dismissTapDayHint = () => setOnboardingHintSeen('task-calendar-tap-day', true);
 
   const daysInMonth = getDaysInMonth(currentMonth);
   const firstDayOfMonth = startOfMonth(currentMonth);
@@ -132,6 +145,10 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
       return; // Don't allow completing future dates
     }
 
+    // Tapping a day is the gesture this hint teaches -- dismiss it the same way Home's hints
+    // dismiss themselves when the user performs the taught gesture directly.
+    dismissTapDayHint();
+
     const label = format(date, 'MMM d');
 
     if (isCompleted) {
@@ -174,7 +191,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} ref={containerRef}>
       <View style={[styles.content, { paddingBottom: insets.bottom }]}>
         <View style={styles.navigation}>
           <TouchableOpacity onPress={handlePrev} style={styles.navButton}>
@@ -284,11 +301,14 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                     onPress={() => handleDayPress(date)}
                     delayLongPress={500}
                   >
-                    <View key={ `${task.id}-${isCompleted}-${isPartial}` } style={[
-                      styles.dayContent,
-                      isCompleted && { backgroundColor: task.color },
-                      isToday && !isCompleted && { borderWidth: 2, borderColor: task.color }
-                    ]}>
+                    <View
+                      key={ `${task.id}-${isCompleted}-${isPartial}` }
+                      ref={dayNumber === 1 ? calendarGridRef : undefined}
+                      style={[
+                        styles.dayContent,
+                        isCompleted && { backgroundColor: task.color },
+                        isToday && !isCompleted && { borderWidth: 2, borderColor: task.color }
+                      ]}>
                       {isMissed ? (
                         <MissedDayMark color={colors.textTertiary} size={16} />
                       ) : isPartial ? (
@@ -319,6 +339,14 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
           </View>
         )}
       </View>
+
+      {showTapDayHint && tapDayHintLayout && (
+        <OnboardingHint
+          text={TAP_DAY_HINT_TEXT}
+          targetLayout={tapDayHintLayout}
+          onDismiss={dismissTapDayHint}
+        />
+      )}
     </View>
   );
 };

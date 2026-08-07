@@ -1,11 +1,13 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Reanimated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { OnboardingHint } from '../components/OnboardingHint';
 import { useSettings } from '../context/SettingsContext';
 import { useTaskContext } from '../context/TaskContext';
+import { useOnboardingTarget } from '../hooks/useOnboardingTarget';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { DashboardCalendarView } from './DashboardCalendarView';
 import { DashboardStatsView } from './DashboardStatsView';
@@ -13,13 +15,15 @@ import { DashboardStreaksView } from './DashboardStreaksView';
 
 export type DashboardTab = 'stats' | 'calendar' | 'streaks';
 const ACCENT = '#007AFF';
+const TASK_FILTER_HINT_TEXT = 'Tap tasks to toggle which ones are included in the dashboard';
 
 const DashboardHeader: React.FC<{
   activeTab: DashboardTab;
   onTabChange: (tab: DashboardTab) => void;
   selectedTasks: string[];
   onTaskToggle: (taskId: string) => void;
-}> = ({ activeTab, onTabChange, selectedTasks, onTaskToggle }) => {
+  taskFilterRef: React.RefObject<View | null>;
+}> = ({ activeTab, onTabChange, selectedTasks, onTaskToggle, taskFilterRef }) => {
   const { tasks } = useTaskContext();
   const router = useRouter();
   const colors = useThemeColors();
@@ -38,7 +42,7 @@ const DashboardHeader: React.FC<{
           <View style={styles.headerButton} />
         </View>
 
-        <View style={styles.taskFilterContainer}>
+        <View style={styles.taskFilterContainer} ref={taskFilterRef}>
           {visibleTasks.map((task) => (
             <TouchableOpacity
               key={task.id}
@@ -112,35 +116,46 @@ const DashboardHeader: React.FC<{
 export const DashboardScreen: React.FC = () => {
   const { tasks: allTasks } = useTaskContext();
   const tasks = useMemo(() => allTasks.filter(task => !task.archived), [allTasks]);
-  const { dashboardLastTab, setDashboardLastTab } = useSettings();
+  const { dashboardLastTab, setDashboardLastTab, onboardingHintsSeen, setOnboardingHintSeen } = useSettings();
   // Dashboard has no deep-linked tab of its own (unlike task-detail's `tab` search param), so it
   // always just restores whichever tab was last viewed.
   const [activeTab, setActiveTab] = useState<DashboardTab>(dashboardLastTab);
   const [selectedTasks, setSelectedTasks] = useState<string[]>(tasks.map(t => t.id));
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const containerRef = useRef<View>(null);
+  const taskFilterRef = useRef<View>(null);
 
   const handleTabChange = (tab: DashboardTab) => {
     setActiveTab(tab);
     setDashboardLastTab(tab);
   };
 
+  // Only worth teaching once there's actually more than one task to filter between.
+  const showTaskFilterHint = !onboardingHintsSeen['dashboard-task-filter'] && tasks.length > 1;
+  const taskFilterHintLayout = useOnboardingTarget(containerRef, taskFilterRef, showTaskFilterHint);
+  const dismissTaskFilterHint = () => setOnboardingHintSeen('dashboard-task-filter', true);
+
   // The task filter lives here (not inside DashboardStatsView) so it can filter everything on
   // the view, regardless of which tab is active.
   const filteredTasks = useMemo(() => tasks.filter(task => selectedTasks.includes(task.id)), [tasks, selectedTasks]);
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} ref={containerRef}>
       <DashboardHeader
         activeTab={activeTab}
         onTabChange={handleTabChange}
         selectedTasks={selectedTasks}
+        taskFilterRef={taskFilterRef}
         onTaskToggle={(taskId) => {
           setSelectedTasks(prev =>
             prev.includes(taskId)
               ? prev.filter(id => id !== taskId)
               : [...prev, taskId]
           );
+          // Tapping a filter bubble is the gesture this hint teaches -- dismiss it the same way
+          // Home's hints dismiss themselves when the user performs the taught gesture directly.
+          dismissTaskFilterHint();
         }}
       />
       <Reanimated.View key={activeTab} entering={FadeIn.duration(150)} style={styles.body}>
@@ -152,6 +167,14 @@ export const DashboardScreen: React.FC = () => {
           <DashboardStreaksView tasks={filteredTasks} />
         )}
       </Reanimated.View>
+
+      {showTaskFilterHint && taskFilterHintLayout && (
+        <OnboardingHint
+          text={TASK_FILTER_HINT_TEXT}
+          targetLayout={taskFilterHintLayout}
+          onDismiss={dismissTaskFilterHint}
+        />
+      )}
     </View>
   );
 };

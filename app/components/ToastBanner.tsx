@@ -1,12 +1,23 @@
 import React, { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Reanimated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Reanimated, {
+  Easing,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ToastAction, useToast } from '../context/ToastContext';
 
 // Un-themed and theme-independent by design, same reasoning as OnboardingHint's bubble --
 // a snackbar needs to read clearly regardless of the app's current light/dark palette.
 const ACCENT = '#007AFF';
+// Swiping past either threshold (distance OR a fast enough flick) dismisses -- matching how
+// native Android/iOS snackbars/notifications are typically swiped away.
+const SWIPE_DISMISS_DISTANCE = 80;
+const SWIPE_DISMISS_VELOCITY = 800;
 
 const ToastContent: React.FC<{ message: string; action?: ToastAction; onDismiss: () => void }> = ({
   message,
@@ -14,32 +25,62 @@ const ToastContent: React.FC<{ message: string; action?: ToastAction; onDismiss:
   onDismiss,
 }) => {
   const reveal = useSharedValue(0);
+  const translateX = useSharedValue(0);
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
 
   useEffect(() => {
     reveal.value = withTiming(1, { duration: 250, easing: Easing.out(Easing.cubic) });
   }, []);
 
-  const revealStyle = useAnimatedStyle(() => ({
-    opacity: reveal.value,
-    transform: [{ translateY: (1 - reveal.value) * 16 }],
-  }));
+  const panGesture = Gesture.Pan()
+    .onUpdate((event) => {
+      translateX.value = event.translationX;
+    })
+    .onEnd((event) => {
+      const shouldDismiss =
+        Math.abs(event.translationX) > SWIPE_DISMISS_DISTANCE ||
+        Math.abs(event.velocityX) > SWIPE_DISMISS_VELOCITY;
+      if (shouldDismiss) {
+        const direction = event.translationX < 0 ? -1 : 1;
+        translateX.value = withTiming(direction * screenWidth, { duration: 200 }, (finished) => {
+          if (finished) runOnJS(onDismiss)();
+        });
+      } else {
+        translateX.value = withTiming(0);
+      }
+    });
+
+  const revealStyle = useAnimatedStyle(() => {
+    // Fades out as it's dragged, on top of (not instead of) the entrance fade-in -- so a fast
+    // swipe during the entrance animation doesn't fight it.
+    const dragFade = 1 - Math.min(1, Math.abs(translateX.value) / screenWidth);
+    return {
+      opacity: reveal.value * dragFade,
+      transform: [
+        { translateY: (1 - reveal.value) * 16 },
+        { translateX: translateX.value },
+      ],
+    };
+  });
 
   return (
-    <Reanimated.View style={[styles.banner, { bottom: 32 + insets.bottom }, revealStyle]}>
-      <Text style={styles.message} numberOfLines={2}>{message}</Text>
-      {action && (
-        <Pressable
-          onPress={() => {
-            action.onPress();
-            onDismiss();
-          }}
-          hitSlop={8}
-        >
-          <Text style={styles.actionLabel}>{action.label.toUpperCase()}</Text>
-        </Pressable>
-      )}
-    </Reanimated.View>
+    <GestureDetector gesture={panGesture}>
+      <Reanimated.View style={[styles.banner, { bottom: 32 + insets.bottom }, revealStyle]}>
+        <Text style={styles.message} numberOfLines={2}>{message}</Text>
+        {action && (
+          <Pressable
+            onPress={() => {
+              action.onPress();
+              onDismiss();
+            }}
+            hitSlop={8}
+          >
+            <Text style={styles.actionLabel}>{action.label.toUpperCase()}</Text>
+          </Pressable>
+        )}
+      </Reanimated.View>
+    </GestureDetector>
   );
 };
 

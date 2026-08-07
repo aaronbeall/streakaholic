@@ -13,14 +13,19 @@ import Reanimated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OnboardingHint, TargetLayout } from '../components/OnboardingHint';
 import { CardSide, TaskCard } from '../components/TaskCard';
-import { OnboardingHintKey, useSettings } from '../context/SettingsContext';
+import { useSettings } from '../context/SettingsContext';
 import { useTaskContext } from '../context/TaskContext';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getStreakStats } from '../utils/data';
 
-const ONBOARDING_HINT_TEXT: Record<OnboardingHintKey, string> = {
+// Narrower than the full OnboardingHintKey union -- this screen only ever produces one of these
+// three (see onboardingCandidateKey below), never the other screens' single stationary-target hints.
+type HomeHintKey = 'hold-to-complete' | 'tap-to-cycle' | 'hold-to-expand';
+const HOME_HINT_KEYS: HomeHintKey[] = ['hold-to-complete', 'tap-to-cycle', 'hold-to-expand'];
+
+const ONBOARDING_HINT_TEXT: Record<HomeHintKey, string> = {
   'hold-to-complete': 'Press and hold to complete',
   'tap-to-cycle': 'Tap to see calendar & stats',
   'hold-to-expand': 'Press and hold to open the full screen and make changes',
@@ -155,15 +160,16 @@ export const HomeScreen: React.FC = () => {
 
   // The onboarding hints walk through the first visible card only -- same task throughout,
   // so the pointer/highlight never has to jump between cards. Once every hint has been seen
-  // (each dismissed independently), stop targeting a card at all.
-  const allOnboardingHintsSeen = Object.values(onboardingHintsSeen).every(Boolean);
+  // (each dismissed independently), stop targeting a card at all. Only this screen's own three
+  // hints gate that -- Dashboard's/task-detail's unrelated stationary-target hints don't.
+  const allOnboardingHintsSeen = HOME_HINT_KEYS.every(key => onboardingHintsSeen[key]);
   const onboardingTargetTask = allOnboardingHintsSeen ? undefined : filteredTasks[0];
   const onboardingTargetTaskId = onboardingTargetTask?.id;
 
   // Which condition matches right now, purely a function of the target card's live state: its
   // due-today completion status, and which face it's currently showing. Only shown if that
   // specific hint hasn't already been seen/dismissed on its own.
-  const onboardingCandidateKey: OnboardingHintKey | null = !onboardingTargetTask
+  const onboardingCandidateKey: HomeHintKey | null = !onboardingTargetTask
     ? null
     : onboardingTargetFace !== 'task'
     ? 'hold-to-expand'
@@ -256,7 +262,7 @@ export const HomeScreen: React.FC = () => {
     setOnboardingTargetFace('task');
   }, [onboardingTargetTaskId]);
 
-  const markOnboardingHintSeen = (key: OnboardingHintKey) => setOnboardingHintSeen(key, true);
+  const markOnboardingHintSeen = (key: HomeHintKey) => setOnboardingHintSeen(key, true);
 
   const handleTaskLongPress = (task: Task) => {
     if (isTaskCompleted(task)) {

@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ToastBanner } from './components/ToastBanner';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { TaskProvider, useTaskContext } from './context/TaskContext';
@@ -92,13 +93,19 @@ function AppGate() {
 
 export default function Layout() {
   return (
-    <SettingsProvider>
-      <TaskProvider>
-        <ToastProvider>
-          <AppGate />
-          <ToastBanner />
-        </ToastProvider>
-      </TaskProvider>
-    </SettingsProvider>
+    // Required by react-native-gesture-handler (ToastBanner's swipe-to-dismiss uses
+    // Gesture.Pan()/GestureDetector) -- without this ancestor, GestureDetector throws at
+    // runtime on native. Expo Router's own Stack doesn't provide it, so it's added here at
+    // the true root.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SettingsProvider>
+        <TaskProvider>
+          <ToastProvider>
+            <AppGate />
+            <ToastBanner />
+          </ToastProvider>
+        </TaskProvider>
+      </SettingsProvider>
+    </GestureHandlerRootView>
   );
 }

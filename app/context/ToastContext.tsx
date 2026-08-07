@@ -21,7 +21,9 @@ interface ToastContextType {
   hideToast: () => void;
 }
 
-const DEFAULT_DURATION = 4000;
+// Long enough to comfortably read the message and tap Undo without rushing -- toasts can also be
+// swiped away early (see ToastBanner) for anyone who doesn't need the full duration.
+const DEFAULT_DURATION = 8000;
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
