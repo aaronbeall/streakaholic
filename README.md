@@ -10,7 +10,12 @@ A playful, modern habit and streak tracker for Android.
 - Filter tasks by streak status — up to date, expiring, and more
 - View aggregate stats and charts across all tasks on the Dashboard
 - Customize tasks with icons and colors
-- Set multiple completions per day, with optional duration tracking
-- Archive tasks instead of deleting them, with one-tap restore
+- Set multiple completions per day
+- Archive and restore tasks
 - Export and import your data
 - Light and dark mode
+
+## Docs
+- [DEVELOPMENT.md](DEVELOPMENT.md)
+- [TODO.md](TODO.md)
+- [CLAUDE.md](CLAUDE.md)

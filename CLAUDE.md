@@ -14,7 +14,7 @@ Naming: resolved as "Streakaholic" (kept as-is — user confirmed 2026-08-01, no
 - Icons: `@expo/vector-icons` MaterialCommunityIcons — `MaterialCommunityIconName` type is derived directly from the glyph map
 - Data export/import: `expo-file-system`, `expo-sharing`, `expo-document-picker`
 - Theming: `app/hooks/useThemeColors.ts` — `useColorScheme()`-backed semantic palette (`background`, `surface`, `surfaceSecondary`, `text`, `textSecondary`, `textTertiary`, `border`, `iconButtonBackground`, `overlay`, `isDark`). Every screen/component builds its `StyleSheet` via `createStyles(colors)` + `useMemo` instead of a static object. Task-specific/status/brand colors (task.color, streak red/orange, primary blue, destructive red, trophy gold) are intentionally left un-themed — they read fine on both schemes.
-- No test suite, no CI config present.
+- Testing: `jest` + `jest-expo` preset, `npm test`. Scope is intentionally narrow — pure functions in `app/utils/*.ts` only (`streaks.ts`, `data.ts`, `importExport.ts`, `periodStats.ts`, `pieWedge.ts`, `calendarGrid.ts`), each with a co-located `*.test.ts`. No component/render tests, no mocking of `TaskContext`/AsyncStorage — anything that needs those stays manually/on-device tested per the rest of this doc. `package.json`'s `"jest"` config scopes `testMatch` to `app/utils/**/*.test.ts` accordingly. No CI config present (tests are local-only for now).
 
 ## Architecture
 
@@ -68,6 +68,8 @@ Data model (`app/types/index.ts`):
 - `TaskCompletion`: id, taskId, `date` (yyyy-MM-dd, the day it counts for), `completedAt` (actual timestamp), `timesCompleted` (increments per press up to `timesPerDay`, rather than one record per press)
 
 `app/utils/data.ts` holds pure chart/date-range helpers (time-frame bucketing, day-of-week/hour-of-day histograms, aggregate stats) used by Dashboard and per-task Stats screens.
+
+Three smaller pure-logic modules were pulled out of component files specifically so they're unit-testable (components themselves aren't unit-tested — see Testing above): `app/utils/periodStats.ts` (`getExpectedPeriodTotal` — the frequency-aware "x/N" quota math behind TaskCard's "This week"/"Past 30 days" boxes), `app/utils/pieWedge.ts` (`buildPieWedgePath` — the SVG path geometry behind `PartialDayPie`'s clockwise wedge), and `app/utils/calendarGrid.ts` (`getTrailingBlankCount` — the leading/trailing blank-cell padding math shared by the calendar grids in `TaskCard`'s flipped face and `TaskCalendarScreen`).
 
 `app/utils/importExport.ts` — export/import logic used by `SettingsScreen`:
 - Export shape is `TasksExport` (`app/types/index.ts`): `{ schemaVersion, exportId, exportedAt, appVersion, taskCount, tasks }`. `schemaVersion` is currently always `1`; `migrateTasksExport` (a `switch` on `schemaVersion`) is the intended landing spot for future format migrations, but there's only the one case so far.
