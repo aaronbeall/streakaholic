@@ -1,4 +1,6 @@
 import { Stack } from 'expo-router';
+import * as SystemUI from 'expo-system-ui';
+import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ToastBanner } from './components/ToastBanner';
@@ -10,11 +12,26 @@ import { useThemeColors } from './hooks/useThemeColors';
 function RootStack() {
   const colors = useThemeColors();
 
+  // contentStyle below only themes react-native-screens' own JS-rendered screen surface -- it
+  // doesn't reach the native root/window background underneath, which Android still shows
+  // through (white by default) during a screen transition, especially with edgeToEdgeEnabled
+  // (there's no opaque system-bar chrome covering the edges to hide it). This is what was still
+  // flashing white on back navigation after the contentStyle fix.
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(colors.background);
+  }, [colors.background]);
+
   return (
     // `slide_from_right` gives push/pop a direction-aware slide for free -- native-stack
     // plays it forward on push and automatically reverses it on pop (back), on native and
     // (via react-native-screens' web CSS-animation support) on web too.
-    <Stack screenOptions={{ animation: 'slide_from_right' }}>
+    //
+    // `contentStyle` backgroundColor is required here too: react-native-screens' native Screen
+    // surface defaults to white regardless of app theme, so without this, sliding to reveal the
+    // screen underneath during a pop -- or the brief moment before a pushed screen's own content
+    // has painted -- shows a flash of white through the gap in dark mode. Themed per render since
+    // `colors` already reacts to the current theme.
+    <Stack screenOptions={{ animation: 'slide_from_right', contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen
         name="index"
         options={{
