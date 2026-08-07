@@ -3,8 +3,10 @@ import { addMonths, format, getDay, getDaysInMonth, startOfMonth, subMonths } fr
 import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TaskHeader } from '../components/TaskHeader';
 import { useTaskContext } from '../context/TaskContext';
+import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 
 // Add type definitions at the top of the file
@@ -26,9 +28,11 @@ type CalendarItem = CalendarDay | EmptyDay;
 
 export default function TaskCalendarScreen() {
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
-  const { tasks, completeTask, uncompleteTask, isTaskCompleted } = useTaskContext();
+  const { tasks, completeTask, uncompleteTask, undoCompleteTask, restoreCompletion, isTaskCompleted } = useTaskContext();
+  const { showToast } = useToast();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const task = tasks.find(t => t.id === taskId);
@@ -58,15 +62,30 @@ export default function TaskCalendarScreen() {
     const dateString = format(date, 'yyyy-MM-dd');
     const isCompleted = isTaskCompleted(task, date);
     const isFuture = dateString > today;
-    
+
     if (isFuture) {
       return; // Don't allow completing future dates
     }
-    
+
+    const label = format(date, 'MMM d');
+
     if (isCompleted) {
+      // uncompleteTask clears the whole day, which can wipe out a `timesCompleted` > 1 for a
+      // multi-rep task -- snapshot the exact completion so Undo can restore it precisely.
+      const existingCompletion = task.completions?.find(c => c.date === dateString);
       uncompleteTask(taskId, date);
+      showToast({
+        message: `${label} cleared`,
+        action: existingCompletion
+          ? { label: 'Undo', onPress: () => restoreCompletion(taskId, existingCompletion) }
+          : undefined,
+      });
     } else {
       completeTask(taskId, date);
+      showToast({
+        message: `${label} completed`,
+        action: { label: 'Undo', onPress: () => undoCompleteTask(taskId, date) },
+      });
     }
   };
 
@@ -82,7 +101,7 @@ export default function TaskCalendarScreen() {
     <View style={styles.container}>
       <TaskHeader task={task} />
 
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingBottom: insets.bottom }]}>
         <View style={styles.navigation}>
           <TouchableOpacity onPress={handlePrevMonth} style={styles.navButton}>
             <MaterialCommunityIcons name="chevron-left" size={24} color={colors.text} />

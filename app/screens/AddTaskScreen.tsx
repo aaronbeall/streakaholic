@@ -10,10 +10,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ColorPicker } from '../components/ColorPicker';
 import { IconPicker } from '../components/IconPicker';
 import { DEFAULT_COLORS, DEFAULT_ICONS } from '../constants/task';
 import { useTaskContext } from '../context/TaskContext';
+import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { FrequencyType, MaterialCommunityIconName } from '../types';
 
@@ -22,8 +24,10 @@ const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const AddTaskScreen: React.FC = () => {
   const router = useRouter();
   const { taskId } = useLocalSearchParams<{ taskId?: string }>();
-  const { addTask, updateTask, tasks } = useTaskContext();
+  const { addTask, updateTask, tasks, deleteTask, restoreDeletedTask, archiveTask, restoreTask } = useTaskContext();
+  const { showToast } = useToast();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const editingTask = useMemo(() => tasks.find(t => t.id === taskId), [tasks, taskId]);
@@ -59,7 +63,7 @@ export const AddTaskScreen: React.FC = () => {
 
   const handleSave = async () => {
     if (!isNameValid) {
-      Alert.alert('Error', 'Please enter a unique task name');
+      showToast({ message: 'Please enter a unique task name' });
       return;
     }
 
@@ -82,20 +86,78 @@ export const AddTaskScreen: React.FC = () => {
       }
       router.back();
     } catch {
-      Alert.alert('Error', `Failed to ${isEditing ? 'update' : 'create'} task`);
+      showToast({ message: `Failed to ${isEditing ? 'update' : 'create'} task` });
     }
   };
 
   const toggleDayOfWeek = (dayIndex: number) => {
-    setDaysOfWeek(prev => 
+    setDaysOfWeek(prev =>
       prev.includes(dayIndex)
         ? prev.filter(d => d !== dayIndex)
         : [...prev, dayIndex].sort()
     );
   };
 
+  // Archive and delete get a real confirmation modal (unlike everything else in the app) --
+  // both live at the bottom of the edit form now rather than a separate read-only screen, so
+  // a stray tap here is easier to make by accident. The toast afterward still offers Undo as a
+  // second safety net for anyone who confirms on autopilot.
+  const handleDelete = () => {
+    if (!editingTask) return;
+    const deletedTask = editingTask;
+    Alert.alert(
+      'Delete Task',
+      `Delete "${deletedTask.name}"? This removes all of its history too.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteTask(deletedTask.id);
+            router.back();
+            showToast({
+              message: `"${deletedTask.name}" deleted`,
+              action: { label: 'Undo', onPress: () => restoreDeletedTask(deletedTask) },
+            });
+          },
+        },
+      ]
+    );
+  };
+
+  const handleArchiveToggle = () => {
+    if (!editingTask) return;
+
+    if (editingTask.archived) {
+      restoreTask(editingTask.id);
+      router.back();
+      return;
+    }
+
+    const archivedTask = editingTask;
+    Alert.alert(
+      'Archive Task',
+      `Archive "${archivedTask.name}"? You can restore it later from Archived Tasks.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Archive',
+          onPress: () => {
+            archiveTask(archivedTask.id);
+            router.back();
+            showToast({
+              message: `"${archivedTask.name}" archived`,
+              action: { label: 'Undo', onPress: () => restoreTask(archivedTask.id) },
+            });
+          },
+        },
+      ]
+    );
+  };
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 16 + insets.bottom }}>
       <Stack.Screen options={{ title: isEditing ? 'Edit Task' : 'Add New Task' }} />
       <View style={styles.section}>
         <Text style={styles.label}>Task Name</Text>
@@ -262,8 +324,8 @@ export const AddTaskScreen: React.FC = () => {
         </View>
       </View>
 
-      <TouchableOpacity 
-        style={[styles.saveButton, !isNameValid && styles.saveButtonDisabled]} 
+      <TouchableOpacity
+        style={[styles.saveButton, !isNameValid && styles.saveButtonDisabled]}
         onPress={handleSave}
         disabled={!isNameValid}
       >
@@ -271,6 +333,23 @@ export const AddTaskScreen: React.FC = () => {
           {isEditing ? 'Save Changes' : 'Save Task'}
         </Text>
       </TouchableOpacity>
+
+      {editingTask && (
+        <View style={styles.manageSection}>
+          <TouchableOpacity style={[styles.manageButton, styles.archiveButton]} onPress={handleArchiveToggle}>
+            <MaterialCommunityIcons
+              name={editingTask.archived ? 'archive-arrow-up-outline' : 'archive-outline'}
+              size={20}
+              color="#fff"
+            />
+            <Text style={styles.manageButtonText}>{editingTask.archived ? 'Restore Task' : 'Archive Task'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.manageButton, styles.deleteButton]} onPress={handleDelete}>
+            <MaterialCommunityIcons name="delete" size={20} color="#fff" />
+            <Text style={styles.manageButtonText}>Delete Task</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </ScrollView>
   );
 };
@@ -394,7 +473,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 16,
-    marginBottom: 32,
   },
   saveButtonDisabled: {
     backgroundColor: colors.border,
@@ -406,5 +484,29 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   saveButtonTextDisabled: {
     color: '#8E8E93',
+  },
+  manageSection: {
+    gap: 12,
+    marginTop: 24,
+    marginBottom: 32,
+  },
+  manageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 8,
+    gap: 8,
+  },
+  archiveButton: {
+    backgroundColor: '#8E8E93',
+  },
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+  },
+  manageButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

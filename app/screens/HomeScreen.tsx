@@ -10,10 +10,12 @@ import {
   View,
 } from 'react-native';
 import Reanimated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OnboardingHint, TargetLayout } from '../components/OnboardingHint';
 import { CardSide, TaskCard } from '../components/TaskCard';
 import { OnboardingHintKey, useSettings } from '../context/SettingsContext';
 import { useTaskContext } from '../context/TaskContext';
+import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getStreakStats } from '../utils/data';
@@ -35,6 +37,7 @@ const HomeHeader = React.memo(({ activeFilter, onFilterChange }: { activeFilter:
   const router = useRouter();
   const { tasks } = useTaskContext();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const streakStats = useMemo(() => getStreakStats(tasks.filter(task => !task.archived)), [tasks]);
@@ -44,7 +47,7 @@ const HomeHeader = React.memo(({ activeFilter, onFilterChange }: { activeFilter:
   };
 
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
       <TouchableOpacity
         style={styles.headerButton}
         onPress={() => router.push({ pathname: '/dashboard' })}
@@ -113,13 +116,16 @@ HomeHeader.displayName = "HomeHeader";
 
 export const HomeScreen: React.FC = () => {
   const router = useRouter();
-  const { tasks, completeTask, isTaskCompleted } = useTaskContext();
+  const { tasks, completeTask, undoCompleteTask, isTaskCompleted } = useTaskContext();
+  const { showToast } = useToast();
   const { onboardingHintsSeen, setOnboardingHintSeen } = useSettings();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<FilterType>(null);
   const [onboardingTargetLayout, setOnboardingTargetLayout] = useState<TargetLayout | null>(null);
   const [onboardingTargetFace, setOnboardingTargetFace] = useState<CardSide>('task');
   const onboardingTargetRef = useRef<View>(null);
+  const onboardingContainerRef = useRef<View>(null);
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -169,19 +175,80 @@ export const HomeScreen: React.FC = () => {
     ? onboardingCandidateKey
     : null;
 
+  // Measured relative to `onboardingContainerRef` (the same View OnboardingHint's absoluteFill
+  // is scoped inside), not `measureInWindow`. `measureInWindow` reports OS window coordinates,
+  // which only line up with OnboardingHint's `top`/`left` (relative to its own RN parent) if that
+  // parent's origin exactly coincides with the window's origin -- an assumption Android's
+  // edge-to-edge status-bar handling breaks, which is what caused the ring to render offset
+  // upward into the header. Measuring relative to the shared container sidesteps window/status
+  // bar coordinates entirely: both the card and the overlay are positioned in the exact same
+  // reference frame by construction.
   const measureOnboardingTarget = () => {
-    onboardingTargetRef.current?.measureInWindow((x, y, measuredWidth, measuredHeight) => {
-      setOnboardingTargetLayout({ x, y, width: measuredWidth, height: measuredHeight });
-    });
+    if (!onboardingContainerRef.current) return;
+    onboardingTargetRef.current?.measureLayout(
+      onboardingContainerRef.current,
+      (x, y, measuredWidth, measuredHeight) => {
+        setOnboardingTargetLayout({ x, y, width: measuredWidth, height: measuredHeight });
+      },
+      () => {} // not mounted/measurable yet -- the next trigger (onLayout/poll below) will retry
+    );
   };
 
   // `onLayout` (react-native-web's ResizeObserver-backed polyfill) doesn't reliably fire on
   // initial mount, so a rAF-scheduled measurement after render is the primary trigger; onLayout
   // and onScroll below are kept as supplementary re-measures for when layout genuinely shifts.
+  //
+  // On native Android, a single rAF isn't enough on its own: unlike web (where layout is
+  // synchronous with paint), the native layout pass -- and any late reflow from the screen's own
+  // slide-in navigation transition -- can still be in flight when that first frame fires. Rather
+  // than guess how long that takes, poll on a short interval and stop once two consecutive reads
+  // agree (layout has settled), capping the total wait so a card that never stabilizes doesn't
+  // poll forever. Each call just overwrites `onboardingTargetLayout`, so the wrong-then-right
+  // sequence of updates along the way is harmless (only ever visible for a frame or two).
   useEffect(() => {
     if (!onboardingTargetTaskId) return;
-    const frame = requestAnimationFrame(measureOnboardingTarget);
-    return () => cancelAnimationFrame(frame);
+
+    const POLL_INTERVAL_MS = 100;
+    const MAX_POLLS = 15; // ~1.5s ceiling
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let lastMeasured: TargetLayout | null = null;
+    let stableCount = 0;
+    let pollCount = 0;
+
+    const isSameLayout = (a: TargetLayout, b: TargetLayout) =>
+      a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+
+    const poll = () => {
+      if (cancelled || !onboardingContainerRef.current) return;
+      onboardingTargetRef.current?.measureLayout(
+        onboardingContainerRef.current,
+        (x, y, measuredWidth, measuredHeight) => {
+          if (cancelled) return;
+          const next: TargetLayout = { x, y, width: measuredWidth, height: measuredHeight };
+          setOnboardingTargetLayout(next);
+          stableCount = lastMeasured && isSameLayout(lastMeasured, next) ? stableCount + 1 : 0;
+          lastMeasured = next;
+          pollCount += 1;
+          if (stableCount < 2 && pollCount < MAX_POLLS) {
+            timer = setTimeout(poll, POLL_INTERVAL_MS);
+          }
+        },
+        () => {
+          pollCount += 1;
+          if (pollCount < MAX_POLLS) {
+            timer = setTimeout(poll, POLL_INTERVAL_MS);
+          }
+        }
+      );
+    };
+
+    const frame = requestAnimationFrame(poll);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
   }, [onboardingTargetTaskId, columnCount]);
 
   // A new target card starts out showing its task face, until its own onFlip says otherwise.
@@ -193,15 +260,19 @@ export const HomeScreen: React.FC = () => {
 
   const handleTaskLongPress = (task: Task) => {
     if (isTaskCompleted(task)) {
-      router.push({ pathname: '/task-details', params: { taskId: task.id } });
+      router.push({ pathname: '/add-task', params: { taskId: task.id } });
     } else {
       completeTask(task.id);
       if (task.id === onboardingTargetTaskId) markOnboardingHintSeen('hold-to-complete');
+      showToast({
+        message: `"${task.name}" completed`,
+        action: { label: 'Undo', onPress: () => undoCompleteTask(task.id) },
+      });
     }
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} ref={onboardingContainerRef}>
       <HomeHeader activeFilter={filter} onFilterChange={setFilter} />
       <FlatList
         key={columnCount}
@@ -240,7 +311,11 @@ export const HomeScreen: React.FC = () => {
             />
           );
         }}
-        contentContainerStyle={[styles.listContent, filteredTasks.length === 0 && styles.emptyListContent]}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: FAB_OFFSET + FAB_SIZE + GRID_SPACING + insets.bottom },
+          filteredTasks.length === 0 && styles.emptyListContent,
+        ]}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Reanimated.View
@@ -279,7 +354,10 @@ export const HomeScreen: React.FC = () => {
           </View>
         }
       />
-      <TouchableOpacity style={styles.addButton} onPress={() => router.push('/add-task')}>
+      <TouchableOpacity
+        style={[styles.addButton, { bottom: FAB_OFFSET + insets.bottom }]}
+        onPress={() => router.push('/add-task')}
+      >
         <MaterialCommunityIcons name="plus" size={32} color="#fff" />
       </TouchableOpacity>
       {onboardingHintKey && onboardingTargetLayout && (
@@ -304,7 +382,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 48,
     paddingBottom: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
@@ -337,7 +414,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   listContent: {
     paddingHorizontal: SIDE_PADDING,
     paddingTop: SIDE_PADDING,
-    paddingBottom: FAB_OFFSET + FAB_SIZE + GRID_SPACING,
+    // paddingBottom is applied inline (needs insets.bottom, computed at render time)
     gap: GRID_SPACING,
   },
   emptyListContent: {
@@ -409,7 +486,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   addButton: {
     position: 'absolute',
     right: FAB_OFFSET,
-    bottom: FAB_OFFSET,
+    // bottom is applied inline (needs insets.bottom, computed at render time)
     width: FAB_SIZE,
     height: FAB_SIZE,
     borderRadius: FAB_SIZE / 2,

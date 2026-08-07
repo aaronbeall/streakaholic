@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 
@@ -9,13 +10,14 @@ export const ArchivedTasksScreen: React.FC = () => {
   const router = useRouter();
   const { tasks, restoreTask } = useTaskContext();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const archivedTasks = useMemo(() => tasks.filter(task => task.archived), [tasks]);
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -32,11 +34,11 @@ export const ArchivedTasksScreen: React.FC = () => {
         <FlatList
           data={archivedTasks}
           keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: 16 + insets.bottom }]}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.row}
-              onPress={() => router.push({ pathname: '/task-details', params: { taskId: item.id } })}
+              onPress={() => router.push({ pathname: '/add-task', params: { taskId: item.id } })}
             >
               <View style={[styles.iconCircle, { backgroundColor: item.color }]}>
                 <MaterialCommunityIcons name={item.icon} size={20} color="#fff" />
@@ -64,7 +66,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 48,
     paddingBottom: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,

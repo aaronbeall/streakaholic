@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import Reanimated, {
   Easing,
+  SharedValue,
   useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
@@ -41,7 +42,7 @@ interface TaskCardProps {
 interface CardTaskProps {
   task: Task;
   size: number;
-  progress: Reanimated.SharedValue<number>;
+  progress: SharedValue<number>;
   isCompleting: boolean;
   onCompleted: () => void;
 }

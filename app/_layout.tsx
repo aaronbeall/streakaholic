@@ -1,7 +1,9 @@
 import { Stack } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
+import { ToastBanner } from './components/ToastBanner';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { TaskProvider, useTaskContext } from './context/TaskContext';
+import { ToastProvider } from './context/ToastContext';
 import { useThemeColors } from './hooks/useThemeColors';
 
 function RootStack() {
@@ -53,14 +55,6 @@ function RootStack() {
         }}
       />
       <Stack.Screen
-        name="task-details"
-        options={{
-          headerShown: false,
-          presentation: 'modal',
-          animation: 'slide_from_bottom',
-        }}
-      />
-      <Stack.Screen
         name="task-calendar"
         options={{
           headerShown: false,
@@ -108,7 +102,10 @@ export default function Layout() {
   return (
     <SettingsProvider>
       <TaskProvider>
-        <AppGate />
+        <ToastProvider>
+          <AppGate />
+          <ToastBanner />
+        </ToastProvider>
       </TaskProvider>
     </SettingsProvider>
   );

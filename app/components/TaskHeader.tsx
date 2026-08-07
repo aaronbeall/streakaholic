@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 
@@ -13,6 +14,7 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task }) => {
   const router = useRouter();
   const pathname = usePathname();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const isCalendarScreen = pathname.includes('calendar');
@@ -34,7 +36,7 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task }) => {
 
   return (
     <View>
-      <View style={[styles.header, { backgroundColor: task.color }]}>
+      <View style={[styles.header, { backgroundColor: task.color, paddingTop: insets.top + 8 }]}>
         <TouchableOpacity 
           style={styles.headerButton}
           onPress={() => router.push('/')}
@@ -80,10 +82,10 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task }) => {
           </View>
         </View>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.headerButton}
           onPress={() => router.push({
-            pathname: '/task-details',
+            pathname: '/add-task',
             params: { taskId: task.id }
           })}
         >
@@ -126,7 +128,6 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task }) => {
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   header: {
-    paddingTop: 48,
     paddingBottom: 24,
     paddingHorizontal: 16,
     flexDirection: 'row',

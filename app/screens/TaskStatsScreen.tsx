@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BarChart, LineChart } from 'react-native-chart-kit';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tinycolor from 'tinycolor2';
 import { TaskHeader } from '../components/TaskHeader';
 import { useTaskContext } from '../context/TaskContext';
@@ -39,6 +40,7 @@ export default function TaskStatsScreen() {
   const [timeRange, setTimeRange] = useState<TimeFrame>('month');
   const [isCumulative, setIsCumulative] = useState(false);
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const task = tasks.find(t => t.id === taskId);
@@ -105,7 +107,7 @@ export default function TaskStatsScreen() {
     <View style={styles.container}>
       <TaskHeader task={task} />
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom }}>
         <View style={styles.statsGrid}>
           {task.stats?.streakStatus === 'up_to_date' && task.stats.currentStreak > 0 ? (
             <View style={[styles.statCard, { backgroundColor: getBackgroundColor(task.color) }]}>

@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { BarChart, LineChart } from 'react-native-chart-kit';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { TimeFrame, calculateAggregateStats, dayOfWeekLabels, getChartData, getCompletionPatterns, getDateRange, getDateRangeLabel, hourOfDayLabels } from '../utils/data';
@@ -25,11 +26,12 @@ const DashboardHeader: React.FC<{
   const { tasks } = useTaskContext();
   const router = useRouter();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const visibleTasks = tasks.filter(task => !task.archived);
 
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
       <View style={styles.headerTop}>
         <TouchableOpacity
           style={styles.headerButton}
@@ -96,6 +98,7 @@ export const DashboardScreen: React.FC = () => {
   const tasks = useMemo(() => allTasks.filter(task => !task.archived), [allTasks]);
   const { width } = useWindowDimensions();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [selectedTimeFrame, setSelectedTimeFrame] = useState<TimeFrame>('week');
   const [selectedTasks, setSelectedTasks] = useState<string[]>(tasks.map(t => t.id));
@@ -179,7 +182,7 @@ export const DashboardScreen: React.FC = () => {
         }}
         dateRangeLabel={getDateRangeLabel({ start, end })}
       />
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom }}>
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: statCardBackground('#E8F5E9') }]}>
             <MaterialCommunityIcons name="check-circle" size={24} color="#2E7D32" />
@@ -306,7 +309,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    paddingTop: 48,
     paddingBottom: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,

@@ -2,16 +2,21 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import Constants from 'expo-constants';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+// SDK 54's expo-file-system replaced this API with a new File/Directory-based one; the
+// classic documentDirectory/writeAsStringAsync/readAsStringAsync functions used here still
+// exist, just moved under this subpath.
+import * as FileSystem from 'expo-file-system/legacy';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeMode, useSettings } from '../context/SettingsContext';
 import { useTaskContext } from '../context/TaskContext';
+import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
-import { createTasksExport, getLatestModifiedAt, ParsedTasksImport, parseTasksImport } from '../utils/importExport';
+import { createTasksExport, ParsedTasksImport, parseTasksImport } from '../utils/importExport';
 
 // react-native-web's Switch splits the thumb color into two props: `thumbColor` (off state)
 // and `activeThumbColor` (on state, defaulting to Material teal if unset). Native RN's own
@@ -28,6 +33,7 @@ const THEME_MODE_OPTIONS: { value: ThemeMode; label: string }[] = [
 export const SettingsScreen: React.FC = () => {
   const router = useRouter();
   const { tasks, importTasks, lastImport } = useTaskContext();
+  const { showToast } = useToast();
   const {
     themeMode, setThemeMode,
     showCardBackground, setShowCardBackground,
@@ -37,6 +43,7 @@ export const SettingsScreen: React.FC = () => {
   } = useSettings();
   const [isBusy, setIsBusy] = useState(false);
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const appName = Constants.expoConfig?.name ?? 'Streakaholic';
   const version = Constants.expoConfig?.version ?? '';
@@ -63,17 +70,20 @@ export const SettingsScreen: React.FC = () => {
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(fileUri, { mimeType: 'application/json' });
         } else {
-          Alert.alert('Export complete', `Saved to ${fileUri}`);
+          showToast({ message: `Saved to ${fileUri}` });
         }
       }
     } catch {
-      Alert.alert('Error', 'Failed to export data');
+      showToast({ message: 'Failed to export data' });
     } finally {
       setIsBusy(false);
     }
   };
 
-  const handleImport = async () => {
+  // No modal confirmation and no merge-vs-replace prompt -- "Import Data" always merges (the
+  // safe, additive default) and "Import & Replace All Data" is its own explicit row below.
+  // Either way the previous tasks are snapshotted first so the toast's Undo can restore them.
+  const handleImport = async (mode: 'merge' | 'replace') => {
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
       if (result.canceled || !result.assets?.[0]) return;
@@ -84,58 +94,28 @@ export const SettingsScreen: React.FC = () => {
         ? await (await fetch(uri)).text()
         : await FileSystem.readAsStringAsync(uri);
 
-      let parsedImport: ParsedTasksImport;
+      let importedTasks: Task[];
+      let meta: ParsedTasksImport['meta'];
       try {
-        parsedImport = parseTasksImport(content);
+        ({ tasks: importedTasks, meta } = parseTasksImport(content));
       } catch {
-        Alert.alert('Invalid file', "This doesn't look like a Streakaholic export file.");
+        showToast({ message: "This doesn't look like a Streakaholic export file." });
         return;
       }
 
-      promptImport(parsedImport);
-    } catch {
-      Alert.alert('Error', 'Failed to import data');
-    } finally {
-      setIsBusy(false);
-    }
-  };
+      const previousTasks = tasks;
+      const alreadyImported = !!meta && meta.exportId === lastImport?.exportId;
+      const exportMeta = meta ? { exportId: meta.exportId } : undefined;
 
-  const promptImport = ({ tasks: importedTasks, meta }: ParsedTasksImport) => {
-    const alreadyImported = !!meta && meta.exportId === lastImport?.exportId;
-    const currentLatest = getLatestModifiedAt(tasks);
-    const incomingLatest = meta?.exportedAt ?? getLatestModifiedAt(importedTasks);
-
-    let context = '';
-    if (alreadyImported) {
-      context = `You already imported this file${lastImport ? ` on ${format(new Date(lastImport.importedAt), 'PP')}` : ''}. `;
-    } else if (currentLatest && incomingLatest && incomingLatest > currentLatest) {
-      context = 'This file looks newer than your current data. ';
-    } else if (currentLatest && incomingLatest && incomingLatest < currentLatest) {
-      context = 'This file looks older than your current data — importing may overwrite newer changes. ';
-    }
-
-    const exportMeta = meta ? { exportId: meta.exportId } : undefined;
-
-    Alert.alert(
-      'Import Data',
-      `${context}This file contains ${importedTasks.length} task(s); you currently have ${tasks.length}. How would you like to import?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Merge', onPress: () => runImport(importedTasks, 'merge', exportMeta) },
-        { text: 'Replace All', style: 'destructive', onPress: () => runImport(importedTasks, 'replace', exportMeta) },
-      ]
-    );
-  };
-
-  const runImport = async (importedTasks: Task[], mode: 'merge' | 'replace', exportMeta?: { exportId: string }) => {
-    setIsBusy(true);
-    try {
       await importTasks(importedTasks, { mode, exportMeta });
-      Alert.alert('Import complete', mode === 'merge'
-        ? `Merged ${importedTasks.length} task(s) into your data.`
-        : `Replaced your data with ${importedTasks.length} task(s).`);
+
+      showToast({
+        message: `Imported ${importedTasks.length} task(s) — ${mode === 'merge' ? 'merged with' : 'replaced'} your data`
+          + (alreadyImported ? ' (already imported before)' : '') + '.',
+        action: { label: 'Undo', onPress: () => importTasks(previousTasks, { mode: 'replace' }) },
+      });
     } catch {
-      Alert.alert('Error', 'Failed to import data');
+      showToast({ message: 'Failed to import data' });
     } finally {
       setIsBusy(false);
     }
@@ -143,7 +123,7 @@ export const SettingsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -151,7 +131,7 @@ export const SettingsScreen: React.FC = () => {
         <View style={styles.headerButton} />
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom }}>
         <Text style={styles.sectionTitle}>Appearance</Text>
         <View style={styles.card}>
           <View style={styles.row}>
@@ -226,9 +206,15 @@ export const SettingsScreen: React.FC = () => {
             {isBusy && <ActivityIndicator size="small" />}
           </TouchableOpacity>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.row} onPress={handleImport} disabled={isBusy}>
+          <TouchableOpacity style={styles.row} onPress={() => handleImport('merge')} disabled={isBusy}>
             <MaterialCommunityIcons name="import" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>Import Data</Text>
+            {isBusy && <ActivityIndicator size="small" />}
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.row} onPress={() => handleImport('replace')} disabled={isBusy}>
+            <MaterialCommunityIcons name="delete-sweep-outline" size={22} color="#FF3B30" />
+            <Text style={[styles.rowLabel, styles.destructiveRowLabel]}>Import & Replace All Data</Text>
             {isBusy && <ActivityIndicator size="small" />}
           </TouchableOpacity>
         </View>
@@ -270,7 +256,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 48,
     paddingBottom: 16,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
@@ -327,6 +312,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: colors.text,
+  },
+  destructiveRowLabel: {
+    color: '#FF3B30',
   },
   rowValue: {
     fontSize: 14,

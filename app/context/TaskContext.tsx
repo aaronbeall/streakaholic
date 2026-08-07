@@ -17,8 +17,11 @@ interface TaskContextType {
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateTask: (task: Task) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
+  restoreDeletedTask: (task: Task) => Promise<void>;
   completeTask: (taskId: string, date?: Date) => Promise<void>;
   uncompleteTask: (taskId: string, date: Date) => Promise<void>;
+  undoCompleteTask: (taskId: string, date?: Date) => Promise<void>;
+  restoreCompletion: (taskId: string, completion: TaskCompletion) => Promise<void>;
   archiveTask: (taskId: string) => Promise<void>;
   restoreTask: (taskId: string) => Promise<void>;
   importTasks: (tasks: Task[], options?: ImportOptions) => Promise<void>;
@@ -35,6 +38,12 @@ export const useTaskContext = () => {
   }
   return context;
 };
+
+const withUpdatedStats = (task: Task): Task => ({
+  ...task,
+  updatedAt: new Date().toISOString(),
+  stats: calculateTaskStats(task, task.completions || []),
+});
 
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -94,20 +103,29 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const currentDate = format(new Date(), 'yyyy-MM-dd');
       if (currentDate !== lastDate) {
         lastDate = currentDate;
-        const updatedTasks = tasks.map(task => ({
+        setTasks(prev => prev.map(task => ({
           ...task,
           stats: calculateTaskStats(task, task.completions || []),
-        }));
-        setTasks(updatedTasks);
+        })));
       }
     }, 60000); // Check every minute
     return () => clearInterval(interval);
-  }, [tasks]);
+  }, []);
 
-  const saveTasks = async (updatedTasks: Task[]) => {
+  // Every mutator below builds its next array from `prev`, not the `tasks` closure -- a
+  // mutator's own closure can go stale by the time it actually runs (e.g. a toast's "Undo"
+  // action, captured once and invoked later, after further renders). Reading the outer `tasks`
+  // variable in that case would operate on a snapshot from before the original action even
+  // landed. `setTasks`'s updater always receives the true latest state, so building each next
+  // array there instead sidesteps that class of bug entirely.
+  const saveTasks = async (updater: Task[] | ((prev: Task[]) => Task[])) => {
+    let next: Task[] = [];
+    setTasks(prev => {
+      next = typeof updater === 'function' ? updater(prev) : updater;
+      return next;
+    });
     try {
-      setTasks(updatedTasks);
-      await AsyncStorage.setItem('tasks', JSON.stringify(updatedTasks));
+      await AsyncStorage.setItem('tasks', JSON.stringify(next));
     } catch (error) {
       console.error('Error saving tasks:', error);
     }
@@ -122,92 +140,112 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       completions: [],
       stats: calculateTaskStats(taskData, []),
     };
-    await saveTasks([...tasks, newTask]);
+    await saveTasks(prev => [...prev, newTask]);
   };
 
   const updateTask = async (task: Task) => {
-    const updatedTask = {
-      ...task,
-      updatedAt: new Date().toISOString(),
-      stats: calculateTaskStats(task, task.completions || []),
-    };
-    const updatedTasks = tasks.map(t => 
-      t.id === task.id ? updatedTask : t
-    );
-    await saveTasks(updatedTasks);
+    const updatedTask = withUpdatedStats(task);
+    await saveTasks(prev => prev.map(t => t.id === task.id ? updatedTask : t));
   };
 
   const deleteTask = async (taskId: string) => {
-    const updatedTasks = tasks.filter(t => t.id !== taskId);
-    await saveTasks(updatedTasks);
+    await saveTasks(prev => prev.filter(t => t.id !== taskId));
+  };
+
+  // Re-inserts an already-deleted task exactly as it was (same id/completions/stats), for the
+  // "Undo" action on a delete toast. Not a general-purpose restore -- appends to the end since
+  // original list position isn't preserved.
+  const restoreDeletedTask = async (task: Task) => {
+    await saveTasks(prev => [...prev, task]);
   };
 
   const completeTask = async (taskId: string, date: Date = new Date()) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
     const dateString = format(date, 'yyyy-MM-dd');
-    const existing = (task.completions || []).find(c => c.date === dateString);
+    await saveTasks(prev => prev.map(task => {
+      if (task.id !== taskId) return task;
 
-    const newCompletions: TaskCompletion[] = existing
-      ? (task.completions || []).map(c =>
-          c.date === dateString
-            ? { ...c, timesCompleted: c.timesCompleted + 1, completedAt: new Date().toISOString() }
-            : c
-        )
-      : [
-          ...(task.completions || []),
-          {
-            id: Date.now().toString(),
-            taskId,
-            date: dateString,
-            completedAt: new Date().toISOString(),
-            timesCompleted: 1,
-          },
-        ];
+      const existing = (task.completions || []).find(c => c.date === dateString);
+      const newCompletions: TaskCompletion[] = existing
+        ? (task.completions || []).map(c =>
+            c.date === dateString
+              ? { ...c, timesCompleted: c.timesCompleted + 1, completedAt: new Date().toISOString() }
+              : c
+          )
+        : [
+            ...(task.completions || []),
+            {
+              id: Date.now().toString(),
+              taskId,
+              date: dateString,
+              completedAt: new Date().toISOString(),
+              timesCompleted: 1,
+            },
+          ];
 
-    const updatedTask = {
-      ...task,
-      completions: newCompletions,
-    };
-    await updateTask(updatedTask);
+      return withUpdatedStats({ ...task, completions: newCompletions });
+    }));
   };
 
   const uncompleteTask = async (taskId: string, date: Date) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
     const dateString = format(date, 'yyyy-MM-dd');
-    const newCompletions = (task.completions || []).filter(
-      completion => completion.date !== dateString
-    );
-    const updatedTask = {
-      ...task,
-      completions: newCompletions,
-    };
-    await updateTask(updatedTask);
+    await saveTasks(prev => prev.map(task => {
+      if (task.id !== taskId) return task;
+      const newCompletions = (task.completions || []).filter(c => c.date !== dateString);
+      return withUpdatedStats({ ...task, completions: newCompletions });
+    }));
+  };
+
+  // Reverses exactly one completeTask press -- decrements today's count rather than clearing
+  // the whole day, so undoing a single accidental tap on a multi-rep task doesn't also wipe out
+  // reps logged earlier that day. (uncompleteTask, used by the calendar's tap-to-clear-a-day,
+  // intentionally clears the whole day instead.)
+  const undoCompleteTask = async (taskId: string, date: Date = new Date()) => {
+    const dateString = format(date, 'yyyy-MM-dd');
+    await saveTasks(prev => prev.map(task => {
+      if (task.id !== taskId) return task;
+
+      const existing = (task.completions || []).find(c => c.date === dateString);
+      if (!existing) return task;
+
+      const newCompletions = existing.timesCompleted > 1
+        ? (task.completions || []).map(c =>
+            c.date === dateString ? { ...c, timesCompleted: c.timesCompleted - 1 } : c
+          )
+        : (task.completions || []).filter(c => c.date !== dateString);
+
+      return withUpdatedStats({ ...task, completions: newCompletions });
+    }));
+  };
+
+  // Re-inserts an exact completion record for the "Undo" action on the calendar's clear-a-day
+  // toast. Not just re-running completeTask -- uncompleteTask wipes the whole day, which for a
+  // multi-rep task can mean losing a `timesCompleted` > 1, so Undo needs to restore that exact
+  // count rather than just adding one rep back.
+  const restoreCompletion = async (taskId: string, completion: TaskCompletion) => {
+    await saveTasks(prev => prev.map(task => {
+      if (task.id !== taskId) return task;
+      const withoutDate = (task.completions || []).filter(c => c.date !== completion.date);
+      return withUpdatedStats({ ...task, completions: [...withoutDate, completion] });
+    }));
   };
 
   const archiveTask = async (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-    await updateTask({ ...task, archived: true });
+    await saveTasks(prev => prev.map(task => task.id === taskId ? withUpdatedStats({ ...task, archived: true }) : task));
   };
 
   const restoreTask = async (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-    await updateTask({ ...task, archived: false });
+    await saveTasks(prev => prev.map(task => task.id === taskId ? withUpdatedStats({ ...task, archived: false }) : task));
   };
 
   const importTasks = async (importedTasks: Task[], options: ImportOptions = {}) => {
     const mode = options.mode ?? 'replace';
-    const nextTasks = mode === 'merge' ? mergeTaskLists(tasks, importedTasks) : importedTasks;
-    const tasksWithStats = nextTasks.map(task => ({
-      ...task,
-      stats: calculateTaskStats(task, task.completions || []),
-    }));
-    await saveTasks(tasksWithStats);
+    await saveTasks(prev => {
+      const nextTasks = mode === 'merge' ? mergeTaskLists(prev, importedTasks) : importedTasks;
+      return nextTasks.map(task => ({
+        ...task,
+        stats: calculateTaskStats(task, task.completions || []),
+      }));
+    });
 
     if (options.exportMeta) {
       const record: LastImportRecord = { exportId: options.exportMeta.exportId, importedAt: new Date().toISOString() };
@@ -234,8 +272,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addTask,
         updateTask,
         deleteTask,
+        restoreDeletedTask,
         completeTask,
         uncompleteTask,
+        undoCompleteTask,
+        restoreCompletion,
         archiveTask,
         restoreTask,
         importTasks,
@@ -246,4 +287,4 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {children}
     </TaskContext.Provider>
   );
-}; 
+};

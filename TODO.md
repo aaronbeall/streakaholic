@@ -19,8 +19,8 @@
 
 ## UX / Usability
 * [x] Onboarding for core gestures (tap to cycle task/calendar/stats views, hold to complete)
-* [ ] Confirmation dialog before deleting a task (currently instant, no undo)
-* [ ] Quick undo for accidental task completions (uncompleteTask is currently only reachable via the full-screen calendar)
+* [x] Confirmation dialog before deleting a task (modal confirm on Delete/Archive in the Edit Task screen; everything else uses a toast + Undo instead of a modal)
+* [x] Quick undo for accidental task completions (toast + Undo right on Home after completing; `undoCompleteTask` reverses exactly one press, not the whole day)
 * [ ] Touch target sizes below platform minimums (Add/Edit Task's +/- steppers and day-of-week buttons)
 * [ ] Accessibility support (no accessibilityLabel/Role/Hint anywhere in app/ — icon-only buttons are silent to screen readers)
 * [ ] Haptic feedback (expo-haptics is installed but unused; completions/streaks/celebrations are natural fits)
