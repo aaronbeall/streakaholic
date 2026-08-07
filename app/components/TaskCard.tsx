@@ -24,6 +24,7 @@ import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { ParticleSystem } from './ParticleSystem';
+import { PartialDayPie } from './PartialDayPie';
 
 const AnimatedPath = Reanimated.createAnimatedComponent(Path);
 
@@ -305,7 +306,7 @@ const CardTask = React.memo(({ task, size, progress, isCompleting, onCompleted }
 CardTask.displayName = 'CardTask';
 
 const CardCalendar = React.memo(({ task }: { task: Task }) => {
-  const { isTaskCompleted } = useTaskContext();
+  const { isTaskCompleted, getCompletionCount } = useTaskContext();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const today = format(new Date(), 'yyyy-MM-dd');
@@ -317,13 +318,17 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
   const days = Array.from({ length: daysInMonth }, (_, i) => {
     const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i + 1);
     const dateString = format(date, 'yyyy-MM-dd');
+    const completionCount = getCompletionCount(task, date);
     const isCompleted = isTaskCompleted(task, date);
+    const isPartial = completionCount > 0 && !isCompleted;
     const isToday = dateString === today;
     const isPast = dateString < today;
-    const isMissed = isPast && !isCompleted;
+    const isMissed = isPast && !isCompleted && !isPartial;
     return {
       date,
       isCompleted,
+      isPartial,
+      completionCount,
       isToday,
       isMissed,
       dayNumber: i + 1
@@ -357,6 +362,10 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
                 <View style={styles.calendarDayInner}>
                   {day.isCompleted ? (
                     <View style={[styles.calendarDot, { backgroundColor: task.color }]} />
+                  ) : day.isPartial ? (
+                    <View style={[styles.calendarDot, day.isToday && { borderWidth: 2, borderColor: task.color }]}>
+                      <PartialDayPie fraction={day.completionCount / (task.timesPerDay || 1)} color={task.color} />
+                    </View>
                   ) : day.isToday ? (
                     <View style={[styles.calendarDot, { borderWidth: 2, borderColor: task.color, backgroundColor: 'transparent' }]} />
                   ) : day.isMissed ? (
@@ -748,6 +757,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   calendarDotFuture: {
     opacity: 0.3,

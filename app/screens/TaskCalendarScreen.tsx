@@ -4,6 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PartialDayPie } from '../components/PartialDayPie';
 import { TaskHeader } from '../components/TaskHeader';
 import { useTaskContext } from '../context/TaskContext';
 import { useToast } from '../context/ToastContext';
@@ -14,6 +15,8 @@ type CalendarDay = {
   type: 'day';
   date: Date;
   isCompleted: boolean;
+  isPartial: boolean;
+  completionCount: number;
   isToday: boolean;
   dayNumber: number;
   index: number;
@@ -28,7 +31,7 @@ type CalendarItem = CalendarDay | EmptyDay;
 
 export default function TaskCalendarScreen() {
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
-  const { tasks, completeTask, uncompleteTask, undoCompleteTask, restoreCompletion, isTaskCompleted } = useTaskContext();
+  const { tasks, completeTask, uncompleteTask, undoCompleteTask, restoreCompletion, isTaskCompleted, getCompletionCount } = useTaskContext();
   const { showToast } = useToast();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const colors = useThemeColors();
@@ -47,16 +50,20 @@ export default function TaskCalendarScreen() {
 
   const days = useMemo(() => Array.from({ length: daysInMonth }, (_, i) => {
     const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i + 1);
+    const completionCount = getCompletionCount(task, date);
     const isCompleted = isTaskCompleted(task, date);
+    const isPartial = completionCount > 0 && !isCompleted;
     const isToday = format(date, 'yyyy-MM-dd') === today;
     return {
       date,
       isCompleted,
+      isPartial,
+      completionCount,
       isToday,
       dayNumber: i + 1
     };
   }),
-  [currentMonth, daysInMonth, task, isTaskCompleted, today]);
+  [currentMonth, daysInMonth, task, isTaskCompleted, getCompletionCount, today]);
 
   const handleDayPress = (date: Date) => {
     const dateString = format(date, 'yyyy-MM-dd');
@@ -81,9 +88,11 @@ export default function TaskCalendarScreen() {
           : undefined,
       });
     } else {
+      const timesPerDay = task.timesPerDay || 1;
+      const nextCount = getCompletionCount(task, date) + 1;
       completeTask(taskId, date);
       showToast({
-        message: `${label} completed`,
+        message: nextCount >= timesPerDay ? `${label} completed` : `${label}: ${nextCount}/${timesPerDay}`,
         action: { label: 'Undo', onPress: () => undoCompleteTask(taskId, date) },
       });
     }
@@ -125,13 +134,15 @@ export default function TaskCalendarScreen() {
                 return { type: 'empty', index };
               }
               const day = days[dayIndex];
-              return { 
-                type: 'day', 
+              return {
+                type: 'day',
                 date: day.date,
                 isCompleted: day.isCompleted || false,
+                isPartial: day.isPartial || false,
+                completionCount: day.completionCount || 0,
                 isToday: day.isToday,
                 dayNumber: day.dayNumber,
-                index 
+                index
               };
             })}
             renderItem={({ item }) => {
@@ -139,10 +150,10 @@ export default function TaskCalendarScreen() {
                 return <View key={`empty-${item.index}`} style={styles.day} />;
               }
 
-              const { date, isCompleted, isToday, dayNumber } = item;
+              const { date, isCompleted, isPartial, completionCount, isToday, dayNumber } = item;
               const dateString = format(date, 'yyyy-MM-dd');
               const isPast = dateString < today;
-              const isMissed = isPast && !isCompleted;
+              const isMissed = isPast && !isCompleted && !isPartial;
               const isFuture = dateString > today;
 
               return (
@@ -152,13 +163,20 @@ export default function TaskCalendarScreen() {
                   onPress={() => handleDayPress(date)}
                   delayLongPress={500}
                 >
-                  <View key={ `${task.id}-${isCompleted}` } style={[
+                  <View key={ `${task.id}-${isCompleted}-${isPartial}` } style={[
                     styles.dayContent,
                     isCompleted && { backgroundColor: task.color },
                     isToday && !isCompleted && { borderWidth: 2, borderColor: task.color }
                   ]}>
                     {isMissed ? (
                       <MaterialCommunityIcons name="close" size={20} color={colors.textTertiary} />
+                    ) : isPartial ? (
+                      <>
+                        <View style={StyleSheet.absoluteFill}>
+                          <PartialDayPie fraction={completionCount / (task.timesPerDay || 1)} color={task.color} />
+                        </View>
+                        <Text style={[styles.dayNumber, { color: task.color }]}>{dayNumber}</Text>
+                      </>
                     ) : (
                       <Text style={[
                         styles.dayNumber,
@@ -234,6 +252,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: '50%',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   dayNumber: {
     fontSize: 16,
