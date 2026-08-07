@@ -304,7 +304,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 16,
+    paddingHorizontal: 16,
+    // A fixed floor, not just padding, so every row matches regardless of trailing content --
+    // rows ending in a Switch were taller than the rest, since Switch's own intrinsic height
+    // (bigger than an icon or a line of text) was what determined those rows' height once padding
+    // was added on top of it. minHeight (not height) still lets a row grow past this if its
+    // content genuinely needs more room, e.g. label text wrapping to two lines on a narrow screen.
+    minHeight: 56,
   },
   divider: {
     height: 1,

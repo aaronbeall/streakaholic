@@ -31,6 +31,16 @@ import { getExpectedPeriodTotal } from '../utils/periodStats';
 
 const AnimatedPath = Reanimated.createAnimatedComponent(Path);
 
+// The icon's press-and-hold depress, its completion-pop peak (explicit and guaranteed, not
+// physics-estimated -- see the comment in the completion effect for why), and how long the
+// checkmark stays up before committing the completion. That hold is a plain fixed timeout, not
+// the elastic spring's own "finished" callback, since that callback proved unreliable on Android
+// for driving real control flow (measured 3-4s there instead of the physics-predicted few
+// hundred ms).
+const DEPRESS_SCALE = 0.9;
+const POP_PEAK_SCALE = 1.4;
+const COMPLETION_HOLD_DURATION = 750;
+
 export type CardSide = 'task' | 'calendar' | 'stats';
 
 interface TaskCardProps {
@@ -47,11 +57,12 @@ interface CardTaskProps {
   task: Task;
   size: number;
   progress: SharedValue<number>;
+  isPressed: boolean;
   isCompleting: boolean;
   onCompleted: () => void;
 }
 
-const CardTask = React.memo(({ task, size, progress, isCompleting, onCompleted }: CardTaskProps) => {
+const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, onCompleted }: CardTaskProps) => {
   const { isTaskCompleted, getCompletionCount } = useTaskContext();
   const { showTaskName, showTaskCounter, showCardBackground } = useSettings();
   const colors = useThemeColors();
@@ -200,24 +211,58 @@ const CardTask = React.memo(({ task, size, progress, isCompleting, onCompleted }
 
   useEffect(() => {
     if (isCompleting) {
-      // Pop animation
-      scale.value = withSequence(
-        withSpring(1.1, { damping: 8, stiffness: 100 }),
-        withSpring(1, { damping: 8, stiffness: 100 })
-      );
-      
-      // Fade out icon and show checkmark
-      iconOpacity.value = withTiming(0, { duration: 200 });
-      checkmarkOpacity.value = withTiming(1, { duration: 200 });
+      // Fade out icon and show checkmark immediately -- it stays up for the entire pop.
+      iconOpacity.value = withTiming(0, { duration: 120 });
+      checkmarkOpacity.value = withTiming(1, { duration: 120 });
 
-      // After delay, fade out checkmark and show icon
-      setTimeout(() => {
-        checkmarkOpacity.value = withTiming(0, { duration: 200 });
-        iconOpacity.value = withTiming(1, { duration: 200 });
-      }, 500);
-      setTimeout(() => onCompleted(), 800);
+      // A spring's overshoot from a small starting displacement (0.9→1.0, only 0.1 of travel) is
+      // physics-*estimated*, not guaranteed -- pushing `velocity` higher and higher never
+      // produced a reliably dramatic result, because how much it actually overshoots by depends
+      // on Reanimated's internal spring math, not just the numbers plugged in. So this no longer
+      // asks a spring to produce the overshoot at all: it snaps to an explicit, guaranteed peak
+      // (`POP_PEAK_SCALE`, a fixed target, not an estimate) with a fast `withTiming`, *then* a
+      // separate spring eases it back down from there. Two chained animations, but no pause
+      // between them -- the second starts the instant the first ends.
+      //
+      // For that return spring: `stiffness` sets how fast each oscillation cycle is (higher =
+      // snappier bounces), `damping` sets how quickly those oscillations decay away (higher =
+      // shorter overall settle time) -- they're independent knobs. Since the real-time-to-settle
+      // depends on `damping` alone (not `stiffness`, given mass:1), raising `stiffness` further
+      // fits *more* oscillation cycles into that same real-time envelope for free -- more visible
+      // bounces, not a longer wait. Raising `damping` a little on top makes that envelope itself
+      // decay a bit faster, as requested, without needing to sacrifice stiffness/bounce count to
+      // get there.
+      //
+      // Reanimated's default `energyThreshold` (the combined kinetic+potential energy below which
+      // it calls the spring "at rest" and snaps it to the target) was also cutting this over
+      // before the decay had visibly finished -- read as an abrupt stop rather than a natural
+      // fade-out. Tightened here so it keeps animating further into the tail of the decay first.
+      scale.value = withSequence(
+        withTiming(POP_PEAK_SCALE, { duration: 100, easing: Easing.out(Easing.cubic) }),
+        withSpring(1, {
+          damping: 22,
+          stiffness: 1200,
+          energyThreshold: 0.0001,
+        })
+      );
+
+      // A plain fixed timeout, not the spring's own "finished" callback -- a previous version
+      // relied on that callback to drive the checkmark reversal + onCompleted, but it measured
+      // 3-4s on Android instead of the physics-predicted few hundred ms, so it can't drive real
+      // control flow.
+      const timer = setTimeout(() => {
+        checkmarkOpacity.value = withTiming(0, { duration: 120 });
+        iconOpacity.value = withTiming(1, { duration: 120 });
+        onCompleted();
+      }, COMPLETION_HOLD_DURATION);
+      return () => clearTimeout(timer);
     }
-  }, [isCompleting]);
+
+    // Not completing -- just track the press depress (quick down on press, quick back up on
+    // release). Skipped entirely while completing, above, so a release that happens to land
+    // mid-pop can't fight the elastic settle.
+    scale.value = withTiming(isPressed ? DEPRESS_SCALE : 1, { duration: isPressed ? 100 : 150 });
+  }, [isPressed, isCompleting]);
 
   return (
     <View style={styles.contentContainer}>
@@ -509,15 +554,18 @@ export const TaskCard = React.memo(React.forwardRef<View, TaskCardProps>(({
   const [sides, setSides] = useState<[CardSide, CardSide]>(['task', 'calendar']);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [isPressed, setIsPressed] = useState(false);
 
   const handlePressIn = () => {
     scaleAnim.value = withSpring(0.95, { damping: 8, stiffness: 100 });
     progressAnim.value = withTiming(0.99999, { duration: 500 });
+    setIsPressed(true);
   };
 
   const handlePressOut = () => {
     scaleAnim.value = withSpring(1, { damping: 8, stiffness: 100 });
     progressAnim.value = withTiming(0, { duration: 200 });
+    setIsPressed(false);
   };
 
   const handleLongPress = () => {
@@ -592,7 +640,7 @@ export const TaskCard = React.memo(React.forwardRef<View, TaskCardProps>(({
   const renderContent = (side: CardSide) => {
     switch (side) {
       case 'task':
-        return <CardTask task={task} size={size} progress={progressAnim} isCompleting={isCompleting} onCompleted={handleTaskCompleted} />;
+        return <CardTask task={task} size={size} progress={progressAnim} isPressed={isPressed} isCompleting={isCompleting} onCompleted={handleTaskCompleted} />;
       case 'calendar':
         return <CardCalendar task={task} />;
       case 'stats':

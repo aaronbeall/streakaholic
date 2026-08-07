@@ -17,7 +17,7 @@
 * [ ] Sharing
 * [ ] Reminders/notifications
 
-## UX / Usability
+## UX / Usability / Enhancements
 * [x] Onboarding for core gestures (tap to cycle task/calendar/stats views, hold to complete; plus Dashboard's task-filter hint and task-detail Calendar's tap-a-day hint)
 * [x] Confirmation dialog before deleting a task (modal confirm on Delete/Archive in the Edit Task screen; everything else uses a toast + Undo instead of a modal)
 * [x] Quick undo for accidental task completions (toast + Undo right on Home after completing; `undoCompleteTask` reverses exactly one press, not the whole day)
@@ -25,12 +25,19 @@
 * [ ] Accessibility support (no accessibilityLabel/Role/Hint anywhere in app/ — icon-only buttons are silent to screen readers)
 * [ ] Haptic feedback (expo-haptics is installed but unused; completions/streaks/celebrations are natural fits)
 * [ ] Hide unscheduled tasks option (Home filter to only show tasks due today)
+* [ ] Pause tasks (also hidden, but still shown in dashboard)
+* [ ] Remember dashboard selection
+* [ ] Re-order tasks on home screen
+* [ ] Double-wide task card is not okay
+* [ ] Archive/Delete task should take you back to homepage
+* [ ] New best streak congratulations
 
 ## MMP
 * [ ] Monetization
   * [ ] Freemium
   * [ ] AdMob
   * [ ] Unlocks
+  * [ ] Unfreeze streak
   * [ ] Tip jar
 * [ ] Rate this app
 * [ ] Widgets
