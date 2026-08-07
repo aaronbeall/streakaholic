@@ -1,5 +1,5 @@
 import { endOfWeek, startOfWeek } from 'date-fns';
-import { getExpectedPeriodTotal, PeriodQuotaSchedule } from './periodStats';
+import { getExpectedPeriodTotal, PeriodQuotaSchedule } from '../../app/utils/periodStats';
 
 const schedule = (overrides: Partial<PeriodQuotaSchedule> = {}): PeriodQuotaSchedule => ({
   frequency: 'daily',

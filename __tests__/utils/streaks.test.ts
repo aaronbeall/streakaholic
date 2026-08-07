@@ -1,6 +1,6 @@
 import { addDays, format, startOfWeek, subDays, subWeeks } from 'date-fns';
-import { TaskCompletion } from '../types';
-import { calculateTaskStats, StreakScheduleInfo } from './streaks';
+import { TaskCompletion } from '../../app/types';
+import { calculateTaskStats, StreakScheduleInfo } from '../../app/utils/streaks';
 
 const makeCompletion = (id: string, date: Date, timesCompleted = 1): TaskCompletion => ({
   id,

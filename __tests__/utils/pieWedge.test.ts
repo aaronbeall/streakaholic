@@ -1,4 +1,4 @@
-import { buildPieWedgePath } from './pieWedge';
+import { buildPieWedgePath } from '../../app/utils/pieWedge';
 
 // The path is a moveTo-center + lineTo-start + arc-to-end pie shape:
 // "M cx cy L sx sy A r r 0 largeArcFlag sweepFlag ex ey Z"

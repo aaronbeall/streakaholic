@@ -1,4 +1,4 @@
-import { getTrailingBlankCount } from './calendarGrid';
+import { getTrailingBlankCount } from '../../app/utils/calendarGrid';
 
 describe('getTrailingBlankCount', () => {
   it('returns 0 when the leading blanks plus days already fill whole rows', () => {

@@ -1,5 +1,5 @@
 import { format, startOfDay, subDays, subMonths, subYears } from 'date-fns';
-import { Task, TaskCompletion, TaskStats } from '../types';
+import { Task, TaskCompletion, TaskStats } from '../../app/types';
 import {
   calculateAggregateStats,
   getChartData,
@@ -7,7 +7,7 @@ import {
   getDateRange,
   getDateRangeLabel,
   getStreakStats,
-} from './data';
+} from '../../app/utils/data';
 
 const makeCompletion = (date: Date, timesCompleted = 1, completedAt: Date = date): TaskCompletion => ({
   id: `${date.getTime()}-${Math.random()}`,

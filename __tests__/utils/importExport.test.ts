@@ -1,4 +1,4 @@
-import { Task, TasksExport } from '../types';
+import { Task, TasksExport } from '../../app/types';
 import {
   createTasksExport,
   getLatestModifiedAt,
@@ -6,7 +6,7 @@ import {
   mergeTaskLists,
   parseTasksImport,
   TASKS_EXPORT_SCHEMA_VERSION,
-} from './importExport';
+} from '../../app/utils/importExport';
 
 const makeTask = (overrides: Partial<Task> = {}): Task => ({
   id: 't1',
