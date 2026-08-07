@@ -43,11 +43,11 @@ type CalendarItem = CalendarDay | EmptyDay;
 // The Calendar tab's content, rendered below the shared TaskHeader by TaskDetailScreen -- pulled
 // out of a standalone routed screen so switching tabs is a local state change (see
 // TaskDetailScreen) rather than a full navigation that re-transitions the header too.
-export const TaskCalendarView: React.FC<{ task: Task }> = ({ task }) => {
+export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = ({ task, initialMonth }) => {
   const taskId = task.id;
   const { completeTask, uncompleteTask, undoCompleteTask, restoreCompletion, isTaskCompleted, getCompletionCount } = useTaskContext();
   const { showToast } = useToast();
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(initialMonth ?? new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [yearGridWidth, setYearGridWidth] = useState(0);
   const colors = useThemeColors();

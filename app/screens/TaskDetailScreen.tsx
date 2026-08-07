@@ -1,3 +1,4 @@
+import { parseISO } from 'date-fns';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -14,7 +15,7 @@ import { TaskStatsView } from './TaskStatsScreen';
 // but flipping between Calendar and Stats no longer re-triggers that same transition just to
 // switch tabs, since it's not actually leaving the screen.
 export default function TaskDetailScreen() {
-  const { taskId, tab } = useLocalSearchParams<{ taskId: string; tab?: string }>();
+  const { taskId, tab, month } = useLocalSearchParams<{ taskId: string; tab?: string; month?: string }>();
   const { tasks } = useTaskContext();
   const [activeTab, setActiveTab] = useState<TaskDetailTab>(tab === 'stats' ? 'stats' : 'calendar');
   const colors = useThemeColors();
@@ -25,11 +26,15 @@ export default function TaskDetailScreen() {
     throw new Error('Missing task');
   }
 
+  // Lets a caller (e.g. DashboardCalendarView's tap-through) land the calendar tab already on a
+  // specific month, e.g. "?taskId=X&tab=calendar&month=2026-07-01", instead of always today's.
+  const initialMonth = month ? parseISO(month) : undefined;
+
   return (
     <View style={styles.container}>
       <TaskHeader task={task} activeTab={activeTab} onTabChange={setActiveTab} />
       <Reanimated.View key={activeTab} entering={FadeIn.duration(150)} style={styles.body}>
-        {activeTab === 'calendar' ? <TaskCalendarView task={task} /> : <TaskStatsView task={task} />}
+        {activeTab === 'calendar' ? <TaskCalendarView task={task} initialMonth={initialMonth} /> : <TaskStatsView task={task} />}
       </Reanimated.View>
     </View>
   );
