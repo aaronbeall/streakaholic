@@ -103,6 +103,8 @@ Yet another round (bounce "cuts off too abruptly", wants it to "keep bouncing" l
 
 (Note: Reanimated's spring config in this version doesn't have the older `restDisplacementThreshold`/`restSpeedThreshold` pair some docs/examples reference — `tsc` caught that immediately as a real type error; `energyThreshold` is the single combined-threshold equivalent here.)
 
+Once satisfied with the shape, a final small "a little over the top" pass (2026-08-07) dialed both dimensions down slightly without touching the overall structure: `POP_PEAK_SCALE` 1.4 → 1.2 (via 1.3), and the return spring's `stiffness` 1200 → 1000 / `damping` 22 → 23 (marginally fewer/smaller bounces, marginally faster decay) — `energyThreshold` and `COMPLETION_HOLD_DURATION` left as-is.
+
 ## Known gaps / bugs (found by reading, not yet fixed)
 
 1. **`TaskCalendarScreen` and `TaskStatsScreen` throw synchronously if the task isn't found yet.** Both do `if (!task) throw new Error('Missing task')` on first render. `tasks` loads asynchronously from AsyncStorage in `TaskContext`, so a hard page reload / direct deep link on web (or a cold app launch landing straight on one of these routes) hits this before `loadTasks()` resolves, showing a crash screen instead of a loading state. Reproducible by navigating straight to `/task-calendar?taskId=...` via a fresh page load rather than in-app navigation. Fix: show a loading/`null` state while `tasks` is empty-but-still-loading, rather than throwing.

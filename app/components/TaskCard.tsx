@@ -38,7 +38,7 @@ const AnimatedPath = Reanimated.createAnimatedComponent(Path);
 // for driving real control flow (measured 3-4s there instead of the physics-predicted few
 // hundred ms).
 const DEPRESS_SCALE = 0.9;
-const POP_PEAK_SCALE = 1.4;
+const POP_PEAK_SCALE = 1.2;
 const COMPLETION_HOLD_DURATION = 750;
 
 export type CardSide = 'task' | 'calendar' | 'stats';
@@ -240,8 +240,8 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
       scale.value = withSequence(
         withTiming(POP_PEAK_SCALE, { duration: 100, easing: Easing.out(Easing.cubic) }),
         withSpring(1, {
-          damping: 22,
-          stiffness: 1200,
+          damping: 23,
+          stiffness: 1000,
           energyThreshold: 0.0001,
         })
       );
