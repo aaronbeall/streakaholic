@@ -13,12 +13,12 @@
 * [x] Initial empty state
 
 ## MVP+
-* [ ] Calendar year map
+* [x] Calendar year map (`TaskCalendarView`'s Year mode — grid-of-months with per-day dots; plus `DashboardCalendarView`'s aggregate infinite calendar grid across tasks)
 * [ ] Sharing
 * [ ] Reminders/notifications
 
 ## UX / Usability
-* [x] Onboarding for core gestures (tap to cycle task/calendar/stats views, hold to complete)
+* [x] Onboarding for core gestures (tap to cycle task/calendar/stats views, hold to complete; plus Dashboard's task-filter hint and task-detail Calendar's tap-a-day hint)
 * [x] Confirmation dialog before deleting a task (modal confirm on Delete/Archive in the Edit Task screen; everything else uses a toast + Undo instead of a modal)
 * [x] Quick undo for accidental task completions (toast + Undo right on Home after completing; `undoCompleteTask` reverses exactly one press, not the whole day)
 * [ ] Touch target sizes below platform minimums (Add/Edit Task's +/- steppers and day-of-week buttons)
@@ -46,12 +46,11 @@
 * [ ] Social features (friends, friend streaks, competitions, leaderboards)
 
 ##  UI tweaks
-* [ ] Bottom margin and androind buttons
+* [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
 * [ ] Performance optimizations
   * [ ] Performance pass (profile the app and audit for bottlenecks)
   * [ ] Migrate to Zustand?
   * [ ] Reduce unnecessary task stat re-recalculations
   * [ ] WeakMap caching
-* [ ] Layout/navigation improvement with proper screen transitions
-  * [ ] Gesture navigation (swipe left/right for tabs)
+* [x] Layout/navigation improvement with proper screen transitions (`RootStack`'s `slide_from_right` animation)
 
