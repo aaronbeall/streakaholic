@@ -24,6 +24,7 @@
 * [ ] Touch target sizes below platform minimums (Add/Edit Task's +/- steppers and day-of-week buttons)
 * [ ] Accessibility support (no accessibilityLabel/Role/Hint anywhere in app/ — icon-only buttons are silent to screen readers)
 * [ ] Haptic feedback (expo-haptics is installed but unused; completions/streaks/celebrations are natural fits)
+* [ ] Hide unscheduled tasks option (Home filter to only show tasks due today)
 
 ## MMP
 * [ ] Monetization
@@ -47,6 +48,7 @@
 ##  UI tweaks
 * [ ] Bottom margin and androind buttons
 * [ ] Performance optimizations
+  * [ ] Performance pass (profile the app and audit for bottlenecks)
   * [ ] Migrate to Zustand?
   * [ ] Reduce unnecessary task stat re-recalculations
   * [ ] WeakMap caching
