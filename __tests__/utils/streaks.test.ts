@@ -1,4 +1,4 @@
-import { addDays, format, startOfWeek, subDays, subWeeks } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { TaskCompletion } from '../../app/types';
 import { calculateTaskStats, StreakScheduleInfo } from '../../app/utils/streaks';
 
@@ -109,6 +109,70 @@ describe('calculateTaskStats', () => {
       expect(stats.currentStreak).toBe(3);
       expect(stats.bestStreak).toBe(3);
     });
+
+    // Due days (Mon/Wed/Fri) still gate the streak -- missing one still breaks it -- but every
+    // day completed in between, due or not, adds to the running count instead of being ignored.
+    it('counts non-due days completed in between due days, but a missed due day still resets the chain', () => {
+      jest.useFakeTimers().setSystemTime(new Date(2026, 7, 7)); // Friday Aug 7 2026
+      try {
+        const task = baseTask({ frequency: 'specific_days_of_week', daysOfWeek: [1, 3, 5] }); // Mon/Wed/Fri
+        const completions = [
+          makeCompletion('sat', new Date(2026, 7, 1)),  // Sat -- non-due, completed
+          makeCompletion('sun', new Date(2026, 7, 2)),  // Sun -- non-due, completed
+          makeCompletion('mon', new Date(2026, 7, 3)),  // Mon -- due, completed (gate met)
+          // Tue not completed (non-due, irrelevant either way)
+          // Wed not completed -- due day missed, breaks the chain
+          makeCompletion('thu', new Date(2026, 7, 6)),  // Thu -- non-due, completed
+          makeCompletion('fri', new Date(2026, 7, 7)),  // Fri (today) -- due, completed (gate met)
+        ];
+        const stats = calculateTaskStats(task, completions);
+        expect(stats.streakStatus).toBe('up_to_date');
+        expect(stats.currentStreak).toBe(2); // Thu + Fri, restarted after Wed's miss
+        expect(stats.bestStreak).toBe(3); // Sat + Sun + Mon, the longest run before the miss
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('counts bonus days completed ahead of the next due day as still pending, not waiting for that gate to resolve', () => {
+      jest.useFakeTimers().setSystemTime(new Date(2026, 7, 8)); // Saturday Aug 8 2026
+      try {
+        const task = baseTask({ frequency: 'specific_days_of_week', daysOfWeek: [1, 3, 5] }); // Mon/Wed/Fri
+        const completions = [
+          makeCompletion('fri', new Date(2026, 7, 7)), // Fri -- due, completed
+          makeCompletion('sat', new Date(2026, 7, 8)), // Sat (today) -- non-due, completed
+        ];
+        const stats = calculateTaskStats(task, completions);
+        expect(stats.streakStatus).toBe('up_to_date');
+        expect(stats.currentStreak).toBe(2); // Fri + Sat, counted before Monday's gate even arrives
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    // A missed due day still resets *currentStreak* going forward, but the run that just ended
+    // keeps every bonus day it accumulated right up to (not including) the actual miss -- it
+    // isn't discarded down to 0 just because the gate that would have extended it failed.
+    it('retains bonus days in bestStreak up to the miss, not discarding them when the gate fails', () => {
+      jest.useFakeTimers().setSystemTime(new Date(2026, 7, 7)); // Friday Aug 7 2026
+      try {
+        const task = baseTask({ frequency: 'specific_days_of_week', daysOfWeek: [1, 3, 5] }); // Mon/Wed/Fri
+        const completions = [
+          makeCompletion('sat', new Date(2026, 7, 1)),  // Sat -- non-due, completed
+          makeCompletion('sun', new Date(2026, 7, 2)),  // Sun -- non-due, completed
+          makeCompletion('mon', new Date(2026, 7, 3)),  // Mon -- due, completed (gate met)
+          makeCompletion('tue', new Date(2026, 7, 4)),  // Tue -- non-due, completed (tail bonus day)
+          // Wed not completed -- due day missed, breaks the chain
+          makeCompletion('thu', new Date(2026, 7, 6)),  // Thu -- non-due, completed
+          makeCompletion('fri', new Date(2026, 7, 7)),  // Fri (today) -- due, completed (gate met)
+        ];
+        const stats = calculateTaskStats(task, completions);
+        expect(stats.currentStreak).toBe(2); // Thu + Fri, restarted after Wed's miss
+        expect(stats.bestStreak).toBe(4); // Sat + Sun + Mon + Tue -- Tue still counts despite Wed's miss
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 
   describe('days_per_week frequency', () => {
@@ -120,23 +184,89 @@ describe('calculateTaskStats', () => {
       expect(stats.currentStreak).toBe(1);
     });
 
-    it('carries the streak across a met week into the next, and keeps it alive while the current week is still open', () => {
-      const today = new Date();
-      const twoWeeksAgoStart = startOfWeek(subWeeks(today, 2));
-      const oneWeekAgoStart = startOfWeek(subWeeks(today, 1));
-      const task = baseTask({ frequency: 'days_per_week', daysPerWeek: 2 });
-      // Two consecutive, fully-elapsed weeks each meeting a 2-day quota; nothing logged yet in
-      // the still-open current week.
-      const completions = [
-        makeCompletion('a', addDays(twoWeeksAgoStart, 1)),
-        makeCompletion('b', addDays(twoWeeksAgoStart, 2)),
-        makeCompletion('c', addDays(oneWeekAgoStart, 1)),
-        makeCompletion('d', addDays(oneWeekAgoStart, 2)),
-      ];
-      const stats = calculateTaskStats(task, completions);
-      expect(stats.streakStatus).toBe('expiring');
-      expect(stats.currentStreak).toBe(4);
-      expect(stats.bestStreak).toBe(4);
+    it('carries the streak across a met week into the still-open current week while there is comfortable slack left', () => {
+      jest.useFakeTimers().setSystemTime(new Date(2026, 7, 5)); // Wednesday Aug 5 2026
+      try {
+        const task = baseTask({ frequency: 'days_per_week', daysPerWeek: 2 });
+        // The prior week (Jul 26 - Aug 1) met its 2-day quota; nothing logged yet in the
+        // current, still-open week (Aug 2-8) -- but Wed still has Wed/Thu/Fri/Sat (4 days)
+        // left to hit 2, so there's slack and this should read as comfortably up_to_date.
+        const completions = [
+          makeCompletion('a', new Date(2026, 6, 27)),
+          makeCompletion('b', new Date(2026, 6, 28)),
+        ];
+        const stats = calculateTaskStats(task, completions);
+        expect(stats.streakStatus).toBe('up_to_date');
+        expect(stats.currentStreak).toBe(2);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    // "Expiring" only kicks in once every remaining day of the period -- including today, if
+    // today's own chance hasn't been used yet -- is actually required to still hit quota. Any
+    // day with slack to spare reads as up_to_date even though quota isn't met yet.
+    it('only flags expiring once the remaining days in the week are all required to still hit quota', () => {
+      const task1 = baseTask({ frequency: 'days_per_week', daysPerWeek: 1 });
+      const priorWeekCompletion = [makeCompletion('a', new Date(2026, 6, 27))]; // meets a prior week's quota of 1
+
+      jest.useFakeTimers().setSystemTime(new Date(2026, 7, 5)); // Wed -- Wed/Thu/Fri/Sat (4) left, needs 1: slack
+      try {
+        expect(calculateTaskStats(task1, priorWeekCompletion).streakStatus).toBe('up_to_date');
+      } finally {
+        jest.useRealTimers();
+      }
+
+      jest.useFakeTimers().setSystemTime(new Date(2026, 7, 8)); // Sat, the week's last day -- needs 1, exactly 1 left
+      try {
+        expect(calculateTaskStats(task1, priorWeekCompletion).streakStatus).toBe('expiring');
+      } finally {
+        jest.useRealTimers();
+      }
+
+      const task3 = baseTask({ frequency: 'days_per_week', daysPerWeek: 3 });
+      const priorWeekCompletions3 = [
+        makeCompletion('a', new Date(2026, 6, 27)),
+        makeCompletion('b', new Date(2026, 6, 28)),
+        makeCompletion('c', new Date(2026, 6, 29)),
+      ]; // meets a prior week's quota of 3
+
+      jest.useFakeTimers().setSystemTime(new Date(2026, 7, 5)); // Wed -- 4 left, needs 3: 1 day of slack
+      try {
+        expect(calculateTaskStats(task3, priorWeekCompletions3).streakStatus).toBe('up_to_date');
+      } finally {
+        jest.useRealTimers();
+      }
+
+      jest.useFakeTimers().setSystemTime(new Date(2026, 7, 6)); // Thu -- Thu/Fri/Sat (3) left, needs 3: no slack
+      try {
+        expect(calculateTaskStats(task3, priorWeekCompletions3).streakStatus).toBe('expiring');
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    // A period that fails its quota still contributes its own days to the run that's ending
+    // (mirrors the due-day "tail bonus" behavior above) -- it just doesn't link forward, so a
+    // fresh mini-streak starts from the next period.
+    it('breaks the chain on a genuinely missed period, but keeps that period\'s own days in bestStreak', () => {
+      jest.useFakeTimers().setSystemTime(new Date(2026, 7, 5)); // Wednesday Aug 5 2026
+      try {
+        const task = baseTask({ frequency: 'days_per_week', daysPerWeek: 2 });
+        const completions = [
+          makeCompletion('pp1', new Date(2026, 6, 20)), // 2 weeks ago: met (2 days)
+          makeCompletion('pp2', new Date(2026, 6, 21)),
+          makeCompletion('p1', new Date(2026, 6, 27)),  // last week: missed (only 1 of 2)
+          makeCompletion('c1', new Date(2026, 7, 3)),   // this week: met (2 days)
+          makeCompletion('c2', new Date(2026, 7, 4)),
+        ];
+        const stats = calculateTaskStats(task, completions);
+        expect(stats.streakStatus).toBe('up_to_date');
+        expect(stats.currentStreak).toBe(2); // just this week -- the miss cut the chain
+        expect(stats.bestStreak).toBe(3); // 2 (met) + 1 (missed week's own day before it closed)
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 
@@ -147,6 +277,25 @@ describe('calculateTaskStats', () => {
       const stats = calculateTaskStats(task, [makeCompletion('a', today)]);
       expect(stats.streakStatus).toBe('up_to_date');
       expect(stats.currentStreak).toBe(1);
+    });
+
+    it('only flags expiring once the remaining days in the month are all required to still hit quota', () => {
+      const task = baseTask({ frequency: 'days_per_month', daysPerMonth: 1 });
+      const priorMonthCompletion = [makeCompletion('a', new Date(2026, 6, 5))]; // meets July's quota of 1
+
+      jest.useFakeTimers().setSystemTime(new Date(2026, 7, 5)); // Aug 5 -- most of the month left, needs 1: slack
+      try {
+        expect(calculateTaskStats(task, priorMonthCompletion).streakStatus).toBe('up_to_date');
+      } finally {
+        jest.useRealTimers();
+      }
+
+      jest.useFakeTimers().setSystemTime(new Date(2026, 7, 31)); // Aug 31, the month's last day -- needs 1, exactly 1 left
+      try {
+        expect(calculateTaskStats(task, priorMonthCompletion).streakStatus).toBe('expiring');
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 });

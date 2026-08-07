@@ -1,4 +1,4 @@
-import { addDays, addMonths, differenceInDays, endOfMonth, endOfWeek, format, parseISO, startOfDay, startOfMonth, startOfWeek } from 'date-fns';
+import { addDays, addMonths, differenceInCalendarDays, differenceInDays, endOfMonth, endOfWeek, format, parseISO, startOfDay, startOfMonth, startOfWeek } from 'date-fns';
 import { FrequencyType, StreakStatus, TaskCompletion, TaskStats } from '../types';
 
 export interface StreakScheduleInfo {
@@ -22,16 +22,6 @@ const emptyStats: TaskStats = {
 // one day -- e.g. a week/month period whose quota was met contributes however many distinct
 // days were actually logged in it, not just "1 period". For daily/specific-days-of-week,
 // every flag is worth exactly 1 day, so these behave as plain day counts.
-const longestRun = (flags: boolean[], weights: number[]): number => {
-  let best = 0;
-  let run = 0;
-  for (let i = 0; i < flags.length; i++) {
-    run = flags[i] ? run + weights[i] : 0;
-    best = Math.max(best, run);
-  }
-  return best;
-};
-
 const trailingRun = (flags: boolean[], weights: number[]): number => {
   let run = 0;
   for (let i = flags.length - 1; i >= 0; i--) {
@@ -40,20 +30,6 @@ const trailingRun = (flags: boolean[], weights: number[]): number => {
   }
   return run;
 };
-
-// Day-sum of the most recently completed run, skipping over any trailing misses first.
-const mostRecentCompletedRun = (flags: boolean[], weights: number[]): number => {
-  let i = flags.length - 1;
-  while (i >= 0 && !flags[i]) i--;
-  let run = 0;
-  while (i >= 0 && flags[i]) {
-    run += weights[i];
-    i--;
-  }
-  return run;
-};
-
-const ones = (length: number): number[] => Array(length).fill(1);
 
 // Quota periods (days_per_week/days_per_month) need a different kind of "run" than due-days.
 // A missed due-day has zero real completions, so it correctly contributes nothing. But a
@@ -97,58 +73,86 @@ const isDueOnDate = (task: StreakScheduleInfo, date: Date): boolean => {
   return true;
 };
 
-const buildDueDates = (task: StreakScheduleInfo, from: Date, to: Date): string[] => {
-  const dates: string[] = [];
-  let cursor = from;
-  while (cursor <= to) {
-    if (isDueOnDate(task, cursor)) dates.push(format(cursor, 'yyyy-MM-dd'));
-    cursor = addDays(cursor, 1);
-  }
-  return dates;
-};
-
-// For 'daily' and 'specific_days_of_week': a streak only breaks on a missed *due* day.
-// Non-due days are skipped entirely rather than counting as a break.
+// For 'daily' and 'specific_days_of_week': a streak only *breaks* on a missed due day, but every
+// day completed -- due or not -- adds to the running count. Walk every calendar day (not just
+// due days) from firstDate to today, grouping them into segments that each end at a due-day
+// "gate": hitting the gate links the whole segment's day-count (due AND non-due days completed
+// within it) into the streak; missing it breaks the chain going forward. For 'daily', every day
+// is its own due day, so every segment is exactly one day -- this degenerates to the old
+// per-due-day behavior with no non-due days to add.
 const calculateDueDayStats = (task: StreakScheduleInfo, completions: TaskCompletion[]): TaskStats => {
   const completedDates = new Set(completions.map(c => c.date));
   const sortedDates = Array.from(completedDates).sort();
   const firstDate = startOfDay(parseISO(sortedDates[0]));
   const today = startOfDay(new Date());
   const todayStr = format(today, 'yyyy-MM-dd');
-
-  const dueDates = buildDueDates(task, firstDate, today);
   const todayIsDue = isDueOnDate(task, today);
   const todayCompleted = completedDates.has(todayStr);
 
-  // A due day that's today and not yet completed isn't a miss yet -- exclude it from
-  // the "settled" history used to detect breaks.
-  const settledDueDates = todayIsDue && !todayCompleted ? dueDates.slice(0, -1) : dueDates;
-  const settledFlags = settledDueDates.map(d => completedDates.has(d));
-  const weights = ones(settledFlags.length);
+  // A due day that's today and not yet completed isn't a miss yet -- there's still time left in
+  // the day -- so it (and any non-due days after the last settled gate) is held back as a
+  // separate "pending" segment rather than settled into `settledFlags`/`settledWeights`.
+  const settledFlags: boolean[] = [];
+  const settledWeights: number[] = [];
+  let pendingDays: string[] = [];
 
-  const bestStreak = longestRun(settledFlags, weights);
-  const trailing = trailingRun(settledFlags, weights);
-  const lastStreak = trailing > 0 ? trailing : mostRecentCompletedRun(settledFlags, weights);
+  let cursor = firstDate;
+  while (cursor <= today) {
+    const dateStr = format(cursor, 'yyyy-MM-dd');
+    pendingDays.push(dateStr);
+
+    const isDue = isDueOnDate(task, cursor);
+    const isUnsettledToday = dateStr === todayStr && isDue && !todayCompleted;
+
+    if (isDue && !isUnsettledToday) {
+      settledWeights.push(pendingDays.filter(d => completedDates.has(d)).length);
+      settledFlags.push(completedDates.has(dateStr));
+      pendingDays = [];
+    }
+
+    cursor = addDays(cursor, 1);
+  }
+
+  const priorTrailing = trailingRun(settledFlags, settledWeights);
+  const priorChainIntact = settledFlags.length === 0 || priorTrailing > 0;
+  const pendingCount = pendingDays.filter(d => completedDates.has(d)).length;
+  const isPending = pendingDays.length > 0;
+  const openStreak = priorChainIntact ? priorTrailing + pendingCount : pendingCount;
+  // "IncludingClose" (not the strict/prior-chain-only trailingRun above): a segment that ends in
+  // a missed due day still contributed its own non-due bonus days before the miss, and those
+  // should remain part of the run that's ending -- only the *next* segment starts fresh. This is
+  // purely about how far back the ENDING run's own tally reaches; it never lets the streak that's
+  // currently building extend past a miss (priorTrailing/priorChainIntact above are unaffected).
+  const lastClosedRun = mostRecentRunIncludingClose(settledFlags, settledWeights);
 
   let streakStatus: StreakStatus;
   let currentStreak: number;
+  let lastStreak: number;
 
-  if (todayIsDue && !todayCompleted) {
-    if (trailing > 0) {
+  if (isPending && todayIsDue && !todayCompleted) {
+    // Today is due and not yet completed -- not a miss yet, but not settled as "up to date" either.
+    if (openStreak > 0) {
       streakStatus = 'expiring';
-      currentStreak = trailing;
+      currentStreak = openStreak;
+      lastStreak = openStreak;
     } else {
-      streakStatus = lastStreak > 0 ? 'expired' : 'never_started';
       currentStreak = 0;
+      lastStreak = lastClosedRun;
+      streakStatus = lastClosedRun > 0 ? 'expired' : 'never_started';
     }
-  } else if (trailing > 0) {
-    streakStatus = 'up_to_date';
-    currentStreak = trailing;
   } else {
-    streakStatus = lastStreak > 0 ? 'expired' : 'never_started';
-    currentStreak = 0;
+    // Either fully settled through today, or today isn't a due day -- nothing outstanding.
+    currentStreak = isPending ? openStreak : priorTrailing;
+    if (currentStreak > 0) {
+      streakStatus = 'up_to_date';
+      lastStreak = currentStreak;
+    } else {
+      lastStreak = lastClosedRun;
+      streakStatus = lastClosedRun > 0 ? 'expired' : 'never_started';
+    }
   }
 
+  const bestStreak = Math.max(longestRunIncludingClose(settledFlags, settledWeights), currentStreak);
   const totalDays = differenceInDays(today, firstDate) + 1;
   const completionRate = totalDays > 0 ? completions.length / totalDays : 0;
 
@@ -208,28 +212,41 @@ const calculateQuotaStats = (task: StreakScheduleInfo, completions: TaskCompleti
   const priorDayCounts = dayCounts.slice(0, -1);
   const priorTrailingDays = trailingRun(priorFlags, priorDayCounts);
   const priorChainIntact = priorFlags.length === 0 || priorTrailingDays > 0;
+  const currentStreak = priorChainIntact ? priorTrailingDays + currentPeriodDays : currentPeriodDays;
 
   let streakStatus: StreakStatus;
-  let currentStreak: number;
   let lastStreak: number;
 
   if (currentPeriodMet) {
-    currentStreak = priorChainIntact ? priorTrailingDays + currentPeriodDays : currentPeriodDays;
     lastStreak = currentStreak;
     streakStatus = 'up_to_date';
-  } else if (priorChainIntact) {
-    // Not yet met this period, but the prior chain hasn't failed -- still time to add to it.
-    currentStreak = priorTrailingDays + currentPeriodDays;
-    lastStreak = currentStreak;
-    streakStatus = 'expiring';
   } else {
-    // The most recent elapsed period missed its quota -- chain broken as of that period, but
-    // its own days still count toward the streak that just closed. A fresh mini-streak may
-    // already be forming in the current (still-open) period.
-    currentStreak = currentPeriodDays;
-    const closedRun = mostRecentRunIncludingClose(priorFlags, priorDayCounts);
-    lastStreak = currentStreak > 0 ? currentStreak : closedRun;
-    streakStatus = currentStreak > 0 ? 'expiring' : (closedRun > 0 ? 'expired' : 'never_started');
+    // Not yet met this period -- but that alone isn't urgent. Only flag it 'expiring' once
+    // every remaining day of the period, including today if today's own chance hasn't been
+    // used yet, would be *required* to still reach quota (e.g. needing 1 more day only turns
+    // urgent on the period's very last day; needing 3 more turns urgent once only 3 days
+    // remain). Plenty of slack left just means 'up_to_date', even short of quota so far.
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const todayAlreadyCounted = distinctDates.includes(todayStr);
+    const periodEnd = getPeriodBounds(today, unit).end;
+    const daysRemainingInclusiveOfToday = differenceInCalendarDays(periodEnd, today) + 1;
+    const remainingOpportunities = todayAlreadyCounted
+      ? daysRemainingInclusiveOfToday - 1
+      : daysRemainingInclusiveOfToday;
+    const stillNeeded = safeQuota - currentPeriodDays;
+    const isTight = remainingOpportunities <= stillNeeded;
+
+    if (currentStreak > 0 && isTight) {
+      streakStatus = 'expiring';
+      lastStreak = currentStreak;
+    } else if (currentStreak > 0) {
+      streakStatus = 'up_to_date';
+      lastStreak = currentStreak;
+    } else {
+      const closedRun = mostRecentRunIncludingClose(priorFlags, priorDayCounts);
+      lastStreak = closedRun;
+      streakStatus = closedRun > 0 ? 'expired' : 'never_started';
+    }
   }
 
   const totalDays = differenceInDays(today, firstDate) + 1;
