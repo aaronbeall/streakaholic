@@ -23,6 +23,7 @@ import { useSettings } from '../context/SettingsContext';
 import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
+import { MissedDayMark } from './MissedDayMark';
 import { ParticleSystem } from './ParticleSystem';
 import { PartialDayPie } from './PartialDayPie';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
@@ -367,12 +368,7 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
                   ) : day.isToday ? (
                     <View style={[styles.calendarDot, { borderWidth: 2, borderColor: task.color, backgroundColor: 'transparent' }]} />
                   ) : day.isMissed ? (
-                    <MaterialCommunityIcons
-                      name="close"
-                      size={20}
-                      color={colors.textTertiary}
-                      style={{ textAlign: 'center', textAlignVertical: 'center', includeFontPadding: false }}
-                    />
+                    <MissedDayMark color={colors.textTertiary} size={11} />
                   ) : (
                     <View style={[styles.calendarDot, styles.calendarDotFuture]} />
                   )}

@@ -4,6 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MissedDayMark } from '../components/MissedDayMark';
 import { PartialDayPie } from '../components/PartialDayPie';
 import { TaskHeader } from '../components/TaskHeader';
 import { useTaskContext } from '../context/TaskContext';
@@ -169,12 +170,7 @@ export default function TaskCalendarScreen() {
                     isToday && !isCompleted && { borderWidth: 2, borderColor: task.color }
                   ]}>
                     {isMissed ? (
-                      <MaterialCommunityIcons
-                        name="close"
-                        size={20}
-                        color={colors.textTertiary}
-                        style={{ textAlign: 'center', textAlignVertical: 'center', includeFontPadding: false }}
-                      />
+                      <MissedDayMark color={colors.textTertiary} size={16} />
                     ) : isPartial ? (
                       <>
                         <View style={StyleSheet.absoluteFill}>
