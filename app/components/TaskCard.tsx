@@ -369,7 +369,12 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
                   ) : day.isToday ? (
                     <View style={[styles.calendarDot, { borderWidth: 2, borderColor: task.color, backgroundColor: 'transparent' }]} />
                   ) : day.isMissed ? (
-                    <MaterialCommunityIcons name="close" size={20} color={colors.textTertiary} />
+                    <MaterialCommunityIcons
+                      name="close"
+                      size={20}
+                      color={colors.textTertiary}
+                      style={{ textAlign: 'center', textAlignVertical: 'center', includeFontPadding: false }}
+                    />
                   ) : (
                     <View style={[styles.calendarDot, styles.calendarDotFuture]} />
                   )}
