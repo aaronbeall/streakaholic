@@ -297,11 +297,11 @@ export const HomeScreen: React.FC = () => {
               size={cardSize}
               onLongPressCalendar={() => {
                 if (isOnboardingTarget) markOnboardingHintSeen('hold-to-expand');
-                router.push({ pathname: '/task-calendar', params: { taskId: item.id } });
+                router.push({ pathname: '/task-detail', params: { taskId: item.id, tab: 'calendar' } });
               }}
               onLongPressStats={() => {
                 if (isOnboardingTarget) markOnboardingHintSeen('hold-to-expand');
-                router.push({ pathname: '/task-stats', params: { taskId: item.id } });
+                router.push({ pathname: '/task-detail', params: { taskId: item.id, tab: 'stats' } });
               }}
               onLongPressTask={() => handleTaskLongPress(item)}
               onFlip={isOnboardingTarget ? (side) => {

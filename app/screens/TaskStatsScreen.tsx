@@ -1,13 +1,11 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
-import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Dimensions, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BarChart, LineChart } from 'react-native-chart-kit';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TaskHeader } from '../components/TaskHeader';
-import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { Task } from '../types';
 import { TimeFrame, dayOfWeekLabels, getChartData, getCompletionPatterns, getDateRange, hourOfDayLabels } from '../utils/data';
 
 const CARD_HORIZONTAL_PADDING = 16;
@@ -35,9 +33,10 @@ const TimeRangeButton: React.FC<TimeRangeButtonProps> = ({ range, label, isSelec
   );
 };
 
-export default function TaskStatsScreen() {
-  const { taskId } = useLocalSearchParams<{ taskId: string }>();
-  const { tasks } = useTaskContext();
+// The Stats tab's content, rendered below the shared TaskHeader by TaskDetailScreen -- pulled out
+// of a standalone routed screen so switching tabs is a local state change (see TaskDetailScreen)
+// rather than a full navigation that re-transitions the header too.
+export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
   const [timeRange, setTimeRange] = useState<TimeFrame>('month');
   const [isCumulative, setIsCumulative] = useState(false);
   // Measured from the actual rendered container rather than guessed from Dimensions.get('window')
@@ -49,17 +48,14 @@ export default function TaskStatsScreen() {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const task = tasks.find(t => t.id === taskId);
-  if (!task) {
-    throw new Error('Missing task');
-  }
-
   const handleChartSectionLayout = (event: LayoutChangeEvent) => {
     setChartAreaWidth(event.nativeEvent.layout.width);
   };
   const chartWidth = Math.max(0, chartAreaWidth - CARD_HORIZONTAL_PADDING * 2);
 
-  const { start, end } = useMemo(() => getDateRange(timeRange, tasks), [timeRange, tasks]);
+  // Scoped to just this task (not the app's full task list) -- "All Time" should mean this
+  // task's own history, not incidentally shift based on some unrelated task's older completions.
+  const { start, end } = useMemo(() => getDateRange(timeRange, [task]), [timeRange, task]);
   const { dayOfWeekData, hourOfDayData } = getCompletionPatterns(
     { start, end },
     task.completions || []
@@ -128,8 +124,6 @@ export default function TaskStatsScreen() {
 
   return (
     <View style={styles.container}>
-      <TaskHeader task={task} />
-
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom }}>
         <View style={styles.heroBlock}>
           <View style={styles.heroEyebrowRow}>
@@ -301,7 +295,7 @@ export default function TaskStatsScreen() {
       </ScrollView>
     </View>
   );
-}
+};
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {

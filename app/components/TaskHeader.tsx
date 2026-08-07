@@ -1,38 +1,30 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { usePathname, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 
+export type TaskDetailTab = 'calendar' | 'stats';
+
 interface TaskHeaderProps {
   task: Task;
+  activeTab: TaskDetailTab;
+  onTabChange: (tab: TaskDetailTab) => void;
 }
 
-export const TaskHeader: React.FC<TaskHeaderProps> = ({ task }) => {
+// Calendar/Stats switch local state on the already-open detail screen (see TaskDetailScreen) --
+// no navigation, so no full-screen re-transition just to flip a tab. Back and Edit are genuine
+// navigations and still go through the router.
+export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabChange }) => {
   const router = useRouter();
-  const pathname = usePathname();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
-  const isCalendarScreen = pathname.includes('calendar');
-  const isStatsScreen = pathname.includes('stats');
-
-  const navigateToCalendar = () => {
-    router.push({
-      pathname: '/task-calendar',
-      params: { taskId: task.id }
-    });
-  };
-
-  const navigateToStats = () => {
-    router.push({
-      pathname: '/task-stats',
-      params: { taskId: task.id }
-    });
-  };
+  const isCalendarScreen = activeTab === 'calendar';
+  const isStatsScreen = activeTab === 'stats';
 
   return (
     <View>
@@ -94,9 +86,9 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task }) => {
       </View>
 
       <View style={styles.tabContainer}>
-        <TouchableOpacity 
-          style={[styles.tab, isCalendarScreen && styles.activeTab]} 
-          onPress={navigateToCalendar}
+        <TouchableOpacity
+          style={[styles.tab, isCalendarScreen && styles.activeTab]}
+          onPress={() => onTabChange('calendar')}
         >
           <MaterialCommunityIcons 
             name="calendar" 
@@ -108,9 +100,9 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task }) => {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.tab, isStatsScreen && styles.activeTab]} 
-          onPress={navigateToStats}
+        <TouchableOpacity
+          style={[styles.tab, isStatsScreen && styles.activeTab]}
+          onPress={() => onTabChange('stats')}
         >
           <MaterialCommunityIcons 
             name="chart-bar" 

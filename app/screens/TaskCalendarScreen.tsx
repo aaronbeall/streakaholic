@@ -1,15 +1,14 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { addMonths, addYears, format, getDay, getDaysInMonth, startOfMonth, subMonths, subYears } from 'date-fns';
-import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { FlatList, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MissedDayMark } from '../components/MissedDayMark';
 import { PartialDayPie } from '../components/PartialDayPie';
-import { TaskHeader } from '../components/TaskHeader';
 import { useTaskContext } from '../context/TaskContext';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 
 type ViewMode = 'month' | 'year';
@@ -41,9 +40,12 @@ type EmptyDay = {
 
 type CalendarItem = CalendarDay | EmptyDay;
 
-export default function TaskCalendarScreen() {
-  const { taskId } = useLocalSearchParams<{ taskId: string }>();
-  const { tasks, completeTask, uncompleteTask, undoCompleteTask, restoreCompletion, isTaskCompleted, getCompletionCount } = useTaskContext();
+// The Calendar tab's content, rendered below the shared TaskHeader by TaskDetailScreen -- pulled
+// out of a standalone routed screen so switching tabs is a local state change (see
+// TaskDetailScreen) rather than a full navigation that re-transitions the header too.
+export const TaskCalendarView: React.FC<{ task: Task }> = ({ task }) => {
+  const taskId = task.id;
+  const { completeTask, uncompleteTask, undoCompleteTask, restoreCompletion, isTaskCompleted, getCompletionCount } = useTaskContext();
   const { showToast } = useToast();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
@@ -51,11 +53,6 @@ export default function TaskCalendarScreen() {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
-
-  const task = tasks.find(t => t.id === taskId);
-  if (!task) {
-    throw new Error('Missing task');
-  }
 
   const daysInMonth = getDaysInMonth(currentMonth);
   const firstDayOfMonth = startOfMonth(currentMonth);
@@ -178,8 +175,6 @@ export default function TaskCalendarScreen() {
 
   return (
     <View style={styles.container}>
-      <TaskHeader task={task} />
-
       <View style={[styles.content, { paddingBottom: insets.bottom }]}>
         <View style={styles.navigation}>
           <TouchableOpacity onPress={handlePrev} style={styles.navButton}>
@@ -326,7 +321,7 @@ export default function TaskCalendarScreen() {
       </View>
     </View>
   );
-}
+};
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {

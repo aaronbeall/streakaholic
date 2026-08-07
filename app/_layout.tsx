@@ -55,15 +55,7 @@ function RootStack() {
         }}
       />
       <Stack.Screen
-        name="task-calendar"
-        options={{
-          headerShown: false,
-          presentation: 'modal',
-          animation: 'slide_from_bottom',
-        }}
-      />
-      <Stack.Screen
-        name="task-stats"
+        name="task-detail"
         options={{
           headerShown: false,
           presentation: 'modal',
