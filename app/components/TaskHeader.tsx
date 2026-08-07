@@ -30,9 +30,14 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
   return (
     <View>
       <View style={[styles.header, { backgroundColor: task.color, paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity 
+        {/* router.back() (not push('/')) -- pushing Home unconditionally skipped whatever screen
+            actually opened this one (e.g. Dashboard's per-task month cards) and played a forward
+            slide-in animation instead of reversing, since it's a genuine push, not a pop.
+            canGoBack() falls back to Home only for the edge case of landing here with no history
+            at all (e.g. a fresh deep link). */}
+        <TouchableOpacity
           style={styles.headerButton}
-          onPress={() => router.push('/')}
+          onPress={() => (router.canGoBack() ? router.back() : router.push('/'))}
         >
           <MaterialCommunityIcons name="arrow-left" size={24} color="rgba(255, 255, 255, 0.8)" />
         </TouchableOpacity>

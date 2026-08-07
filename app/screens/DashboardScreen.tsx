@@ -35,7 +35,16 @@ const DashboardHeader: React.FC<{
     <View>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerTop}>
-          <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/')}>
+          {/* router.back() (not push('/')) -- pushing Home unconditionally skipped whatever
+              screen was actually below Dashboard on the stack (e.g. task-detail opened from here
+              would "back" straight past Dashboard to Home) and played a forward slide-in
+              animation instead of reversing, since it's a genuine push, not a pop. canGoBack()
+              falls back to Home only for the edge case of landing here with no history at all
+              (e.g. a fresh deep link). */}
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => (router.canGoBack() ? router.back() : router.push('/'))}
+          >
             <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Dashboard</Text>
