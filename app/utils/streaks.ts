@@ -63,7 +63,7 @@ const mostRecentRunIncludingClose = (flags: boolean[], weights: number[]): numbe
   return total;
 };
 
-const isDueOnDate = (task: StreakScheduleInfo, date: Date): boolean => {
+export const isDueOnDate = (task: StreakScheduleInfo, date: Date): boolean => {
   if (task.frequency === 'specific_days_of_week') {
     // Treat "no days selected" as always-due rather than never-due, so a misconfigured
     // task doesn't silently look like it has no schedule at all.
@@ -166,14 +166,14 @@ const calculateDueDayStats = (task: StreakScheduleInfo, completions: TaskComplet
   };
 };
 
-type QuotaUnit = 'week' | 'month';
+export type QuotaUnit = 'week' | 'month';
 
-const getPeriodBounds = (date: Date, unit: QuotaUnit) =>
+export const getPeriodBounds = (date: Date, unit: QuotaUnit) =>
   unit === 'month'
     ? { start: startOfMonth(date), end: endOfMonth(date) }
     : { start: startOfWeek(date), end: endOfWeek(date) };
 
-const nextPeriodStart = (start: Date, unit: QuotaUnit) =>
+export const nextPeriodStart = (start: Date, unit: QuotaUnit) =>
   unit === 'month' ? startOfMonth(addMonths(start, 1)) : addDays(start, 7);
 
 // For 'days_per_week' / 'days_per_month': frequency only decides whether days *link* across

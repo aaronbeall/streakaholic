@@ -94,6 +94,20 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
     [timeRange, rangeCompletions, isCumulative]
   );
 
+  // Per-task breakdown, same time range as the rest of Activity -- which task is actually
+  // contributing to the totals above.
+  const taskTotals = useMemo(() => tasks.map(task => {
+    const requiredTimes = Math.max(1, task.timesPerDay || 1);
+    const total = (task.completions || []).filter(completion => {
+      if (completion.timesCompleted < requiredTimes) return false;
+      if (timeRange === 'all') return true;
+      const date = parseISO(completion.date);
+      return date >= start && date <= end;
+    }).length;
+    return { task, total };
+  }), [tasks, start, end, timeRange]);
+  const maxTaskTotal = Math.max(1, ...taskTotals.map(t => t.total));
+
   const chartData = {
     labels,
     datasets: [{
@@ -187,6 +201,26 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
             <TimeRangeButton range="month" label="Month" isSelected={timeRange === 'month'} onPress={setTimeRange} />
             <TimeRangeButton range="year" label="Year" isSelected={timeRange === 'year'} onPress={setTimeRange} />
             <TimeRangeButton range="all" label="All Time" isSelected={timeRange === 'all'} onPress={setTimeRange} />
+          </View>
+        </View>
+
+        <View style={styles.chartCard}>
+          <Text style={styles.chartTitle}>Total Completions</Text>
+          <View style={styles.hBarList}>
+            {taskTotals.map(({ task, total }) => (
+              <View key={task.id} style={styles.hBarRow}>
+                <MaterialCommunityIcons name={task.icon} size={16} color={task.color} style={styles.hBarIcon} />
+                <View style={styles.hBarTrack}>
+                  <View
+                    style={[
+                      styles.hBarFill,
+                      { width: `${Math.max(4, (total / maxTaskTotal) * 100)}%`, backgroundColor: task.color },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.hBarValue}>{total}</Text>
+              </View>
+            ))}
           </View>
         </View>
 
@@ -445,5 +479,37 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  // One row per task, horizontal bars -- grows vertically to fit however many tasks there are
+  // instead of needing horizontal scrolling for a wide vertical-bar chart.
+  hBarList: {
+    gap: 10,
+    paddingVertical: 4,
+  },
+  hBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  hBarIcon: {
+    width: 18,
+  },
+  hBarTrack: {
+    flex: 1,
+    height: 14,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 7,
+    overflow: 'hidden',
+  },
+  hBarFill: {
+    height: '100%',
+    borderRadius: 7,
+  },
+  hBarValue: {
+    width: 28,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'right',
   },
 });

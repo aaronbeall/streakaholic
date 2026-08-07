@@ -6,10 +6,11 @@ import Reanimated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
-import { DashboardReportsView } from './DashboardReportsView';
+import { DashboardCalendarView } from './DashboardCalendarView';
 import { DashboardStatsView } from './DashboardStatsView';
+import { DashboardStreaksView } from './DashboardStreaksView';
 
-type DashboardTab = 'stats' | 'reports';
+type DashboardTab = 'stats' | 'calendar' | 'streaks';
 const ACCENT = '#007AFF';
 
 const DashboardHeader: React.FC<{
@@ -73,16 +74,30 @@ const DashboardHeader: React.FC<{
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'reports' && styles.activeTab]}
-          onPress={() => onTabChange('reports')}
+          style={[styles.tab, activeTab === 'calendar' && styles.activeTab]}
+          onPress={() => onTabChange('calendar')}
         >
           <MaterialCommunityIcons
-            name="file-chart-outline"
+            name="calendar"
             size={20}
-            color={activeTab === 'reports' ? ACCENT : colors.textSecondary}
+            color={activeTab === 'calendar' ? ACCENT : colors.textSecondary}
           />
-          <Text style={[styles.tabText, activeTab === 'reports' && { color: ACCENT }]}>
-            Reports
+          <Text style={[styles.tabText, activeTab === 'calendar' && { color: ACCENT }]}>
+            Calendar
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'streaks' && styles.activeTab]}
+          onPress={() => onTabChange('streaks')}
+        >
+          <MaterialCommunityIcons
+            name="chart-timeline-variant"
+            size={20}
+            color={activeTab === 'streaks' ? ACCENT : colors.textSecondary}
+          />
+          <Text style={[styles.tabText, activeTab === 'streaks' && { color: ACCENT }]}>
+            Streaks
           </Text>
         </TouchableOpacity>
       </View>
@@ -90,9 +105,9 @@ const DashboardHeader: React.FC<{
   );
 };
 
-// Mirrors TaskDetailScreen's shape: the header (back button, task filter, Stats/Reports tabs)
-// renders once; only the content below swaps on local `activeTab` state, cross-faded rather
-// than navigated, so flipping tabs doesn't re-transition the header.
+// Mirrors TaskDetailScreen's shape: the header (back button, task filter, Stats/Calendar/Streaks
+// tabs) renders once; only the content below swaps on local `activeTab` state, cross-faded
+// rather than navigated, so flipping tabs doesn't re-transition the header.
 export const DashboardScreen: React.FC = () => {
   const { tasks: allTasks } = useTaskContext();
   const tasks = useMemo(() => allTasks.filter(task => !task.archived), [allTasks]);
@@ -120,7 +135,13 @@ export const DashboardScreen: React.FC = () => {
         }}
       />
       <Reanimated.View key={activeTab} entering={FadeIn.duration(150)} style={styles.body}>
-        {activeTab === 'stats' ? <DashboardStatsView tasks={filteredTasks} /> : <DashboardReportsView />}
+        {activeTab === 'stats' ? (
+          <DashboardStatsView tasks={filteredTasks} />
+        ) : activeTab === 'calendar' ? (
+          <DashboardCalendarView tasks={filteredTasks} />
+        ) : (
+          <DashboardStreaksView tasks={filteredTasks} />
+        )}
       </Reanimated.View>
     </View>
   );
