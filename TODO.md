@@ -30,6 +30,7 @@
   * [ ] Freemium
   * [ ] AdMob
   * [ ] Unlocks
+  * [ ] Tip jar
 * [ ] Rate this app
 * [ ] Widgets
 * [ ] Sync (Drive or Dropbox)
