@@ -92,7 +92,7 @@ const DashboardHeader: React.FC<{
           onPress={() => onTabChange('streaks')}
         >
           <MaterialCommunityIcons
-            name="chart-timeline-variant"
+            name="fire"
             size={20}
             color={activeTab === 'streaks' ? ACCENT : colors.textSecondary}
           />
