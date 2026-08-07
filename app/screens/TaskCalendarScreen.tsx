@@ -1,8 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { addMonths, format, getDay, getDaysInMonth, startOfMonth, subMonths } from 'date-fns';
+import { addMonths, addYears, format, getDay, getDaysInMonth, startOfMonth, subMonths, subYears } from 'date-fns';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MissedDayMark } from '../components/MissedDayMark';
 import { PartialDayPie } from '../components/PartialDayPie';
@@ -10,6 +10,17 @@ import { TaskHeader } from '../components/TaskHeader';
 import { useTaskContext } from '../context/TaskContext';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { getTrailingBlankCount } from '../utils/calendarGrid';
+
+type ViewMode = 'month' | 'year';
+
+type YearDayCell = { isCompleted: boolean; isPartial: boolean; isFuture: boolean } | null;
+
+// 3 months per row makes a clean 4x3 grid for a full year, each still readable as a tiny
+// week-by-week calendar rather than a flat strip of dots.
+const YEAR_GRID_COLUMNS = 3;
+const YEAR_COLUMN_GAP = 14;
+const YEAR_DOT_GAP = 2;
 
 // Add type definitions at the top of the file
 type CalendarDay = {
@@ -35,6 +46,8 @@ export default function TaskCalendarScreen() {
   const { tasks, completeTask, uncompleteTask, undoCompleteTask, restoreCompletion, isTaskCompleted, getCompletionCount } = useTaskContext();
   const { showToast } = useToast();
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [viewMode, setViewMode] = useState<ViewMode>('month');
+  const [yearGridWidth, setYearGridWidth] = useState(0);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -65,6 +78,53 @@ export default function TaskCalendarScreen() {
     };
   }),
   [currentMonth, daysInMonth, task, isTaskCompleted, getCompletionCount, today]);
+
+  // A full year's worth of per-day states, grouped by month and chunked into weeks (like the
+  // month view's own grid, just non-interactive and without day numbers) -- only computed when
+  // actually viewing the year (365 isTaskCompleted/getCompletionCount lookups isn't free, so
+  // there's no reason to pay for it while in month view).
+  const yearMonths = useMemo(() => {
+    if (viewMode !== 'year') return [];
+    const year = currentMonth.getFullYear();
+    return Array.from({ length: 12 }, (_, monthIndex) => {
+      const monthStart = new Date(year, monthIndex, 1);
+      const daysInThisMonth = getDaysInMonth(monthStart);
+      const leadingBlanks = getDay(monthStart);
+      const trailingBlanks = getTrailingBlankCount(leadingBlanks, daysInThisMonth);
+
+      const cells: YearDayCell[] = [
+        ...Array(leadingBlanks).fill(null),
+        ...Array.from({ length: daysInThisMonth }, (_, i): YearDayCell => {
+          const date = new Date(year, monthIndex, i + 1);
+          const dateString = format(date, 'yyyy-MM-dd');
+          const completionCount = getCompletionCount(task, date);
+          const isCompleted = isTaskCompleted(task, date);
+          return {
+            isCompleted,
+            isPartial: completionCount > 0 && !isCompleted,
+            isFuture: dateString > today,
+          };
+        }),
+        ...Array(trailingBlanks).fill(null),
+      ];
+
+      const rows: YearDayCell[][] = [];
+      for (let i = 0; i < cells.length; i += 7) {
+        rows.push(cells.slice(i, i + 7));
+      }
+
+      return { monthIndex, label: format(monthStart, 'MMM'), rows };
+    });
+  }, [viewMode, currentMonth, task, isTaskCompleted, getCompletionCount, today]);
+
+  const monthCardWidth = yearGridWidth > 0
+    ? (yearGridWidth - YEAR_COLUMN_GAP * (YEAR_GRID_COLUMNS - 1)) / YEAR_GRID_COLUMNS
+    : 0;
+  const yearDotSize = monthCardWidth > 0 ? (monthCardWidth - YEAR_DOT_GAP * 6) / 7 : 0;
+
+  const handleYearGridLayout = (event: LayoutChangeEvent) => {
+    setYearGridWidth(event.nativeEvent.layout.width);
+  };
 
   const handleDayPress = (date: Date) => {
     const dateString = format(date, 'yyyy-MM-dd');
@@ -99,12 +159,21 @@ export default function TaskCalendarScreen() {
     }
   };
 
-  const handlePrevMonth = () => {
-    setCurrentMonth(subMonths(currentMonth, 1));
+  const handlePrev = () => {
+    setCurrentMonth(viewMode === 'year' ? subYears(currentMonth, 1) : subMonths(currentMonth, 1));
   };
 
-  const handleNextMonth = () => {
-    setCurrentMonth(addMonths(currentMonth, 1));
+  const handleNext = () => {
+    setCurrentMonth(viewMode === 'year' ? addYears(currentMonth, 1) : addMonths(currentMonth, 1));
+  };
+
+  const handleSelectMonth = (monthIndex: number) => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), monthIndex, 1));
+    setViewMode('month');
+  };
+
+  const handleTitlePress = () => {
+    setCurrentMonth(new Date());
   };
 
   return (
@@ -113,90 +182,147 @@ export default function TaskCalendarScreen() {
 
       <View style={[styles.content, { paddingBottom: insets.bottom }]}>
         <View style={styles.navigation}>
-          <TouchableOpacity onPress={handlePrevMonth} style={styles.navButton}>
+          <TouchableOpacity onPress={handlePrev} style={styles.navButton}>
             <MaterialCommunityIcons name="chevron-left" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.monthText}>{format(currentMonth, 'MMMM yyyy')}</Text>
-          <TouchableOpacity onPress={handleNextMonth} style={styles.navButton}>
+          <TouchableOpacity onPress={handleTitlePress} hitSlop={8}>
+            <Text style={styles.monthText}>
+              {viewMode === 'year' ? format(currentMonth, 'yyyy') : format(currentMonth, 'MMMM yyyy')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleNext} style={styles.navButton}>
             <MaterialCommunityIcons name="chevron-right" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.calendar}>
-          <View style={styles.weekDays}>
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-              <Text key={day} style={styles.weekDay}>{day}</Text>
-            ))}
-          </View>
-          <FlatList<CalendarItem>
-            data={Array(42).fill(null).map((_, index) => {
-              const dayIndex = index - startingDayOfWeek;
-              if (dayIndex < 0 || dayIndex >= daysInMonth) {
-                return { type: 'empty', index };
-              }
-              const day = days[dayIndex];
-              return {
-                type: 'day',
-                date: day.date,
-                isCompleted: day.isCompleted || false,
-                isPartial: day.isPartial || false,
-                completionCount: day.completionCount || 0,
-                isToday: day.isToday,
-                dayNumber: day.dayNumber,
-                index
-              };
-            })}
-            renderItem={({ item }) => {
-              if (item.type === 'empty') {
-                return <View key={`empty-${item.index}`} style={styles.day} />;
-              }
-
-              const { date, isCompleted, isPartial, completionCount, isToday, dayNumber } = item;
-              const dateString = format(date, 'yyyy-MM-dd');
-              const isPast = dateString < today;
-              const isMissed = isPast && !isCompleted && !isPartial;
-              const isFuture = dateString > today;
-
-              return (
-                <TouchableOpacity
-                  key={dateString}
-                  style={styles.day}
-                  onPress={() => handleDayPress(date)}
-                  delayLongPress={500}
-                >
-                  <View key={ `${task.id}-${isCompleted}-${isPartial}` } style={[
-                    styles.dayContent,
-                    isCompleted && { backgroundColor: task.color },
-                    isToday && !isCompleted && { borderWidth: 2, borderColor: task.color }
-                  ]}>
-                    {isMissed ? (
-                      <MissedDayMark color={colors.textTertiary} size={16} />
-                    ) : isPartial ? (
-                      <>
-                        <View style={StyleSheet.absoluteFill}>
-                          <PartialDayPie fraction={completionCount / (task.timesPerDay || 1)} color={task.color} />
-                        </View>
-                        <Text style={[styles.dayNumber, { color: task.color }]}>{dayNumber}</Text>
-                      </>
-                    ) : (
-                      <Text style={[
-                        styles.dayNumber,
-                        isCompleted && styles.completedDayNumber,
-                        isToday && !isCompleted && { color: task.color },
-                        isFuture && styles.futureDay
-                      ]}>
-                        {dayNumber}
-                      </Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            }}
-            numColumns={7}
-            scrollEnabled={false}
-            keyExtractor={(item) => item.type === 'empty' ? `empty-${item.index}` : format(item.date, 'yyyy-MM-dd')}
-          />
+        <View style={styles.viewModeToggle}>
+          <TouchableOpacity
+            style={[styles.viewModeButton, viewMode === 'month' && { backgroundColor: task.color }]}
+            onPress={() => setViewMode('month')}
+          >
+            <Text style={[styles.viewModeButtonText, viewMode === 'month' && styles.viewModeButtonTextActive]}>Month</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.viewModeButton, viewMode === 'year' && { backgroundColor: task.color }]}
+            onPress={() => setViewMode('year')}
+          >
+            <Text style={[styles.viewModeButtonText, viewMode === 'year' && styles.viewModeButtonTextActive]}>Year</Text>
+          </TouchableOpacity>
         </View>
+
+        {viewMode === 'year' ? (
+          <ScrollView style={styles.yearScroll} showsVerticalScrollIndicator={false}>
+            <View style={styles.yearMonthsGrid} onLayout={handleYearGridLayout}>
+              {yearGridWidth > 0 && yearMonths.map(month => (
+                <TouchableOpacity
+                  key={month.monthIndex}
+                  style={[styles.yearMonthCard, { width: monthCardWidth }]}
+                  onPress={() => handleSelectMonth(month.monthIndex)}
+                >
+                  <Text style={styles.yearMonthLabel}>{month.label}</Text>
+                  {month.rows.map((row, rowIndex) => (
+                    <View key={rowIndex} style={styles.yearWeekRow}>
+                      {row.map((day, dayIndex) => (
+                        <View
+                          key={dayIndex}
+                          style={[
+                            styles.yearDot,
+                            {
+                              width: yearDotSize,
+                              height: yearDotSize,
+                              borderRadius: Math.max(1, yearDotSize * 0.25),
+                              marginRight: dayIndex < 6 ? YEAR_DOT_GAP : 0,
+                            },
+                            day === null && styles.yearDotEmpty,
+                            day?.isCompleted && { backgroundColor: task.color },
+                            day?.isPartial && { backgroundColor: task.color, opacity: 0.4 },
+                            day?.isFuture && styles.yearDotFuture,
+                          ]}
+                        />
+                      ))}
+                    </View>
+                  ))}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        ) : (
+          <View style={styles.calendar}>
+            <View style={styles.weekDays}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                <Text key={day} style={styles.weekDay}>{day}</Text>
+              ))}
+            </View>
+            <FlatList<CalendarItem>
+              data={Array(42).fill(null).map((_, index) => {
+                const dayIndex = index - startingDayOfWeek;
+                if (dayIndex < 0 || dayIndex >= daysInMonth) {
+                  return { type: 'empty', index };
+                }
+                const day = days[dayIndex];
+                return {
+                  type: 'day',
+                  date: day.date,
+                  isCompleted: day.isCompleted || false,
+                  isPartial: day.isPartial || false,
+                  completionCount: day.completionCount || 0,
+                  isToday: day.isToday,
+                  dayNumber: day.dayNumber,
+                  index
+                };
+              })}
+              renderItem={({ item }) => {
+                if (item.type === 'empty') {
+                  return <View key={`empty-${item.index}`} style={styles.day} />;
+                }
+
+                const { date, isCompleted, isPartial, completionCount, isToday, dayNumber } = item;
+                const dateString = format(date, 'yyyy-MM-dd');
+                const isPast = dateString < today;
+                const isMissed = isPast && !isCompleted && !isPartial;
+                const isFuture = dateString > today;
+
+                return (
+                  <TouchableOpacity
+                    key={dateString}
+                    style={styles.day}
+                    onPress={() => handleDayPress(date)}
+                    delayLongPress={500}
+                  >
+                    <View key={ `${task.id}-${isCompleted}-${isPartial}` } style={[
+                      styles.dayContent,
+                      isCompleted && { backgroundColor: task.color },
+                      isToday && !isCompleted && { borderWidth: 2, borderColor: task.color }
+                    ]}>
+                      {isMissed ? (
+                        <MissedDayMark color={colors.textTertiary} size={16} />
+                      ) : isPartial ? (
+                        <>
+                          <View style={StyleSheet.absoluteFill}>
+                            <PartialDayPie fraction={completionCount / (task.timesPerDay || 1)} color={task.color} />
+                          </View>
+                          <Text style={[styles.dayNumber, { color: task.color }]}>{dayNumber}</Text>
+                        </>
+                      ) : (
+                        <Text style={[
+                          styles.dayNumber,
+                          isCompleted && styles.completedDayNumber,
+                          isToday && !isCompleted && { color: task.color },
+                          isFuture && styles.futureDay
+                        ]}>
+                          {dayNumber}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+              numColumns={7}
+              scrollEnabled={false}
+              keyExtractor={(item) => item.type === 'empty' ? `empty-${item.index}` : format(item.date, 'yyyy-MM-dd')}
+            />
+          </View>
+        )}
       </View>
     </View>
   );
@@ -224,6 +350,28 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 18,
     fontWeight: '500',
     color: colors.text,
+  },
+  viewModeToggle: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 20,
+    padding: 3,
+    marginTop: 12,
+    gap: 3,
+  },
+  viewModeButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 6,
+    borderRadius: 17,
+  },
+  viewModeButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  viewModeButtonTextActive: {
+    color: '#fff',
   },
   calendar: {
     flex: 1,
@@ -265,5 +413,39 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   futureDay: {
     opacity: 0.4,
+  },
+  yearScroll: {
+    flex: 1,
+    marginTop: 16,
+  },
+  yearMonthsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: YEAR_COLUMN_GAP,
+    paddingBottom: 8,
+  },
+  yearMonthCard: {
+    // width set inline from the measured grid width
+  },
+  yearMonthLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  yearWeekRow: {
+    flexDirection: 'row',
+    marginBottom: YEAR_DOT_GAP,
+  },
+  yearDot: {
+    backgroundColor: colors.border,
+  },
+  yearDotEmpty: {
+    backgroundColor: 'transparent',
+  },
+  yearDotFuture: {
+    opacity: 0.3,
   },
 });

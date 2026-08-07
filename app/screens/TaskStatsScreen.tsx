@@ -1,14 +1,16 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { differenceInCalendarDays, format, parseISO } from 'date-fns';
+import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BarChart, LineChart } from 'react-native-chart-kit';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import tinycolor from 'tinycolor2';
 import { TaskHeader } from '../components/TaskHeader';
 import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { TimeFrame, dayOfWeekLabels, getChartData, getCompletionPatterns, getDateRange, hourOfDayLabels } from '../utils/data';
+
+const CARD_HORIZONTAL_PADDING = 16;
 
 interface TimeRangeButtonProps {
   range: TimeFrame;
@@ -34,11 +36,15 @@ const TimeRangeButton: React.FC<TimeRangeButtonProps> = ({ range, label, isSelec
 };
 
 export default function TaskStatsScreen() {
-  const router = useRouter();
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
   const { tasks } = useTaskContext();
   const [timeRange, setTimeRange] = useState<TimeFrame>('month');
   const [isCumulative, setIsCumulative] = useState(false);
+  // Measured from the actual rendered container rather than guessed from Dimensions.get('window')
+  // minus a hardcoded constant -- that guess didn't account precisely for the content padding,
+  // which is what left charts clipping on the right edge on some devices. The fallback here (used
+  // only for the very first frame, before onLayout fires) still subtracts the expected padding.
+  const [chartAreaWidth, setChartAreaWidth] = useState(Dimensions.get('window').width - 32);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -47,6 +53,11 @@ export default function TaskStatsScreen() {
   if (!task) {
     throw new Error('Missing task');
   }
+
+  const handleChartSectionLayout = (event: LayoutChangeEvent) => {
+    setChartAreaWidth(event.nativeEvent.layout.width);
+  };
+  const chartWidth = Math.max(0, chartAreaWidth - CARD_HORIZONTAL_PADDING * 2);
 
   const { start, end } = useMemo(() => getDateRange(timeRange, tasks), [timeRange, tasks]);
   const { dayOfWeekData, hourOfDayData } = getCompletionPatterns(
@@ -62,15 +73,6 @@ export default function TaskStatsScreen() {
       color: (opacity = 1) => task.color,
       strokeWidth: 2,
     }],
-  };
-
-  const getBackgroundColor = (color: string) => {
-    const colorObj = tinycolor(color);
-    return tinycolor({
-      h: colorObj.toHsl().h,
-      s: 90,
-      l: colors.isDark ? 16 : 98
-    }).toString();
   };
 
   const baseChartConfig = {
@@ -103,87 +105,118 @@ export default function TaskStatsScreen() {
     }],
   };
 
+  // The current streak already has its own badge up in TaskHeader -- repeating it here would be
+  // redundant, so Best Streak is the headline stat instead, with a "current" tag when you're
+  // actively living it (current === best).
+  const currentStreak = task.stats?.currentStreak || 0;
+  const bestStreak = task.stats?.bestStreak || 0;
+  const isOnBestStreak = bestStreak > 0 && currentStreak === bestStreak;
+  const createdAtLabel = format(parseISO(task.createdAt), 'MMM d, yyyy');
+  const daysTracked = Math.max(1, differenceInCalendarDays(new Date(), parseISO(task.createdAt)) + 1);
+  const totalCompletions = task.stats?.totalCompletions || 0;
+  const avgPerWeek = totalCompletions / (daysTracked / 7);
+
+  // All-time day-of-week histogram for "Best Day" -- deliberately independent of the Activity
+  // section's own time-range toggle below, so this stays a stable lifetime summary rather than
+  // shifting depending on whatever range happens to be selected in the chart.
+  const allTimePatterns = useMemo(
+    () => getCompletionPatterns({ start: new Date(0), end: new Date() }, task.completions || []),
+    [task.completions]
+  );
+  const bestDayCount = Math.max(...allTimePatterns.dayOfWeekData);
+  const bestDayLabel = bestDayCount > 0 ? dayOfWeekLabels[allTimePatterns.dayOfWeekData.indexOf(bestDayCount)] : '—';
+
   return (
     <View style={styles.container}>
       <TaskHeader task={task} />
 
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom }}>
-        <View style={styles.statsGrid}>
-          {task.stats?.streakStatus === 'up_to_date' && task.stats.currentStreak > 0 ? (
-            <View style={[styles.statCard, { backgroundColor: getBackgroundColor(task.color) }]}>
-              <MaterialCommunityIcons name="fire" size={24} color="#FF6B6B" />
-              <Text style={[styles.statNumber, { color: '#FF6B6B' }]}>{task.stats.currentStreak}</Text>
-              <Text style={styles.statLabel}>Current Streak</Text>
-            </View>
-          ) : task.stats?.streakStatus === 'expiring' && task.stats.currentStreak > 0 ? (
-            <View style={[styles.statCard, { backgroundColor: getBackgroundColor(task.color) }]}>
-              <MaterialCommunityIcons name="clock-outline" size={24} color="#FFA726" />
-              <Text style={[styles.statNumber, { color: '#FFA726' }]}>{task.stats.currentStreak}</Text>
-              <Text style={styles.statLabel}>Current Streak</Text>
-            </View>
-          ) : task.stats?.lastStreak && task.stats.lastStreak > 0 ? (
-            <View style={[styles.statCard, { backgroundColor: getBackgroundColor(task.color) }]}>
-              <MaterialCommunityIcons name="sleep" size={24} color="#90A4AE" />
-              <Text style={[styles.statNumber, { color: '#90A4AE' }]}>{task.stats.lastStreak}</Text>
-              <Text style={styles.statLabel}>Last Streak</Text>
-            </View>
-          ) : null}
-          <View style={[styles.statCard, { backgroundColor: getBackgroundColor(task.color) }]}>
-            <MaterialCommunityIcons name="trophy" size={24} color="#FFD700" />
-            <Text style={[styles.statNumber, { color: '#FFD700' }]}>{task.stats?.bestStreak || 0}</Text>
-            <Text style={styles.statLabel}>Best Streak</Text>
+        <View style={styles.heroBlock}>
+          <View style={styles.heroEyebrowRow}>
+            <MaterialCommunityIcons name="check-decagram" size={16} color={task.color} />
+            <Text style={styles.heroEyebrow}>Total Completions</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: getBackgroundColor(task.color) }]}>
-            <MaterialCommunityIcons name="check-circle" size={24} color="#4CAF50" />
-            <Text style={[styles.statNumber, { color: '#4CAF50' }]}>{task.stats?.totalCompletions || 0}</Text>
-            <Text style={styles.statLabel}>Total Completions</Text>
+          <Text style={[styles.heroValue, { color: task.color }]}>{totalCompletions}</Text>
+          <Text style={styles.heroSince}>Since {createdAtLabel}</Text>
+        </View>
+
+        <View style={styles.statsDivider} />
+
+        <View style={styles.secondaryStrip}>
+          <View style={styles.secondaryItem}>
+            <Text style={styles.secondaryValue}>{bestStreak}</Text>
+            <View style={styles.labelRow}>
+              <MaterialCommunityIcons name="trophy" size={14} color="#FFD700" />
+              <Text style={styles.secondaryLabel}>Best Streak</Text>
+            </View>
+            {isOnBestStreak && <Text style={styles.secondaryTag}>● current</Text>}
           </View>
-          <View style={[styles.statCard, { backgroundColor: getBackgroundColor(task.color) }]}>
-            <MaterialCommunityIcons name="chart-line" size={24} color="#2196F3" />
-            <Text style={[styles.statNumber, { color: '#2196F3' }]}>{Math.round((task.stats?.completionRate || 0) * 100)}%</Text>
-            <Text style={styles.statLabel}>Completion Rate</Text>
+          <View style={styles.stripDividerV} />
+          <View style={styles.secondaryItem}>
+            <Text style={styles.secondaryValue}>{daysTracked}</Text>
+            <Text style={styles.secondaryLabel}>Total Days</Text>
           </View>
         </View>
 
-        <View style={styles.chartSection}>
+        <View style={styles.statsDividerMinor} />
+
+        <View style={styles.tertiaryStrip}>
+          <View style={styles.tertiaryItem}>
+            <Text style={styles.tertiaryValue}>{Math.round((task.stats?.completionRate || 0) * 100)}%</Text>
+            <Text style={styles.tertiaryLabel}>Rate</Text>
+          </View>
+          <View style={styles.stripDividerVMinor} />
+          <View style={styles.tertiaryItem}>
+            <Text style={styles.tertiaryValue}>{avgPerWeek.toFixed(1)}</Text>
+            <Text style={styles.tertiaryLabel}>Per Week</Text>
+          </View>
+          <View style={styles.stripDividerVMinor} />
+          <View style={styles.tertiaryItem}>
+            <Text style={styles.tertiaryValue}>{bestDayLabel}</Text>
+            <Text style={styles.tertiaryLabel}>Best Day</Text>
+          </View>
+        </View>
+
+        <View style={styles.chartSection} onLayout={handleChartSectionLayout}>
           <View style={styles.chartHeader}>
             <Text style={styles.sectionTitle}>Activity</Text>
             <View style={styles.timeRangeContainer}>
-              <TimeRangeButton 
-                range="week" 
-                label="Week" 
-                isSelected={timeRange === 'week'} 
+              <TimeRangeButton
+                range="week"
+                label="Week"
+                isSelected={timeRange === 'week'}
                 color={task.color}
                 onPress={setTimeRange}
               />
-              <TimeRangeButton 
-                range="month" 
-                label="Month" 
-                isSelected={timeRange === 'month'} 
+              <TimeRangeButton
+                range="month"
+                label="Month"
+                isSelected={timeRange === 'month'}
                 color={task.color}
                 onPress={setTimeRange}
               />
-              <TimeRangeButton 
-                range="year" 
-                label="Year" 
-                isSelected={timeRange === 'year'} 
+              <TimeRangeButton
+                range="year"
+                label="Year"
+                isSelected={timeRange === 'year'}
                 color={task.color}
                 onPress={setTimeRange}
               />
-              <TimeRangeButton 
-                range="all" 
-                label="All Time" 
-                isSelected={timeRange === 'all'} 
+              <TimeRangeButton
+                range="all"
+                label="All Time"
+                isSelected={timeRange === 'all'}
                 color={task.color}
                 onPress={setTimeRange}
               />
             </View>
           </View>
-          <View style={[styles.chartCard, { padding: 0, marginBottom: 16 }]}>
+          <View style={styles.chartCard}>
+            <Text style={styles.chartTitle}>Completions Over Time</Text>
             <View style={styles.chartContainer}>
               <LineChart
                 data={chartData}
-                width={Dimensions.get('window').width - 48}
+                width={chartWidth}
                 height={180}
                 chartConfig={{
                   ...baseChartConfig,
@@ -221,10 +254,11 @@ export default function TaskStatsScreen() {
             </View>
           </View>
 
-          <View style={[styles.chartCard, { padding: 0, marginBottom: 16 }]}>
+          <View style={styles.chartCard}>
+            <Text style={styles.chartTitle}>By Day of Week</Text>
             <BarChart
               data={dayOfWeekChartData}
-              width={Dimensions.get('window').width - 48}
+              width={chartWidth}
               height={180}
               yAxisLabel=""
               yAxisSuffix=""
@@ -242,40 +276,32 @@ export default function TaskStatsScreen() {
             />
           </View>
 
-          <View style={[styles.chartCard, { padding: 0 }]}>
-            <LineChart
+          <View style={styles.chartCard}>
+            <Text style={styles.chartTitle}>By Time of Day</Text>
+            <BarChart
               data={hourOfDayChartData}
-              width={Dimensions.get('window').width - 48}
+              width={chartWidth}
               height={180}
+              yAxisLabel=""
+              yAxisSuffix=""
               chartConfig={{
                 ...baseChartConfig,
                 color: (opacity = 1) => task.color,
-                propsForDots: {
-                  r: '4',
-                },
                 propsForBackgroundLines: {
                   strokeDasharray: '',
-                  stroke: colors.border,
+                  stroke: 'rgba(0,0,0,0)',
                   strokeWidth: 1,
                 },
-                fillShadowGradient: task.color,
-                fillShadowGradientOpacity: .2,
               }}
-              bezier
-              withInnerLines={false}
-              withOuterLines={false}
-              withVerticalLines={false}
-              withHorizontalLines={true}
-              withDots={true}
-              withShadow={true}
               style={styles.chart}
+              fromZero
             />
           </View>
         </View>
       </ScrollView>
     </View>
   );
-} 
+}
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
@@ -286,49 +312,132 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flex: 1,
     padding: 16,
   },
-  statsGrid: {
+  // No card chrome at all for the stats section -- typography and whitespace carry it instead:
+  // a centered headline number, a hairline rule, a borderless stat strip divided by thin
+  // vertical rules, and a small caption line for the rest. Reads as an editorial stat block
+  // rather than a stack of repeated boxes.
+  heroBlock: {
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 20,
+  },
+  heroEyebrowRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  heroEyebrow: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  heroValue: {
+    fontSize: 64,
+    fontWeight: '800',
+    lineHeight: 64,
+  },
+  heroSince: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginTop: 6,
+  },
+  statsDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginBottom: 20,
+  },
+  // A lighter-weight rule separating tier 2 from tier 3 -- shorter margin, same hairline weight,
+  // so all three tiers read as clearly divided sections rather than an ambiguous run-on list.
+  statsDividerMinor: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginBottom: 16,
+  },
+  // Icon sits inline next to its label (not stacked above the value) for every tier below
+  // the hero, so the number itself reads first and the icon just tags the label beside it.
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  // Tier 2: Best Streak / Total Days -- a divided strip, same formal treatment as the old
+  // primary strip, one size down from the hero.
+  secondaryStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 24,
   },
-  statCard: {
+  secondaryItem: {
     flex: 1,
-    minWidth: '45%',
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    gap: 4,
   },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginVertical: 8,
+  stripDividerV: {
+    width: StyleSheet.hairlineWidth,
+    height: 44,
+    backgroundColor: colors.border,
   },
-  statLabel: {
-    fontSize: 14,
+  stripDividerVMinor: {
+    width: StyleSheet.hairlineWidth,
+    height: 28,
+    backgroundColor: colors.border,
+  },
+  secondaryValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  secondaryLabel: {
+    fontSize: 12,
+    fontWeight: '600',
     color: colors.textSecondary,
-    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  secondaryTag: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.isDark ? '#FF6B6B' : '#C0392B',
+  },
+  // Tier 3: Rate / Per Week / Best Day -- plain spacing, no dividers, deliberately the lightest
+  // and least formal of the three tiers.
+  tertiaryStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  tertiaryItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 3,
+  },
+  tertiaryValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  tertiaryLabel: {
+    fontSize: 10,
+    color: colors.textTertiary,
   },
   chartSection: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   chartHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   timeRangeContainer: {
     flexDirection: 'row',
@@ -347,12 +456,17 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   chartCard: {
     backgroundColor: colors.surface,
     borderRadius: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: CARD_HORIZONTAL_PADDING,
+  },
+  chartTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
   },
   chart: {
     marginVertical: 8,
