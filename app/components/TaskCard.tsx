@@ -678,7 +678,10 @@ TaskCard.displayName = 'TaskCard';
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
-    flex: 1,
+    // No flex here -- width/height are always passed explicitly via the `size` prop. `flex: 1`
+    // implies flexBasis: 0% on the main axis, which takes precedence over an explicit `width` in
+    // a flexDirection: 'row' parent (HomeScreen's FlatList columnWrapperStyle) and let flexGrow
+    // stretch a lone last-row card (an incomplete final row) to fill the row's leftover space.
   },
   touchable: {
     flex: 1,

@@ -486,7 +486,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontWeight: '600',
   },
   row: {
-    justifyContent: 'space-between',
+    // 'center' instead of 'space-between': a full row already exactly fills the available width
+    // (cardSize is derived from it), so centering has no visible effect there -- it only changes
+    // an incomplete last row, which now centers its leftover card(s) instead of being stretched
+    // to fill the row (that stretch was TaskCard's own flex: 1, fixed at its source).
+    justifyContent: 'center',
     gap: GRID_SPACING,
   },
   addButton: {
