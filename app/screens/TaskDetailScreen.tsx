@@ -6,18 +6,21 @@ import Reanimated, { FadeIn } from 'react-native-reanimated';
 import { TaskDetailTab, TaskHeader } from '../components/TaskHeader';
 import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { DashboardStreaksView } from './DashboardStreaksView';
 import { TaskCalendarView } from './TaskCalendarScreen';
 import { TaskStatsView } from './TaskStatsScreen';
 
-// The single modal screen for a task's Calendar/Stats detail view. TaskHeader (banner + tabs)
-// renders once here; only the content below it swaps when the tab changes, via local state
+// The single modal screen for a task's Calendar/Stats/Streaks detail view. TaskHeader (banner +
+// tabs) renders once here; only the content below it swaps when the tab changes, via local state
 // rather than navigation -- opening this screen from Home is still one full modal transition,
-// but flipping between Calendar and Stats no longer re-triggers that same transition just to
-// switch tabs, since it's not actually leaving the screen.
+// but flipping between tabs no longer re-triggers that same transition just to switch tabs, since
+// it's not actually leaving the screen.
 export default function TaskDetailScreen() {
   const { taskId, tab, month } = useLocalSearchParams<{ taskId: string; tab?: string; month?: string }>();
   const { tasks } = useTaskContext();
-  const [activeTab, setActiveTab] = useState<TaskDetailTab>(tab === 'stats' ? 'stats' : 'calendar');
+  const [activeTab, setActiveTab] = useState<TaskDetailTab>(
+    tab === 'stats' ? 'stats' : tab === 'streaks' ? 'streaks' : 'calendar'
+  );
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -34,7 +37,15 @@ export default function TaskDetailScreen() {
     <View style={styles.container}>
       <TaskHeader task={task} activeTab={activeTab} onTabChange={setActiveTab} />
       <Reanimated.View key={activeTab} entering={FadeIn.duration(150)} style={styles.body}>
-        {activeTab === 'calendar' ? <TaskCalendarView task={task} initialMonth={initialMonth} /> : <TaskStatsView task={task} />}
+        {activeTab === 'calendar' ? (
+          <TaskCalendarView task={task} initialMonth={initialMonth} />
+        ) : activeTab === 'stats' ? (
+          <TaskStatsView task={task} />
+        ) : (
+          // Exactly the Dashboard's Streaks tab, just scoped to this one task -- it's already
+          // generic over a task list, so a single-element array is all that's needed here.
+          <DashboardStreaksView tasks={[task]} />
+        )}
       </Reanimated.View>
     </View>
   );

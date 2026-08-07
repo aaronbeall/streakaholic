@@ -60,20 +60,6 @@ const DashboardHeader: React.FC<{
 
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'stats' && styles.activeTab]}
-          onPress={() => onTabChange('stats')}
-        >
-          <MaterialCommunityIcons
-            name="chart-box-outline"
-            size={20}
-            color={activeTab === 'stats' ? ACCENT : colors.textSecondary}
-          />
-          <Text style={[styles.tabText, activeTab === 'stats' && { color: ACCENT }]}>
-            Stats
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
           style={[styles.tab, activeTab === 'calendar' && styles.activeTab]}
           onPress={() => onTabChange('calendar')}
         >
@@ -84,6 +70,20 @@ const DashboardHeader: React.FC<{
           />
           <Text style={[styles.tabText, activeTab === 'calendar' && { color: ACCENT }]}>
             Calendar
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'stats' && styles.activeTab]}
+          onPress={() => onTabChange('stats')}
+        >
+          <MaterialCommunityIcons
+            name="chart-box-outline"
+            size={20}
+            color={activeTab === 'stats' ? ACCENT : colors.textSecondary}
+          />
+          <Text style={[styles.tabText, activeTab === 'stats' && { color: ACCENT }]}>
+            Stats
           </Text>
         </TouchableOpacity>
 

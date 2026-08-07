@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 
-export type TaskDetailTab = 'calendar' | 'stats';
+export type TaskDetailTab = 'calendar' | 'stats' | 'streaks';
 
 interface TaskHeaderProps {
   task: Task;
@@ -25,6 +25,7 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
 
   const isCalendarScreen = activeTab === 'calendar';
   const isStatsScreen = activeTab === 'stats';
+  const isStreaksScreen = activeTab === 'streaks';
 
   return (
     <View>
@@ -111,6 +112,20 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
           />
           <Text style={[styles.tabText, isStatsScreen && { color: task.color }]}>
             Stats
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, isStreaksScreen && styles.activeTab]}
+          onPress={() => onTabChange('streaks')}
+        >
+          <MaterialCommunityIcons
+            name="fire"
+            size={20}
+            color={isStreaksScreen ? task.color : colors.textSecondary}
+          />
+          <Text style={[styles.tabText, isStreaksScreen && { color: task.color }]}>
+            Streaks
           </Text>
         </TouchableOpacity>
       </View>
