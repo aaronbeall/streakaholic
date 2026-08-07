@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { addDays, format, getDay, getDaysInMonth, parseISO, startOfMonth, startOfWeek } from 'date-fns';
+import { addDays, endOfWeek, format, getDay, getDaysInMonth, parseISO, startOfMonth, startOfWeek } from 'date-fns';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
@@ -393,6 +393,71 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
 
 CardCalendar.displayName = 'CardCalendar';
 
+// The "x/N" total for a period box is the task's own due/quota schedule scaled to that
+// period, not a blind 7 or 30 -- a `specific_days_of_week` task counts its actual matching
+// weekdays in `[from, to]`; a `days_per_week`/`days_per_month` quota task prorates its target
+// to the period's `nominalDays` (7 for the week box, 30 for the month box), so e.g. a
+// "2 days a month" task shows a small fractional-rounded target in the week box instead of 30.
+// Prorating can let `completed` land above this total (more due-days landed in the window than
+// the average, or a quota task ran ahead of pace) -- that's fine, it's treated as a bonus rather
+// than clamped away, since the whole point is the target is an estimate, not a hard ceiling.
+const getExpectedTotal = (task: Task, from: Date, to: Date, nominalDays: number): number => {
+  switch (task.frequency) {
+    case 'specific_days_of_week': {
+      const selectedDays = task.daysOfWeek && task.daysOfWeek.length > 0 ? task.daysOfWeek : [0, 1, 2, 3, 4, 5, 6];
+      let count = 0;
+      let cursor = from;
+      while (cursor <= to) {
+        if (selectedDays.includes(cursor.getDay())) count++;
+        cursor = addDays(cursor, 1);
+      }
+      return Math.max(1, count);
+    }
+    case 'days_per_week':
+      return Math.max(1, Math.round((task.daysPerWeek || 1) * (nominalDays / 7)));
+    case 'days_per_month':
+      return Math.max(1, Math.round((task.daysPerMonth || 1) * (nominalDays / 30)));
+    case 'daily':
+    default:
+      return nominalDays;
+  }
+};
+
+// Shared by the "This week" / "Past 30 days" rows: label truncates instead of wrapping (the
+// value never shrinks, so a long label never pushes into or wraps around the "x/y" text), and
+// `completed` exceeding `total` (a prorated quota target got outpaced) renders as a small bonus
+// star rather than an overflowed/broken progress bar.
+const PeriodStatRow: React.FC<{
+  label: string;
+  completed: number;
+  total: number;
+  color: string;
+  styles: ReturnType<typeof createStyles>;
+}> = ({ label, completed, total, color, styles }) => {
+  const isBonus = completed > total;
+  const fraction = total > 0 ? completed / total : 0;
+
+  return (
+    <>
+      <View style={styles.statRow}>
+        <Text style={styles.statLabel} numberOfLines={1} ellipsizeMode="tail">{label}</Text>
+        <View style={styles.statValueRow}>
+          <Text style={[styles.statValue, isBonus && { color }]}>{completed}/{total}</Text>
+          {isBonus && <MaterialCommunityIcons name="star" size={14} color={color} />}
+        </View>
+      </View>
+      <View style={[styles.progressBar, { backgroundColor: color + '33' }]}>
+        <View
+          style={[
+            styles.progressFill,
+            { backgroundColor: color, width: `${Math.min(fraction * 100, 100)}%` as const }
+          ]}
+        />
+      </View>
+    </>
+  );
+};
+
 const CardStats = React.memo(({ task }: { task: Task }) => {
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -407,7 +472,8 @@ const CardStats = React.memo(({ task }: { task: Task }) => {
     }) || [];
     return {
       completed: completions.length,
-      total: 7
+      // Full 7-day week (not just the days elapsed so far) so the total doesn't shrink mid-week.
+      total: getExpectedTotal(task, weekStart, endOfWeek(today), 7),
     };
   };
 
@@ -420,7 +486,7 @@ const CardStats = React.memo(({ task }: { task: Task }) => {
     }) || [];
     return {
       completed: completions.length,
-      total: 30
+      total: getExpectedTotal(task, thirtyDaysAgo, today, 30),
     };
   };
 
@@ -453,37 +519,8 @@ const CardStats = React.memo(({ task }: { task: Task }) => {
         />
       </View>
 
-      <View style={styles.statRow}>
-        <Text style={styles.statLabel}>This week</Text>
-        <Text style={styles.statValue}>{weeklyStats.completed}/{weeklyStats.total}</Text>
-      </View>
-      <View style={[styles.progressBar, { backgroundColor: task.color + '33' }]}>
-        <View 
-          style={[
-            styles.progressFill, 
-            { 
-              backgroundColor: task.color,
-              width: `${(weeklyStats.completed / weeklyStats.total) * 100}%` as const
-            }
-          ]} 
-        />
-      </View>
-
-      <View style={styles.statRow}>
-        <Text style={styles.statLabel}>Past 30 days</Text>
-        <Text style={styles.statValue}>{monthlyStats.completed}/{monthlyStats.total}</Text>
-      </View>
-      <View style={[styles.progressBar, { backgroundColor: task.color + '33' }]}>
-        <View 
-          style={[
-            styles.progressFill, 
-            { 
-              backgroundColor: task.color,
-              width: `${(monthlyStats.completed / monthlyStats.total) * 100}%` as const
-            }
-          ]} 
-        />
-      </View>
+      <PeriodStatRow label="This week" completed={weeklyStats.completed} total={weeklyStats.total} color={task.color} styles={styles} />
+      <PeriodStatRow label="Past 30 days" completed={monthlyStats.completed} total={monthlyStats.total} color={task.color} styles={styles} />
     </View>
   );
 });
@@ -786,11 +823,20 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   statLabel: {
     fontSize: 14,
     color: colors.textSecondary,
+    flexShrink: 1,
+    marginRight: 8,
   },
   statValue: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
+    flexShrink: 0,
+  },
+  statValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
   },
   progressBar: {
     height: 6,
