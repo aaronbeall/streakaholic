@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Reanimated, { FadeIn } from 'react-native-reanimated';
 import { TaskDetailTab, TaskHeader } from '../components/TaskHeader';
+import { useSettings } from '../context/SettingsContext';
 import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { DashboardStreaksView } from './DashboardStreaksView';
@@ -18,9 +19,12 @@ import { TaskStatsView } from './TaskStatsScreen';
 export default function TaskDetailScreen() {
   const { taskId, tab, month } = useLocalSearchParams<{ taskId: string; tab?: string; month?: string }>();
   const { tasks } = useTaskContext();
-  const [activeTab, setActiveTab] = useState<TaskDetailTab>(
-    tab === 'stats' ? 'stats' : tab === 'streaks' ? 'streaks' : 'calendar'
-  );
+  const { taskDetailLastTab, setTaskDetailLastTab } = useSettings();
+  // An explicit `tab` param (e.g. Home's long-press-calendar-face action) always wins; absent
+  // that, restore whichever tab was last viewed rather than always defaulting to Calendar.
+  const linkedTab: TaskDetailTab | undefined =
+    tab === 'stats' || tab === 'calendar' || tab === 'streaks' ? tab : undefined;
+  const [activeTab, setActiveTab] = useState<TaskDetailTab>(linkedTab ?? taskDetailLastTab);
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -33,9 +37,14 @@ export default function TaskDetailScreen() {
   // specific month, e.g. "?taskId=X&tab=calendar&month=2026-07-01", instead of always today's.
   const initialMonth = month ? parseISO(month) : undefined;
 
+  const handleTabChange = (nextTab: TaskDetailTab) => {
+    setActiveTab(nextTab);
+    setTaskDetailLastTab(nextTab);
+  };
+
   return (
     <View style={styles.container}>
-      <TaskHeader task={task} activeTab={activeTab} onTabChange={setActiveTab} />
+      <TaskHeader task={task} activeTab={activeTab} onTabChange={handleTabChange} />
       <Reanimated.View key={activeTab} entering={FadeIn.duration(150)} style={styles.body}>
         {activeTab === 'calendar' ? (
           <TaskCalendarView task={task} initialMonth={initialMonth} />

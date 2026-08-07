@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { TaskDetailTab } from '../components/TaskHeader';
+import { DashboardTab } from '../screens/DashboardScreen';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -22,6 +24,12 @@ export interface AppSettings {
   showTaskName: boolean;
   showTaskCounter: boolean;
   onboardingHintsSeen: OnboardingHintsSeen;
+  // Restored as the default tab the next time each screen opens without an explicit deep-linked
+  // tab (task-detail's own `tab` search param) -- only updated by actually switching tabs within
+  // the screen, never by an incoming deep link, so a one-off "open on Stats" link doesn't
+  // permanently change the remembered preference.
+  dashboardLastTab: DashboardTab;
+  taskDetailLastTab: TaskDetailTab;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -30,6 +38,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   showTaskName: true,
   showTaskCounter: true,
   onboardingHintsSeen: DEFAULT_ONBOARDING_HINTS_SEEN,
+  dashboardLastTab: 'stats',
+  taskDetailLastTab: 'calendar',
 };
 
 const STORAGE_KEY = 'appSettings';
@@ -42,6 +52,8 @@ interface SettingsContextType extends AppSettings {
   setShowTaskCounter: (value: boolean) => void;
   setOnboardingHintSeen: (key: OnboardingHintKey, seen: boolean) => void;
   resetOnboardingHints: () => void;
+  setDashboardLastTab: (tab: DashboardTab) => void;
+  setTaskDetailLastTab: (tab: TaskDetailTab) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -94,6 +106,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           onboardingHintsSeen: { ...prev.onboardingHintsSeen, [key]: seen },
         })),
         resetOnboardingHints: () => updateSettings({ onboardingHintsSeen: DEFAULT_ONBOARDING_HINTS_SEEN }),
+        setDashboardLastTab: (dashboardLastTab) => updateSettings({ dashboardLastTab }),
+        setTaskDetailLastTab: (taskDetailLastTab) => updateSettings({ taskDetailLastTab }),
       }}
     >
       {children}

@@ -4,13 +4,14 @@ import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Reanimated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSettings } from '../context/SettingsContext';
 import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { DashboardCalendarView } from './DashboardCalendarView';
 import { DashboardStatsView } from './DashboardStatsView';
 import { DashboardStreaksView } from './DashboardStreaksView';
 
-type DashboardTab = 'stats' | 'calendar' | 'streaks';
+export type DashboardTab = 'stats' | 'calendar' | 'streaks';
 const ACCENT = '#007AFF';
 
 const DashboardHeader: React.FC<{
@@ -111,10 +112,18 @@ const DashboardHeader: React.FC<{
 export const DashboardScreen: React.FC = () => {
   const { tasks: allTasks } = useTaskContext();
   const tasks = useMemo(() => allTasks.filter(task => !task.archived), [allTasks]);
-  const [activeTab, setActiveTab] = useState<DashboardTab>('stats');
+  const { dashboardLastTab, setDashboardLastTab } = useSettings();
+  // Dashboard has no deep-linked tab of its own (unlike task-detail's `tab` search param), so it
+  // always just restores whichever tab was last viewed.
+  const [activeTab, setActiveTab] = useState<DashboardTab>(dashboardLastTab);
   const [selectedTasks, setSelectedTasks] = useState<string[]>(tasks.map(t => t.id));
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const handleTabChange = (tab: DashboardTab) => {
+    setActiveTab(tab);
+    setDashboardLastTab(tab);
+  };
 
   // The task filter lives here (not inside DashboardStatsView) so it can filter everything on
   // the view, regardless of which tab is active.
@@ -124,7 +133,7 @@ export const DashboardScreen: React.FC = () => {
     <View style={styles.container}>
       <DashboardHeader
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         selectedTasks={selectedTasks}
         onTaskToggle={(taskId) => {
           setSelectedTasks(prev =>
