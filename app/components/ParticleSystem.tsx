@@ -294,15 +294,17 @@ const defaultParticles: ParticleConfig = {
     ["#FF4500", "#B71C1C"], // orange-red -> dark red (most reddish birth)
   ],
   // The glow stays a mix of oranges and reds -- complementing whatever yellow-to-red shade its
-  // own particle is showing, rather than matching it exactly -- ending even darker than the
-  // core's cooled ends since the glow is meant to fade toward nothing.
+  // own particle is showing, rather than matching it exactly. Its cooled ends used to go
+  // near-black (`#4A0404`/`#3B0000`/etc.) -- per explicit user direction, opacity alone should
+  // handle the fade-out, so these now land on the same *deep-red, still-readable* territory
+  // `colorPairs` above already settled on, not darker.
   glowColorPairs: [
-    ["#FF8C00", "#4A0404"], // orange -> near-black red
-    ["#FF6B00", "#3B0000"], // vivid orange -> very dark red
-    ["#FF4500", "#450000"], // orange-red -> deep maroon
-    ["#FF3B1F", "#2B0000"], // red-orange -> near-black red
-    ["#D50000", "#1F0000"], // vivid red -> near-black red
-    ["#B22222", "#1A0000"], // firebrick -> near-black
+    ["#FF8C00", "#C62828"], // orange -> deep red
+    ["#FF6B00", "#B71C1C"], // vivid orange -> dark red
+    ["#FF4500", "#D32F2F"], // orange-red -> vivid red
+    ["#FF3B1F", "#C62828"], // red-orange -> deep red
+    ["#D50000", "#B71C1C"], // vivid red -> dark red
+    ["#B22222", "#B71C1C"], // firebrick -> dark red
   ],
   // Bumped from 8 -- with the wider hue spread across `colorPairs` now doing most of the visual
   // work, a bit more per-particle jitter reads as "healthy variance" rather than washing anything
