@@ -58,6 +58,12 @@ function RootStack() {
         }}
       />
       <Stack.Screen
+        name="about"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="add-task"
         options={{
           title: 'Add New Task',

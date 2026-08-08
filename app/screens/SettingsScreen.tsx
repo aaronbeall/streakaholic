@@ -262,11 +262,12 @@ export const SettingsScreen: React.FC = () => {
 
         <Text style={styles.sectionTitle}>About</Text>
         <View style={styles.card}>
-          <View style={styles.row}>
+          <TouchableOpacity style={styles.row} onPress={() => router.push('/about')} accessibilityRole="button" accessibilityHint="Opens privacy policy, terms, and credits">
             <MaterialCommunityIcons name="information-outline" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>{appName}</Text>
             <Text style={styles.rowValue}>{version}</Text>
-          </View>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>
