@@ -19,7 +19,7 @@
 - [ ] Sharing
 - [ ] Reminders/notifications
 
-## UX / Usability / Enhancements
+## UX / Usability / UI Improvements
 
 - [x] Onboarding for core gestures (tap to cycle task/calendar/stats views, hold to complete; plus Dashboard's task-filter hint and task-detail Calendar's tap-a-day hint)
 - [x] Confirmation dialog before deleting a task (modal confirm on Delete/Archive in the Edit Task screen; everything else uses a toast + Undo instead of a modal)
@@ -35,6 +35,13 @@
 - [ ] Archive/Delete task should take you back to homepage
 - [ ] New best streak congratulations
 - [ ] Perfect day congratulations
+- [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
+- [ ] Performance optimizations
+  - [ ] Performance pass (profile the app and audit for bottlenecks)
+  - [ ] Migrate to Zustand?
+  - [ ] Reduce unnecessary task stat re-recalculations
+  - [ ] WeakMap caching
+- [x] Layout/navigation improvement with proper screen transitions (`RootStack`'s `slide_from_right` animation)
 
 ## MMP
 
@@ -50,20 +57,10 @@
 
 ## Future
 
-- [ ] Timeline view
+- [x] Timeline view (`DashboardCalendarView`'s "Timeline" section — infinite horizontal scroll, Grid | Bars toggle)
 - [x] Heatmap view (`DashboardCalendarView`'s Timeline section — partial-day fills across every task calendar now scale opacity by completion fraction, plus a Grid | Bars toggle with a per-day segmented completion bar chart)
 - [ ] Points/ranks/achievements
 - [ ] Daily summary
 - [ ] Personal leaderboard
 - [ ] Login with google
 - [ ] Social features (friends, friend streaks, competitions, leaderboards)
-
-## UI tweaks
-
-- [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
-- [ ] Performance optimizations
-  - [ ] Performance pass (profile the app and audit for bottlenecks)
-  - [ ] Migrate to Zustand?
-  - [ ] Reduce unnecessary task stat re-recalculations
-  - [ ] WeakMap caching
-- [x] Layout/navigation improvement with proper screen transitions (`RootStack`'s `slide_from_right` animation)
