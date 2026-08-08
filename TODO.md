@@ -35,6 +35,8 @@
 - [x] Archive/Delete task should take you back to homepage (`AddTaskScreen`'s Archive/Delete confirm now calls `router.dismissTo('/')` instead of `router.back()` — fixes a real crash: reached via task-detail's pencil icon, `back()` only popped to task-detail, which still held the just-deleted `taskId` and threw "Missing task" on render)
 - [ ] New best streak congratulations
 - [ ] Perfect day congratulations
+- [ ] First streak congratulations
+- [ ] Milestone completions (10, 100, 1000)
 - [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
 - [ ] Performance optimizations
   - [x] Performance pass (audited Context re-render fan-out, memoization/referential-stability gaps, and common RN FlatList traps — see CLAUDE.md's "State management" section)
@@ -43,7 +45,7 @@
   - [x] WeakMap caching (considered during the Zustand migration for `getCompletionCount`/`isTaskCompleted` — went the other way instead: dropped the existing `completionCache` Map entirely in favor of a plain `task.completions.find()`, since the cache was also a real staleness bug (one render behind `tasks`), not just a perf question, and the O(n) lookup is trivial at this app's scale)
 - [x] Layout/navigation improvement with proper screen transitions (`RootStack`'s `slide_from_right` animation)
 - [ ] Already completed task on home screen should not have press-and-hold triggering completion animation
-- [ ] Split up task card icon ring based on per-day count
+- [x] Split up task card icon ring based on per-day count (`TaskCard`'s outer ring, while incomplete: one continuous circle for 1x/day tasks, `timesPerDayCount` equal arc segments with a small gap between each for >1x/day tasks — see `ringSegments`/`RING_SEGMENT_GAP_DEGREES`; unchanged once completed, which still fills solid)
 
 ## MMP
 

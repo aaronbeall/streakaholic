@@ -41,6 +41,9 @@ const AnimatedPath = Reanimated.createAnimatedComponent(Path);
 const DEPRESS_SCALE = 0.9;
 const POP_PEAK_SCALE = 1.2;
 const COMPLETION_HOLD_DURATION = 750;
+// The gap (in degrees) left between each arc segment of a >1x/day task's split progress ring --
+// see `ringSegments` in `CardTask` below.
+const RING_SEGMENT_GAP_DEGREES = 14;
 // A rough estimate of the streak *bubble*'s own rendered bounds (icon + streak count text,
 // padding -- deliberately not including the optional trophy icon, which sits outside the bubble
 // itself and shouldn't be covered by the spawn area), used as `ParticleSystem`'s `spawnArea` --
@@ -201,6 +204,34 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
   const completionCount = getCompletionCount(task);
   const dayProgressFraction = Math.min(completionCount / timesPerDayCount, 1);
 
+  // For a >1x/day task, the outer ring splits into `timesPerDayCount` equal arc segments with a
+  // small gap between each, instead of one continuous circle -- a static visual cue for "this
+  // many reps needed today", independent of `dayProgressAnimatedProps`'s own fill-based progress
+  // wedge below. Only depends on `timesPerDayCount` (not any shared value), so it's a plain
+  // `useMemo`, not an animated prop -- no need to recompute on every frame/render like the actual
+  // progress sweeps do.
+  const ringSegments = useMemo(() => {
+    if (timesPerDayCount <= 1) {
+      return null;
+    }
+    const getRingPoint = (angleDegrees: number) => {
+      const radians = (angleDegrees - 90) * (Math.PI / 180);
+      return {
+        x: CIRCLE_CENTER + CIRCLE_RADIUS * Math.cos(radians),
+        y: CIRCLE_CENTER + CIRCLE_RADIUS * Math.sin(radians)
+      };
+    };
+    const segmentAngle = 360 / timesPerDayCount;
+    return Array.from({ length: timesPerDayCount }, (_, i) => {
+      const startAngle = i * segmentAngle + RING_SEGMENT_GAP_DEGREES / 2;
+      const endAngle = (i + 1) * segmentAngle - RING_SEGMENT_GAP_DEGREES / 2;
+      const start = getRingPoint(startAngle);
+      const end = getRingPoint(endAngle);
+      const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
+      return `M ${start.x} ${start.y} A ${CIRCLE_RADIUS} ${CIRCLE_RADIUS} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`;
+    });
+  }, [timesPerDayCount]);
+
   // Animated pie slice showing how many of today's timesPerDay reps are logged so far --
   // eases toward the new fraction whenever a rep is logged, echoing the same sweep-in
   // motion as `animatedProps` above (the transient press-and-hold confirmation ring).
@@ -327,15 +358,39 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
     <View style={styles.contentContainer}>
       <Reanimated.View style={[styles.iconContainer, { width: iconSize, height: iconSize, borderRadius: iconSize / 2, marginBottom: iconMarginBottom, backgroundColor: 'transparent' }, containerStyle]}>
         <Svg width={iconSize} height={iconSize} viewBox="0 0 128 128">
-          {/* Outer circle (border) */}
-          <Circle
-            cx={CIRCLE_CENTER}
-            cy={CIRCLE_CENTER}
-            r={CIRCLE_RADIUS}
-            stroke={task.color}
-            strokeWidth={CIRCLE_STROKE_WIDTH}
-            fill={completed ? task.color : 'none'}
-          />
+          {/* Outer circle (border) -- solid fill once completed, regardless of timesPerDay;
+              while incomplete, either one continuous ring (1x/day) or split into equal arc
+              segments with gaps (>1x/day, see `ringSegments`) */}
+          {completed ? (
+            <Circle
+              cx={CIRCLE_CENTER}
+              cy={CIRCLE_CENTER}
+              r={CIRCLE_RADIUS}
+              stroke={task.color}
+              strokeWidth={CIRCLE_STROKE_WIDTH}
+              fill={task.color}
+            />
+          ) : ringSegments ? (
+            ringSegments.map((d, i) => (
+              <Path
+                key={i}
+                d={d}
+                stroke={task.color}
+                strokeWidth={CIRCLE_STROKE_WIDTH}
+                strokeLinecap="round"
+                fill="none"
+              />
+            ))
+          ) : (
+            <Circle
+              cx={CIRCLE_CENTER}
+              cy={CIRCLE_CENTER}
+              r={CIRCLE_RADIUS}
+              stroke={task.color}
+              strokeWidth={CIRCLE_STROKE_WIDTH}
+              fill="none"
+            />
+          )}
           {/* Today's times-per-day progress, when this task requires more than one rep a day */}
           {!completed && timesPerDayCount > 1 && (
             <AnimatedPath fill={task.color} opacity={0.35} animatedProps={dayProgressAnimatedProps} />
