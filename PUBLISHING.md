@@ -4,60 +4,157 @@ How to ship Streakaholic to the Google Play Store, plus guides for two features 
 matter for launch: **Rate this app** and **Tip jar**. For setup/dev workflow see
 [DEVELOPMENT.md](DEVELOPMENT.md); for architecture see [CLAUDE.md](CLAUDE.md).
 
-## Readiness audit (as of 2026-08-08)
+## Readiness audit (as of 2026-08-08, updated same day)
 
 Ran `npx expo-doctor` and reviewed `app.json`/`eas.json`/`assets/` against Play Store
-requirements. Summary: the project is close — EAS is already wired up — but a handful of
-things need attention before/during submission.
+requirements. Of the original 8 gaps, 4 are fully closed and 4 more are prepped (assets
+built, copy drafted, answers worked out) with only the parts that genuinely require your
+own Google/Play Console login left undone — see below for exactly what those are.
 
 ### Already in good shape
 - EAS project linked (`app.json` → `extra.eas.projectId`), `eas.json` has `development`/
-  `preview`/`production` build profiles and a `submit.production` profile scaffolded.
+  `preview`/`production` build profiles and a `submit.production` profile scaffolded,
+  including an Android `serviceAccountKeyPath` (see "Prepped" #7 below for what still
+  has to happen before that path resolves to a real file).
 - Unique Android package name set: `com.metamodernmonkey.Streakaholic`.
 - `appVersionSource: "remote"` + `autoIncrement: true` on the production build profile —
   EAS manages the Android `versionCode` for you; no manual bumping per release.
 - `newArchEnabled: true` — current architecture, keeps pace with Expo's own requirements.
-- App icon (`icon.png`, 1024×1024) and splash icon (`splash-icon.png`, 1024×1024) are
-  correctly sized.
-- `npx expo-doctor`: 16/17 checks pass.
+- App icon (`icon.png`, 1024×1024), splash icon (`splash-icon.png`, 1024×1024), and now
+  the adaptive icon foreground (`adaptive-icon.png`, upscaled 500×500 → 1024×1024 — see
+  "Fixed" #1) are all correctly sized.
+- `npx expo-doctor`: **17/17 checks pass.**
+- `@types/jest` pinned to the expected `29.5.14`; the five dependencies that were never
+  actually imported anywhere in `app/` (`react-native-circular-progress`,
+  `react-native-circular-progress-indicator`, `react-native-confetti-cannon`,
+  `react-native-particle-system`, `react-native-progress`) have been removed.
+- **Privacy Policy is hosted and live**: https://www.metamodernmonkey.com/privacy/streakaholic
+  — a dedicated page (not a shared/generic URL — each Metamodern Monkey app gets its own
+  under `/privacy/<slug>`, matching the `id` slugs already used in that site's
+  `data/projects.json`), built in the `metamodernmonkey/website` repo to match its
+  existing Next.js/Tailwind "synthwave" design system, mirroring the About screen's
+  Privacy Policy/Terms of Service text word-for-word. Committed and pushed to that repo's
+  `main` (commit `99af5bf`), which deploys to Netlify automatically — confirmed live.
 
-### Gaps to close
-1. **Adaptive icon foreground is only 500×500** (`adaptive-icon.png`). Expo/Android
-   recommend **1024×1024** source art for adaptive icons — at 500×500 it'll get upscaled
-   for the highest-density screens (xxxhdpi), which can look soft. Not a hard blocker, but
-   worth regenerating from higher-res source before this becomes the permanent Play Store
-   icon.
-2. **No hosted Privacy Policy URL.** Play Console requires a real URL in the store
-   listing — the in-app About screen's Privacy Policy text doesn't satisfy this. Publish
-   it somewhere reachable, e.g. `metamodernmonkey.com/privacy` (the About screen's
-   existing copy is a fine starting point, just needs a public home).
-3. **`submit.production` has no `serviceAccountKeyPath`.** `eas submit --platform android`
-   needs a Google Play service account JSON key to submit non-interactively — see
-   [Setting up automated submission](#3-optional-set-up-automated-submission) below.
-   Also: **the very first release must go through the Play Console web UI manually** —
-   `eas submit` can push builds to an app that already exists in Play Console, but can't
-   create the store listing itself.
-4. **`@types/jest` version mismatch** (expected `29.5.14`, found `30.0.0`) — dev-only,
-   not a shipping blocker. Fix with `npx expo install --check` when convenient.
-5. **Unused dependencies bloating the bundle**: `react-native-circular-progress`,
-   `react-native-circular-progress-indicator`, `react-native-confetti-cannon`,
-   `react-native-particle-system`, `react-native-progress` are in `package.json` but never
-   imported anywhere in `app/`. Worth `npm uninstall`-ing before a production build —
-   smaller bundle, simpler dependency tree, one less thing `expo-doctor` has to reason
-   about.
-6. **Store listing assets don't exist yet**: 512×512 hi-res icon export, 1024×500 feature
-   graphic, phone screenshots (≥2), short description (80 char), full description
-   (4000 char). Asset/copywriting work, not code — budget real time for this.
-7. **Data Safety form & content rating questionnaire** — filled out in Play Console, not
-   in the repo. Today's honest answer to "what data does this app collect" is "none,"
-   which is the easiest version of this form to fill out. If usage analytics is ever
-   added (a separate, previously-discussed task), this form *and* the in-app Privacy
-   Policy both need updating to match — a mismatch between disclosed and actual behavior
-   is a real policy risk, not just a copy nitpick.
+### Fixed (fully done, nothing left to do)
+1. **Adaptive icon foreground upscaled** 500×500 → 1024×1024 via a high-quality Lanczos
+   resample of the *existing, already-approved* artwork (not regenerated — same image,
+   just correctly sized source resolution). Worth a quick on-device look once you build,
+   since any upscale is still an upscale, but this removes the resolution gap without
+   touching the actual design.
+2. **`@types/jest` version mismatch** — pinned to `29.5.14`.
+3. **Unused dependencies bloating the bundle** — all five removed via `npm uninstall`.
+4. **Hosted Privacy Policy URL** — live at
+   https://www.metamodernmonkey.com/privacy/streakaholic (see above). Ready to paste into
+   Play Console's store listing. The `privacy-policy.html` scaffold this repo briefly had
+   at its root has been removed now that the real hosted version exists — that website
+   page is the single source of truth going forward, not this repo.
+
+### Prepped — ready for you, but finishing needs your Play Console/Google login
+5. **Store listing assets**, mostly closed:
+   - **512×512 hi-res icon**: turns out this already existed and just hadn't been found in
+     the earlier audit — `logo/AppIcons/playstore.png`, correctly sized, matches the
+     current icon design. Nothing to do here.
+   - **1024×500 feature graphic**: built at `logo/store-assets/feature-graphic.png` — a
+     clean banner (icon + name + tagline on the brand purple, `#463D5E`, sampled directly
+     from the approved logo) using only the existing, already-approved icon art — no new
+     illustration. Treat this as a solid first pass, not the final word — swapping in real
+     in-app screenshots once you have them would likely make it more compelling than a
+     logo card alone.
+   - **Short/full description**: drafted below, ready to paste into Play Console.
+   - **Screenshots (≥2 required)**: still need to be captured on an actual device — see
+     the shot list below. This is the one asset item that's still genuinely on you, since
+     it means running the real app.
+6. **Data Safety form & content rating questionnaire**: the cheat sheet below has the
+   actual answers worked out from the app's real behavior, but clicking through Play
+   Console's forms themselves needs your login.
+7. **`submit.production`'s `serviceAccountKeyPath` points to a file that doesn't exist
+   yet** (`google-play-service-account.json`, gitignored so a real key never accidentally
+   gets committed). `eas submit --platform android` will fail with a clear "file not
+   found" until you actually generate that key — see
+   [Setting up automated submission](#optional-set-up-automated-submission) below. Also
+   still true regardless: **the very first release must go through the Play Console web
+   UI manually** — `eas submit` can push builds to an app that already exists in Play
+   Console, but can't create the store listing itself.
 8. **Closed testing requirement** — new Play Console developer accounts currently must
    run a closed test (some number of testers over some number of days) before being
    allowed to publish to production. Google's exact policy here has shifted over time —
-   check the current requirement in Play Console when you get to this step.
+   check the current requirement in Play Console when you get to this step. Nothing to
+   prep for this one, just a heads-up.
+
+**On the app icon itself**: the current `icon.png`/`adaptive-icon.png` art (upscaled in
+place, not redesigned) is still the original design. A separate attempt this session to
+explore alternative color treatments for the logo mark (circle/checkmark/flame) via
+hand-authored SVG didn't meet the bar and was abandoned — that remains open, and needs
+either real source art from whatever tool made the original, a proper design tool/human
+designer, or an actual image-generation model this assistant doesn't have access to.
+
+### Store listing copy (ready to paste into Play Console)
+
+**Short description** (80 char max, this is 72):
+> A playful habit & streak tracker — private by design, no account needed.
+
+**Full description** (4000 char max, this is ~1,400):
+> Streakaholic is a playful habit and streak tracker that helps you build consistency
+> without the guilt trips.
+>
+> **Why Streakaholic**
+> - Flexible schedules — track habits daily, on specific days of the week, X days per
+>   week, or X days per month
+> - Multiple completions per day — for habits you do more than once, like water intake or
+>   exercise sets
+> - Streak tracking that's actually fair — miss a non-due day and your streak doesn't
+>   break; catch up early and it counts right away
+> - Satisfying animations — a press-and-hold to complete, a streak ring that fills in, and
+>   a flame celebration when you hit a new best streak
+> - Flip any task card to see its full calendar history or detailed stats, right from the
+>   home screen
+> - A Dashboard with aggregate stats and charts across every habit — completion trends,
+>   best days, and more
+> - Filter your tasks by streak status to see what needs attention today
+> - Customize every task with its own icon and color
+> - Light and dark mode, matching your system theme
+>
+> **Your data stays yours**
+> Streakaholic doesn't require an account, doesn't use the cloud, and doesn't track you.
+> Every task, streak, and completion is stored only on your device. Export your data
+> anytime as a backup, and import it back whenever you need to.
+>
+> Whether you're building a workout habit, a reading habit, or just trying to drink more
+> water, Streakaholic keeps you honest without keeping your data.
+
+### Screenshot shot list (for you to capture on-device)
+
+Play requires at least 2 phone screenshots; these 5–6 cover the app's actual range
+without needing any staged/fake data — just use your own real tasks:
+
+1. **Home screen**, a handful of tasks with a mix of states (some complete, some not, at
+   least one multi-rep task showing its split ring) — this is the first thing anyone sees.
+2. **Dashboard → Stats tab** — the aggregate charts, ideally with a few weeks of real data
+   behind them so the charts aren't empty.
+3. **Dashboard → Calendar tab**, Bars mode — the stacked-bar timeline is one of the more
+   visually distinct things in the app.
+4. **Task detail → Streaks tab** — the hero "Best Streak" callout plus history list.
+5. **A task card mid-celebration** (the flame particle burst on a new best streak) —
+   timing-dependent to capture, but the most "alive" moment the app has.
+6. **Settings or Add Task**, showing the icon/color customization — communicates
+   personalization without needing words.
+
+### Data Safety & content rating cheat sheet
+
+**Data Safety** (Play Console → App content → Data safety): since Streakaholic collects,
+stores, and transmits nothing off-device, this is the simplest version of this form —
+answer **"No"** to "Does your app collect or share any of the required user data types?"
+and you're done with that section. (If analytics is ever added later, this answer changes
+and both Privacy Policy copies — in-app and the hosted page — need updating to match; a
+mismatch between disclosed and actual behavior is a real policy risk, not just a copy
+nitpick.)
+
+**Content rating questionnaire** (Play Console → App content → Content ratings): a habit
+tracker with no user-generated content, no violence, no gambling references, and no
+sexual content — expect this to land on the lowest rating tier (Everyone / PEGI 3).
+Google's IARC questionnaire is dynamic, so just answer each question honestly; there's
+nothing here to prepare for beyond knowing you're not hiding anything mature.
 
 ---
 
@@ -65,15 +162,16 @@ things need attention before/during submission.
 
 1. **Create a Google Play Console developer account** ($25 one-time fee) if you don't
    have one: https://play.google.com/console/signup
-2. **Prepare store listing assets** (see gap #6 above): hi-res icon, feature graphic,
-   screenshots, short/full description.
-3. **Host the Privacy Policy** at a real URL (gap #2) — adapt the About screen's existing
-   text.
+2. **Prepare store listing assets** (see "Prepped" #5 above): hi-res icon, feature
+   graphic, screenshots, short/full description.
+3. ~~Host the Privacy Policy at a real URL~~ — done:
+   https://www.metamodernmonkey.com/privacy/streakaholic. Use that URL directly in Play
+   Console's store listing.
 4. **Create the app in Play Console**: app name, default language, package name
    `com.metamodernmonkey.Streakaholic`, free (or paid — note: switching a free app to
    paid later is far more restricted than the reverse, so decide this deliberately), and
    declare it as an app (not a game).
-5. **Fill out Data Safety and content rating questionnaires** (gap #7).
+5. **Fill out Data Safety and content rating questionnaires** ("Prepped" #6 above).
 6. **Build the production AAB**:
    ```bash
    eas build --platform android --profile production
@@ -85,7 +183,7 @@ things need attention before/during submission.
 8. **(Optional) Set up automated submission** for every release after the first — see
    below.
 9. **Progress through testing tracks** (Internal → Closed → Production) per whatever
-   Play's current policy requires for a new developer account (gap #8).
+   Play's current policy requires for a new developer account ("Prepped" #8 above).
 
 ### (Optional) Set up automated submission
 
