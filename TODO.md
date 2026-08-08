@@ -32,7 +32,7 @@
 - [x] Remember dashboard selection (`dashboardLastTab`/`taskDetailLastTab` in `SettingsContext` — last-viewed Stats/Calendar/Streaks tab persists across visits; the task-filter checkboxes themselves still reset to "all tasks" each time, that's a separate thing)
 - [ ] Re-order tasks on home screen
 - [x] Double-wide task card is not okay (`TaskCard`'s `container` had `flex: 1`, whose implied `flexBasis: 0%` overrode the explicit `width` in `HomeScreen`'s row, stretching a lone last-row card to fill the row; fixed by dropping `flex: 1` and centering a partial last row via `justifyContent: 'center'`)
-- [ ] Archive/Delete task should take you back to homepage
+- [x] Archive/Delete task should take you back to homepage (`AddTaskScreen`'s Archive/Delete confirm now calls `router.dismissTo('/')` instead of `router.back()` — fixes a real crash: reached via task-detail's pencil icon, `back()` only popped to task-detail, which still held the just-deleted `taskId` and threw "Missing task" on render)
 - [ ] New best streak congratulations
 - [ ] Perfect day congratulations
 - [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
@@ -55,6 +55,7 @@
 - [ ] Rate this app
 - [ ] Widgets
 - [ ] Sync (Drive or Dropbox)
+- [ ] About (privacy, ToS, credits, etc)
 
 ## Future
 

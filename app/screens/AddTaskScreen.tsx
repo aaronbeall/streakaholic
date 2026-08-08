@@ -117,7 +117,11 @@ export const AddTaskScreen: React.FC = () => {
           onPress: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             deleteTask(deletedTask.id);
-            router.back();
+            // dismissTo (not back) -- this screen can be reached via task-detail's pencil icon,
+            // itself a modal pushed on top of Home. A plain back() would only pop this screen and
+            // reveal task-detail underneath, which still holds the now-deleted taskId and throws
+            // ("Missing task") on render. dismissTo pops every intermediate screen at once.
+            router.dismissTo('/');
             showToast({
               message: `"${deletedTask.name}" deleted`,
               action: { label: 'Undo', onPress: () => restoreDeletedTask(deletedTask) },
@@ -149,7 +153,10 @@ export const AddTaskScreen: React.FC = () => {
           onPress: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             archiveTask(archivedTask.id);
-            router.back();
+            // dismissTo (not back), same reasoning as handleDelete above -- popping back to
+            // task-detail (if that's how this screen was reached) would land on an archived
+            // task's Calendar/Stats/Streaks view, which Home never lets you navigate to normally.
+            router.dismissTo('/');
             showToast({
               message: `"${archivedTask.name}" archived`,
               action: { label: 'Undo', onPress: () => restoreTask(archivedTask.id) },
