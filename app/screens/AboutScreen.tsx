@@ -26,6 +26,7 @@ export const AboutScreen: React.FC = () => {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const appName = Constants.expoConfig?.name ?? 'Streakaholic';
   const version = Constants.expoConfig?.version ?? '';
+  const copyrightYear = new Date().getFullYear();
 
   return (
     <View style={styles.container}>
@@ -50,6 +51,7 @@ export const AboutScreen: React.FC = () => {
           >
             <Text style={styles.appMadeByLink}>Made by Metamodern Monkey</Text>
           </TouchableOpacity>
+          <Text style={styles.appCopyright}>© {copyrightYear} Metamodern Monkey. All rights reserved.</Text>
         </View>
 
         <Text style={styles.sectionTitle}>Privacy Policy</Text>
@@ -159,6 +161,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   appMadeByLink: {
     fontSize: 13,
     color: '#007AFF',
+    marginTop: 8,
+  },
+  appCopyright: {
+    fontSize: 11,
+    color: colors.textTertiary,
     marginTop: 8,
   },
   sectionTitle: {
