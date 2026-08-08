@@ -19,3 +19,4 @@ A playful, modern habit and streak tracker for Android.
 - [DEVELOPMENT.md](DEVELOPMENT.md)
 - [TODO.md](TODO.md)
 - [CLAUDE.md](CLAUDE.md)
+- [PUBLISHING.md](PUBLISHING.md)
