@@ -67,7 +67,11 @@ const ToastContent: React.FC<{ message: string; action?: ToastAction; onDismiss:
 
   return (
     <GestureDetector gesture={panGesture}>
-      <Reanimated.View style={[styles.banner, { bottom: 32 + insets.bottom }, revealStyle]}>
+      <Reanimated.View
+        style={[styles.banner, { bottom: 32 + insets.bottom }, revealStyle]}
+        accessibilityLiveRegion="polite"
+        accessibilityRole="alert"
+      >
         <Text style={styles.message} numberOfLines={2}>{message}</Text>
         {action && (
           <Pressable
@@ -77,6 +81,8 @@ const ToastContent: React.FC<{ message: string; action?: ToastAction; onDismiss:
               onDismiss();
             }}
             hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={action.label}
           >
             <Text style={styles.actionLabel}>{action.label.toUpperCase()}</Text>
           </Pressable>

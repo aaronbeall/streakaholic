@@ -139,12 +139,16 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
               <TouchableOpacity
                 style={[styles.sortButton, sortMode === 'recent' && styles.sortButtonActive]}
                 onPress={() => setSortMode('recent')}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: sortMode === 'recent' }}
               >
                 <Text style={[styles.sortButtonText, sortMode === 'recent' && styles.sortButtonTextActive]}>Recent</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.sortButton, sortMode === 'best' && styles.sortButtonActive]}
                 onPress={() => setSortMode('best')}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: sortMode === 'best' }}
               >
                 <Text style={[styles.sortButtonText, sortMode === 'best' && styles.sortButtonTextActive]}>Best</Text>
               </TouchableOpacity>
@@ -157,6 +161,9 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
           style={styles.streakRow}
           onLayout={handleRowLayout}
           onPress={() => router.push({ pathname: '/task-detail', params: { taskId: item.taskId, tab: 'streaks' } })}
+          accessibilityRole="button"
+          accessibilityLabel={`${item.taskName}, ${item.length} day streak, ${format(item.startDate, 'MMM d')} to ${format(item.endDate, 'MMM d')}`}
+          accessibilityHint="Opens this task's streaks"
         >
           <Text style={[styles.streakDateLabel, styles.streakDateLabelStart]}>{format(item.startDate, 'MMM d')}</Text>
           <View

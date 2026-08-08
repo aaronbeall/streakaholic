@@ -151,6 +151,9 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                 selectedIcon === icon && { backgroundColor: selectedColor },
               ]}
               onPress={() => onIconSelect(icon)}
+              accessibilityRole="radio"
+              accessibilityLabel={icon.replace(/-/g, ' ')}
+              accessibilityState={{ checked: selectedIcon === icon }}
             >
               <MaterialCommunityIcons
                 name={icon}
@@ -166,6 +169,8 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                 setShowSearch(true);
                 handleShowMore();
               }}
+              accessibilityRole="button"
+              accessibilityLabel="Show more icons"
             >
               <MaterialCommunityIcons
                 name="dots-horizontal"
@@ -185,6 +190,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
         <TouchableOpacity
           style={styles.showLessButton}
           onPress={handleShowLess}
+          accessibilityRole="button"
         >
           <Text style={styles.showLessText}>Show Less</Text>
         </TouchableOpacity>

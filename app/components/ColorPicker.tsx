@@ -67,6 +67,9 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
                 },
               ]}
               onPress={() => onColorSelect(color)}
+              accessibilityRole="radio"
+              accessibilityLabel={`Color ${color}`}
+              accessibilityState={{ checked: selectedColor === color }}
             >
               {selectedColor === color && (
                 <MaterialCommunityIcons
@@ -82,6 +85,8 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
             <TouchableOpacity
               style={styles.moreButton}
               onPress={handleShowMore}
+              accessibilityRole="button"
+              accessibilityLabel="Show more colors"
             >
               <MaterialCommunityIcons
                 name="dots-horizontal"
@@ -97,6 +102,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
         <TouchableOpacity
           style={styles.showLessButton}
           onPress={handleShowLess}
+          accessibilityRole="button"
         >
           <Text style={styles.showLessText}>Show Less</Text>
         </TouchableOpacity>

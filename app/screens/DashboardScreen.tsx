@@ -44,6 +44,8 @@ const DashboardHeader: React.FC<{
           <TouchableOpacity
             style={styles.headerButton}
             onPress={() => (router.canGoBack() ? router.back() : router.push('/'))}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
           >
             <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
           </TouchableOpacity>
@@ -61,6 +63,9 @@ const DashboardHeader: React.FC<{
                 selectedTasks.includes(task.id) && { backgroundColor: task.color },
               ]}
               onPress={() => onTaskToggle(task.id)}
+              accessibilityRole="checkbox"
+              accessibilityLabel={task.name}
+              accessibilityState={{ checked: selectedTasks.includes(task.id) }}
             >
               <MaterialCommunityIcons
                 name={task.icon}
@@ -76,6 +81,8 @@ const DashboardHeader: React.FC<{
         <TouchableOpacity
           style={[styles.tab, activeTab === 'calendar' && styles.activeTab]}
           onPress={() => onTabChange('calendar')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'calendar' }}
         >
           <MaterialCommunityIcons
             name="calendar"
@@ -90,6 +97,8 @@ const DashboardHeader: React.FC<{
         <TouchableOpacity
           style={[styles.tab, activeTab === 'stats' && styles.activeTab]}
           onPress={() => onTabChange('stats')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'stats' }}
         >
           <MaterialCommunityIcons
             name="chart-box-outline"
@@ -104,6 +113,8 @@ const DashboardHeader: React.FC<{
         <TouchableOpacity
           style={[styles.tab, activeTab === 'streaks' && styles.activeTab]}
           onPress={() => onTabChange('streaks')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'streaks' }}
         >
           <MaterialCommunityIcons
             name="fire"

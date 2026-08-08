@@ -207,6 +207,8 @@ export const AddTaskScreen: React.FC = () => {
             <TouchableOpacity
               style={[styles.frequencyTypeButton, frequency === 'daily' && { backgroundColor: selectedColor }]}
               onPress={() => setFrequency('daily')}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: frequency === 'daily' }}
             >
               <Text style={[styles.frequencyTypeText, frequency === 'daily' && styles.selectedText]}>
                 Daily
@@ -215,6 +217,8 @@ export const AddTaskScreen: React.FC = () => {
             <TouchableOpacity
               style={[styles.frequencyTypeButton, frequency === 'specific_days_of_week' && { backgroundColor: selectedColor }]}
               onPress={() => setFrequency('specific_days_of_week')}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: frequency === 'specific_days_of_week' }}
             >
               <Text style={[styles.frequencyTypeText, frequency === 'specific_days_of_week' && styles.selectedText]}>
                 Specific Days
@@ -223,6 +227,8 @@ export const AddTaskScreen: React.FC = () => {
             <TouchableOpacity
               style={[styles.frequencyTypeButton, frequency === 'days_per_week' && { backgroundColor: selectedColor }]}
               onPress={() => setFrequency('days_per_week')}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: frequency === 'days_per_week' }}
             >
               <Text style={[styles.frequencyTypeText, frequency === 'days_per_week' && styles.selectedText]}>
                 Days/Week
@@ -231,6 +237,8 @@ export const AddTaskScreen: React.FC = () => {
             <TouchableOpacity
               style={[styles.frequencyTypeButton, frequency === 'days_per_month' && { backgroundColor: selectedColor }]}
               onPress={() => setFrequency('days_per_month')}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: frequency === 'days_per_month' }}
             >
               <Text style={[styles.frequencyTypeText, frequency === 'days_per_month' && styles.selectedText]}>
                 Days/Month
@@ -251,6 +259,9 @@ export const AddTaskScreen: React.FC = () => {
                         daysOfWeek.includes(index) && { backgroundColor: selectedColor }
                       ]}
                       onPress={() => toggleDayOfWeek(index)}
+                      accessibilityRole="checkbox"
+                      accessibilityLabel={day}
+                      accessibilityState={{ checked: daysOfWeek.includes(index) }}
                     >
                       <Text style={[
                         styles.dayText,
@@ -271,13 +282,17 @@ export const AddTaskScreen: React.FC = () => {
                   <TouchableOpacity
                     style={[styles.numberInputButton, { backgroundColor: selectedColor }]}
                     onPress={() => setDaysPerWeek(prev => Math.max(1, prev - 1))}
+                    accessibilityRole="button"
+                    accessibilityLabel="Decrease days per week"
                   >
                     <MaterialCommunityIcons name="minus" size={20} color="#fff" />
                   </TouchableOpacity>
-                  <Text style={styles.numberInputValue}>{daysPerWeek}</Text>
+                  <Text style={styles.numberInputValue} accessibilityLabel={`${daysPerWeek} days per week`}>{daysPerWeek}</Text>
                   <TouchableOpacity
                     style={[styles.numberInputButton, { backgroundColor: selectedColor }]}
                     onPress={() => setDaysPerWeek(prev => Math.min(7, prev + 1))}
+                    accessibilityRole="button"
+                    accessibilityLabel="Increase days per week"
                   >
                     <MaterialCommunityIcons name="plus" size={20} color="#fff" />
                   </TouchableOpacity>
@@ -292,13 +307,17 @@ export const AddTaskScreen: React.FC = () => {
                   <TouchableOpacity
                     style={[styles.numberInputButton, { backgroundColor: selectedColor }]}
                     onPress={() => setDaysPerMonth(prev => Math.max(1, prev - 1))}
+                    accessibilityRole="button"
+                    accessibilityLabel="Decrease days per month"
                   >
                     <MaterialCommunityIcons name="minus" size={20} color="#fff" />
                   </TouchableOpacity>
-                  <Text style={styles.numberInputValue}>{daysPerMonth}</Text>
+                  <Text style={styles.numberInputValue} accessibilityLabel={`${daysPerMonth} days per month`}>{daysPerMonth}</Text>
                   <TouchableOpacity
                     style={[styles.numberInputButton, { backgroundColor: selectedColor }]}
                     onPress={() => setDaysPerMonth(prev => Math.min(31, prev + 1))}
+                    accessibilityRole="button"
+                    accessibilityLabel="Increase days per month"
                   >
                     <MaterialCommunityIcons name="plus" size={20} color="#fff" />
                   </TouchableOpacity>
@@ -312,13 +331,17 @@ export const AddTaskScreen: React.FC = () => {
                 <TouchableOpacity
                   style={[styles.numberInputButton, { backgroundColor: selectedColor }]}
                   onPress={() => setTimesPerDay(prev => Math.max(1, prev - 1))}
+                  accessibilityRole="button"
+                  accessibilityLabel="Decrease times per day"
                 >
                   <MaterialCommunityIcons name="minus" size={20} color="#fff" />
                 </TouchableOpacity>
-                <Text style={styles.numberInputValue}>{timesPerDay}</Text>
+                <Text style={styles.numberInputValue} accessibilityLabel={`${timesPerDay} times per day`}>{timesPerDay}</Text>
                 <TouchableOpacity
                   style={[styles.numberInputButton, { backgroundColor: selectedColor }]}
                   onPress={() => setTimesPerDay(prev => prev + 1)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Increase times per day"
                 >
                   <MaterialCommunityIcons name="plus" size={20} color="#fff" />
                 </TouchableOpacity>
@@ -332,6 +355,7 @@ export const AddTaskScreen: React.FC = () => {
         style={[styles.saveButton, !isNameValid && styles.saveButtonDisabled]}
         onPress={handleSave}
         disabled={!isNameValid}
+        accessibilityRole="button"
       >
         <Text style={[styles.saveButtonText, !isNameValid && styles.saveButtonTextDisabled]}>
           {isEditing ? 'Save Changes' : 'Save Task'}
@@ -340,7 +364,7 @@ export const AddTaskScreen: React.FC = () => {
 
       {editingTask && (
         <View style={styles.manageSection}>
-          <TouchableOpacity style={[styles.manageButton, styles.archiveButton]} onPress={handleArchiveToggle}>
+          <TouchableOpacity style={[styles.manageButton, styles.archiveButton]} onPress={handleArchiveToggle} accessibilityRole="button">
             <MaterialCommunityIcons
               name={editingTask.archived ? 'archive-arrow-up-outline' : 'archive-outline'}
               size={20}
@@ -348,7 +372,7 @@ export const AddTaskScreen: React.FC = () => {
             />
             <Text style={styles.manageButtonText}>{editingTask.archived ? 'Restore Task' : 'Archive Task'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.manageButton, styles.deleteButton]} onPress={handleDelete}>
+          <TouchableOpacity style={[styles.manageButton, styles.deleteButton]} onPress={handleDelete} accessibilityRole="button">
             <MaterialCommunityIcons name="delete" size={20} color="#fff" />
             <Text style={styles.manageButtonText}>Delete Task</Text>
           </TouchableOpacity>
@@ -439,9 +463,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 8,
   },
   dayButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    // 44x44 -- iOS HIG's minimum touch target size (was 36x36, below platform minimums).
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.surfaceSecondary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -457,9 +482,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: 12,
   },
   numberInputButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    // 44x44 -- iOS HIG's minimum touch target size (was 32x32, below platform minimums).
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.surfaceSecondary,
     justifyContent: 'center',
     alignItems: 'center',

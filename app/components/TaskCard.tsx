@@ -3,6 +3,7 @@ import { addDays, endOfWeek, format, getDay, getDaysInMonth, parseISO, startOfMo
 import * as Haptics from 'expo-haptics';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AccessibilityActionEvent,
   FlatList,
   Pressable,
   StyleSheet,
@@ -652,15 +653,38 @@ export const TaskCard = React.memo(React.forwardRef<View, TaskCardProps>(({
     }
   };
 
+  // The long-press gesture that completes a task / opens the full Calendar or Stats screen is
+  // hard for screen reader users to perform (VoiceOver/TalkBack's own double-tap already maps to
+  // onPress/flipCard, and a physical long-press isn't a standard screen-reader gesture) -- exposed
+  // here as a discoverable custom accessibilityAction instead, routed through the same
+  // `handleLongPress` the physical gesture uses, so the two stay in sync automatically.
+  const visibleSide = isFlipped ? sides[1] : sides[0];
+  const longPressActionLabel = visibleSide === 'task'
+    ? 'Mark complete'
+    : visibleSide === 'calendar'
+    ? 'Open full calendar'
+    : 'Open full stats';
+
+  const handleAccessibilityAction = (event: AccessibilityActionEvent) => {
+    if (event.nativeEvent.actionName === 'longpress') {
+      handleLongPress();
+    }
+  };
+
   return (
     <View ref={ref} onLayout={onLayout} style={[styles.container, { width: size, height: size }]}>
       <Pressable
-        onPress={flipCard} 
+        onPress={flipCard}
         onLongPress={handleLongPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         delayLongPress={500}
         style={styles.touchable}
+        accessibilityRole="button"
+        accessibilityLabel={`${task.name}, ${visibleSide} view`}
+        accessibilityHint="Double tap to flip to the next view"
+        accessibilityActions={[{ name: 'longpress', label: longPressActionLabel }]}
+        onAccessibilityAction={handleAccessibilityAction}
       >
         <Reanimated.View style={[styles.cardContainer, frontAnimatedStyle]}>
           <View style={[styles.card, !showCardBackground && styles.cardTransparent]}>

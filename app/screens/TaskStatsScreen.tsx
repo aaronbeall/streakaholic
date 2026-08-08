@@ -25,6 +25,8 @@ const TimeRangeButton: React.FC<TimeRangeButtonProps> = ({ range, label, isSelec
     <TouchableOpacity
       style={[styles.timeRangeButton, isSelected && { backgroundColor: color }]}
       onPress={() => onPress(range)}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: isSelected }}
     >
       <Text style={[styles.timeRangeButtonText, isSelected && { color: '#fff' }]}>
         {label}
@@ -238,6 +240,9 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
               <TouchableOpacity
                 style={[styles.cumulativeToggle, isCumulative && { backgroundColor: task.color }]}
                 onPress={() => setIsCumulative(!isCumulative)}
+                accessibilityRole="button"
+                accessibilityLabel="Cumulative view"
+                accessibilityState={{ selected: isCumulative }}
               >
                 <MaterialCommunityIcons
                   name="chart-line-variant"

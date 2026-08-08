@@ -26,6 +26,8 @@ const TimeRangeButton: React.FC<TimeRangeButtonProps> = ({ range, label, isSelec
     <TouchableOpacity
       style={[styles.timeRangeButton, isSelected && { backgroundColor: ACCENT }]}
       onPress={() => onPress(range)}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: isSelected }}
     >
       <Text style={[styles.timeRangeButtonText, isSelected && { color: '#fff' }]}>
         {label}
@@ -214,6 +216,9 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
                 key={task.id}
                 style={styles.hBarRow}
                 onPress={() => router.push({ pathname: '/task-detail', params: { taskId: task.id, tab: 'stats' } })}
+                accessibilityRole="button"
+                accessibilityLabel={`${task.name}, ${total} completions`}
+                accessibilityHint="Opens this task's stats"
               >
                 <MaterialCommunityIcons name={task.icon} size={16} color={task.color} style={styles.hBarIcon} />
                 <View style={styles.hBarTrack}>
@@ -261,6 +266,9 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
             <TouchableOpacity
               style={[styles.cumulativeToggle, isCumulative && { backgroundColor: ACCENT }]}
               onPress={() => setIsCumulative(!isCumulative)}
+              accessibilityRole="button"
+              accessibilityLabel="Cumulative view"
+              accessibilityState={{ selected: isCumulative }}
             >
               <MaterialCommunityIcons
                 name="chart-line-variant"

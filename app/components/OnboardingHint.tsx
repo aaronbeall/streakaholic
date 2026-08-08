@@ -102,7 +102,13 @@ export const OnboardingHint: React.FC<OnboardingHintProps> = ({ text, targetLayo
         />
         <View style={styles.bubbleRow}>
           <Text style={styles.bubbleText}>{text}</Text>
-          <Pressable onPress={onDismiss} hitSlop={8} style={styles.dismissButton}>
+          <Pressable
+            onPress={onDismiss}
+            hitSlop={8}
+            style={styles.dismissButton}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss hint"
+          >
             <MaterialCommunityIcons name="close" size={16} color="rgba(255,255,255,0.85)" />
           </Pressable>
         </View>

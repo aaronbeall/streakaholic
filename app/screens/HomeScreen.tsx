@@ -57,27 +57,33 @@ const HomeHeader = React.memo(({ activeFilter, onFilterChange }: { activeFilter:
       <TouchableOpacity
         style={styles.headerButton}
         onPress={() => router.push({ pathname: '/dashboard' })}
+        accessibilityRole="button"
+        accessibilityLabel="Dashboard"
       >
         <MaterialCommunityIcons name="chart-bar" size={24} color={colors.text} />
       </TouchableOpacity>
 
       <View style={styles.streakBubbles}>
         {streakStats.upToDate > 0 && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
-              styles.streakBubble, 
+              styles.streakBubble,
               { backgroundColor: 'rgba(255, 59, 48, 0.1)' },
               activeFilter === 'up_to_date' && { backgroundColor: '#FF3B30' }
             ]}
             onPress={() => handleFilterPress('up_to_date')}
+            accessibilityRole="button"
+            accessibilityLabel={`${streakStats.upToDate} ${streakStats.upToDate === 1 ? 'task' : 'tasks'} up to date`}
+            accessibilityHint="Filters the list to only these tasks"
+            accessibilityState={{ selected: activeFilter === 'up_to_date' }}
           >
-            <MaterialCommunityIcons 
-              name="fire" 
-              size={16} 
-              color={activeFilter === 'up_to_date' ? '#fff' : '#FF3B30'} 
+            <MaterialCommunityIcons
+              name="fire"
+              size={16}
+              color={activeFilter === 'up_to_date' ? '#fff' : '#FF3B30'}
             />
             <Text style={[
-              styles.streakBubbleText, 
+              styles.streakBubbleText,
               { color: activeFilter === 'up_to_date' ? '#fff' : '#FF3B30' }
             ]}>
               {streakStats.upToDate}
@@ -85,21 +91,25 @@ const HomeHeader = React.memo(({ activeFilter, onFilterChange }: { activeFilter:
           </TouchableOpacity>
         )}
         {streakStats.expiring > 0 && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
-              styles.streakBubble, 
+              styles.streakBubble,
               { backgroundColor: 'rgba(255, 167, 38, 0.1)' },
               activeFilter === 'expiring' && { backgroundColor: '#FFA726' }
             ]}
             onPress={() => handleFilterPress('expiring')}
+            accessibilityRole="button"
+            accessibilityLabel={`${streakStats.expiring} ${streakStats.expiring === 1 ? 'task' : 'tasks'} expiring`}
+            accessibilityHint="Filters the list to only these tasks"
+            accessibilityState={{ selected: activeFilter === 'expiring' }}
           >
-            <MaterialCommunityIcons 
-              name="clock-outline" 
-              size={16} 
-              color={activeFilter === 'expiring' ? '#fff' : '#FFA726'} 
+            <MaterialCommunityIcons
+              name="clock-outline"
+              size={16}
+              color={activeFilter === 'expiring' ? '#fff' : '#FFA726'}
             />
             <Text style={[
-              styles.streakBubbleText, 
+              styles.streakBubbleText,
               { color: activeFilter === 'expiring' ? '#fff' : '#FFA726' }
             ]}>
               {streakStats.expiring}
@@ -111,6 +121,8 @@ const HomeHeader = React.memo(({ activeFilter, onFilterChange }: { activeFilter:
       <TouchableOpacity
         style={styles.headerButton}
         onPress={() => router.push('/settings')}
+        accessibilityRole="button"
+        accessibilityLabel="Settings"
       >
         <MaterialCommunityIcons name="cog" size={24} color={colors.text} />
       </TouchableOpacity>
@@ -350,11 +362,11 @@ export const HomeScreen: React.FC = () => {
                   : 'Track a daily habit and watch your streak grow.'}
               </Text>
               {hasAnyTasks ? (
-                <TouchableOpacity style={styles.emptyStateButtonSecondary} onPress={() => setFilter(null)}>
+                <TouchableOpacity style={styles.emptyStateButtonSecondary} onPress={() => setFilter(null)} accessibilityRole="button">
                   <Text style={styles.emptyStateButtonSecondaryText}>Clear Filter</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity style={styles.emptyStateButton} onPress={() => router.push('/add-task')}>
+                <TouchableOpacity style={styles.emptyStateButton} onPress={() => router.push('/add-task')} accessibilityRole="button">
                   <MaterialCommunityIcons name="plus" size={18} color="#fff" />
                   <Text style={styles.emptyStateButtonText}>Add a Habit</Text>
                 </TouchableOpacity>
@@ -366,6 +378,8 @@ export const HomeScreen: React.FC = () => {
       <TouchableOpacity
         style={[styles.addButton, { bottom: FAB_OFFSET + insets.bottom }]}
         onPress={() => router.push('/add-task')}
+        accessibilityRole="button"
+        accessibilityLabel="Add a habit"
       >
         <MaterialCommunityIcons name="plus" size={32} color="#fff" />
       </TouchableOpacity>

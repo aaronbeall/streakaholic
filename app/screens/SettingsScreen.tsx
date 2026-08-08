@@ -124,7 +124,7 @@ export const SettingsScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.headerButton} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
           <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
@@ -144,6 +144,8 @@ export const SettingsScreen: React.FC = () => {
                 key={option.value}
                 style={[styles.themeOption, themeMode === option.value && styles.themeOptionActive]}
                 onPress={() => setThemeMode(option.value)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: themeMode === option.value }}
               >
                 <Text style={[styles.themeOptionText, themeMode === option.value && styles.themeOptionTextActive]}>
                   {option.label}
@@ -164,6 +166,7 @@ export const SettingsScreen: React.FC = () => {
               trackColor={{ false: colors.border, true: '#007AFF' }}
               thumbColor="#fff"
               activeThumbColor="#fff"
+              accessibilityLabel="Show Card Background"
             />
           </View>
           <View style={styles.divider} />
@@ -176,6 +179,7 @@ export const SettingsScreen: React.FC = () => {
               trackColor={{ false: colors.border, true: '#007AFF' }}
               thumbColor="#fff"
               activeThumbColor="#fff"
+              accessibilityLabel="Show Task Name"
             />
           </View>
           <View style={styles.divider} />
@@ -188,31 +192,32 @@ export const SettingsScreen: React.FC = () => {
               trackColor={{ false: colors.border, true: '#007AFF' }}
               thumbColor="#fff"
               activeThumbColor="#fff"
+              accessibilityLabel="Show Completion Counter"
             />
           </View>
         </View>
 
         <Text style={styles.sectionTitle}>Data</Text>
         <View style={styles.card}>
-          <TouchableOpacity style={styles.row} onPress={() => router.push('/archived-tasks')}>
+          <TouchableOpacity style={styles.row} onPress={() => router.push('/archived-tasks')} accessibilityRole="button">
             <MaterialCommunityIcons name="archive-outline" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>Archived Tasks</Text>
             <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
           </TouchableOpacity>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.row} onPress={handleExport} disabled={isBusy}>
+          <TouchableOpacity style={styles.row} onPress={handleExport} disabled={isBusy} accessibilityRole="button" accessibilityState={{ disabled: isBusy, busy: isBusy }}>
             <MaterialCommunityIcons name="export-variant" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>Export Data</Text>
             {isBusy && <ActivityIndicator size="small" />}
           </TouchableOpacity>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.row} onPress={() => handleImport('merge')} disabled={isBusy}>
+          <TouchableOpacity style={styles.row} onPress={() => handleImport('merge')} disabled={isBusy} accessibilityRole="button" accessibilityState={{ disabled: isBusy, busy: isBusy }}>
             <MaterialCommunityIcons name="import" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>Import Data</Text>
             {isBusy && <ActivityIndicator size="small" />}
           </TouchableOpacity>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.row} onPress={() => handleImport('replace')} disabled={isBusy}>
+          <TouchableOpacity style={styles.row} onPress={() => handleImport('replace')} disabled={isBusy} accessibilityRole="button" accessibilityState={{ disabled: isBusy, busy: isBusy }}>
             <MaterialCommunityIcons name="delete-sweep-outline" size={22} color="#FF3B30" />
             <Text style={[styles.rowLabel, styles.destructiveRowLabel]}>Import & Replace All Data</Text>
             {isBusy && <ActivityIndicator size="small" />}
@@ -230,6 +235,7 @@ export const SettingsScreen: React.FC = () => {
               resetOnboardingHints(completedSomethingToday ? { 'hold-to-complete': true } : undefined);
               router.back();
             }}
+            accessibilityRole="button"
           >
             <MaterialCommunityIcons name="gesture-tap-hold" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>Replay Onboarding Hints</Text>

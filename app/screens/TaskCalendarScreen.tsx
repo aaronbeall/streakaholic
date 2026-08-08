@@ -204,15 +204,25 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
     <View style={styles.container} ref={containerRef}>
       <View style={[styles.content, { paddingBottom: insets.bottom }]}>
         <View style={styles.navigation}>
-          <TouchableOpacity onPress={handlePrev} style={styles.navButton}>
+          <TouchableOpacity
+            onPress={handlePrev}
+            style={styles.navButton}
+            accessibilityRole="button"
+            accessibilityLabel={viewMode === 'year' ? 'Previous year' : 'Previous month'}
+          >
             <MaterialCommunityIcons name="chevron-left" size={24} color={colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleTitlePress} hitSlop={8}>
+          <TouchableOpacity onPress={handleTitlePress} hitSlop={8} accessibilityRole="button" accessibilityHint="Jumps back to today">
             <Text style={styles.monthText}>
               {viewMode === 'year' ? format(currentMonth, 'yyyy') : format(currentMonth, 'MMMM yyyy')}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleNext} style={styles.navButton}>
+          <TouchableOpacity
+            onPress={handleNext}
+            style={styles.navButton}
+            accessibilityRole="button"
+            accessibilityLabel={viewMode === 'year' ? 'Next year' : 'Next month'}
+          >
             <MaterialCommunityIcons name="chevron-right" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
@@ -221,12 +231,16 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
           <TouchableOpacity
             style={[styles.viewModeButton, viewMode === 'month' && { backgroundColor: task.color }]}
             onPress={() => setViewMode('month')}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: viewMode === 'month' }}
           >
             <Text style={[styles.viewModeButtonText, viewMode === 'month' && styles.viewModeButtonTextActive]}>Month</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.viewModeButton, viewMode === 'year' && { backgroundColor: task.color }]}
             onPress={() => setViewMode('year')}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: viewMode === 'year' }}
           >
             <Text style={[styles.viewModeButtonText, viewMode === 'year' && styles.viewModeButtonTextActive]}>Year</Text>
           </TouchableOpacity>
@@ -240,6 +254,8 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                   key={month.monthIndex}
                   style={[styles.yearMonthCard, { width: monthCardWidth }]}
                   onPress={() => handleSelectMonth(month.monthIndex)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${month.label} ${currentMonth.getFullYear()}`}
                 >
                   <Text style={styles.yearMonthLabel}>{month.label}</Text>
                   {month.rows.map((row, rowIndex) => (
@@ -307,12 +323,24 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                 const isMissed = isPast && !isCompleted && !isPartial;
                 const isFuture = dateString > today;
 
+                const stateLabel = isCompleted
+                  ? 'Completed'
+                  : isPartial
+                  ? `${completionCount} of ${task.timesPerDay || 1} completed`
+                  : isMissed
+                  ? 'Missed'
+                  : '';
+
                 return (
                   <TouchableOpacity
                     key={dateString}
                     style={styles.day}
                     onPress={() => handleDayPress(date)}
                     delayLongPress={500}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${format(date, 'EEEE, MMMM d')}${stateLabel ? `, ${stateLabel}` : ''}`}
+                    accessibilityHint={isFuture ? undefined : 'Double tap to toggle completion'}
+                    accessibilityState={{ disabled: isFuture }}
                   >
                     <View
                       key={ `${task.id}-${isCompleted}-${isPartial}` }

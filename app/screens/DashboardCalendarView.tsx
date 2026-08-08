@@ -171,12 +171,16 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
             <TouchableOpacity
               style={[styles.mainGridModeButton, mainGridMode === 'grid' && styles.mainGridModeButtonActive]}
               onPress={() => setMainGridMode('grid')}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: mainGridMode === 'grid' }}
             >
               <Text style={[styles.mainGridModeButtonText, mainGridMode === 'grid' && styles.mainGridModeButtonTextActive]}>Grid</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.mainGridModeButton, mainGridMode === 'bars' && styles.mainGridModeButtonActive]}
               onPress={() => setMainGridMode('bars')}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: mainGridMode === 'bars' }}
             >
               <Text style={[styles.mainGridModeButtonText, mainGridMode === 'bars' && styles.mainGridModeButtonTextActive]}>Bars</Text>
             </TouchableOpacity>
@@ -306,6 +310,9 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                   pathname: '/task-detail',
                   params: { taskId: task.id, tab: 'calendar', month: format(visibleMonth, 'yyyy-MM-dd') },
                 })}
+                accessibilityRole="button"
+                accessibilityLabel={`${task.name}, ${format(visibleMonth, 'MMMM yyyy')}`}
+                accessibilityHint="Opens this task's calendar"
               >
                 <View style={styles.taskMonthCardHeader}>
                   <MaterialCommunityIcons name={task.icon} size={16} color={task.color} />

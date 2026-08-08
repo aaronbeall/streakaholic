@@ -18,7 +18,7 @@ export const ArchivedTasksScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.headerButton} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
           <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Archived Tasks</Text>
@@ -39,12 +39,20 @@ export const ArchivedTasksScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.row}
               onPress={() => router.push({ pathname: '/add-task', params: { taskId: item.id } })}
+              accessibilityRole="button"
+              accessibilityLabel={item.name}
+              accessibilityHint="Opens this task for editing"
             >
               <View style={[styles.iconCircle, { backgroundColor: item.color }]}>
                 <MaterialCommunityIcons name={item.icon} size={20} color="#fff" />
               </View>
               <Text style={styles.rowLabel} numberOfLines={1}>{item.name}</Text>
-              <TouchableOpacity style={styles.restoreButton} onPress={() => restoreTask(item.id)}>
+              <TouchableOpacity
+                style={styles.restoreButton}
+                onPress={() => restoreTask(item.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`Restore ${item.name}`}
+              >
                 <MaterialCommunityIcons name="archive-arrow-up-outline" size={18} color="#007AFF" />
                 <Text style={styles.restoreButtonText}>Restore</Text>
               </TouchableOpacity>

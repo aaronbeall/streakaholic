@@ -24,8 +24,8 @@
 - [x] Onboarding for core gestures (tap to cycle task/calendar/stats views, hold to complete; plus Dashboard's task-filter hint and task-detail Calendar's tap-a-day hint)
 - [x] Confirmation dialog before deleting a task (modal confirm on Delete/Archive in the Edit Task screen; everything else uses a toast + Undo instead of a modal)
 - [x] Quick undo for accidental task completions (toast + Undo right on Home after completing; `undoCompleteTask` reverses exactly one press, not the whole day)
-- [ ] Touch target sizes below platform minimums (Add/Edit Task's +/- steppers and day-of-week buttons)
-- [ ] Accessibility support (no accessibilityLabel/Role/Hint anywhere in app/ — icon-only buttons are silent to screen readers)
+- [x] Touch target sizes below platform minimums (Add/Edit Task's +/- steppers and day-of-week buttons bumped 32/36px → 44x44, iOS HIG's minimum)
+- [x] Accessibility support (accessibilityLabel/Role/Hint/State added across every screen and component — see CLAUDE.md)
 - [x] Haptic feedback (task completion, long-press gesture recognition, calendar day toggle, toast Undo, archive/delete/restore — see CLAUDE.md)
 - [ ] Hide unscheduled tasks option (Home filter to only show tasks due today)
 - [ ] Pause tasks (also hidden, but still shown in dashboard)
@@ -42,6 +42,7 @@
   - [ ] Reduce unnecessary task stat re-recalculations
   - [ ] WeakMap caching
 - [x] Layout/navigation improvement with proper screen transitions (`RootStack`'s `slide_from_right` animation)
+- [ ] Already completed task on home screen should not have press-and-hold triggering completion animation
 
 ## MMP
 

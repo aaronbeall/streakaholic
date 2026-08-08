@@ -38,6 +38,8 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
         <TouchableOpacity
           style={styles.headerButton}
           onPress={() => (router.canGoBack() ? router.back() : router.push('/'))}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
         >
           <MaterialCommunityIcons name="arrow-left" size={24} color="rgba(255, 255, 255, 0.8)" />
         </TouchableOpacity>
@@ -86,6 +88,8 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
             pathname: '/add-task',
             params: { taskId: task.id }
           })}
+          accessibilityRole="button"
+          accessibilityLabel="Edit task"
         >
           <MaterialCommunityIcons name="pencil" size={24} color="rgba(255, 255, 255, 0.8)" />
         </TouchableOpacity>
@@ -95,10 +99,12 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
         <TouchableOpacity
           style={[styles.tab, isCalendarScreen && styles.activeTab]}
           onPress={() => onTabChange('calendar')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: isCalendarScreen }}
         >
-          <MaterialCommunityIcons 
-            name="calendar" 
-            size={20} 
+          <MaterialCommunityIcons
+            name="calendar"
+            size={20}
             color={isCalendarScreen ? task.color : colors.textSecondary}
           />
           <Text style={[styles.tabText, isCalendarScreen && { color: task.color }]}>
@@ -109,11 +115,13 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
         <TouchableOpacity
           style={[styles.tab, isStatsScreen && styles.activeTab]}
           onPress={() => onTabChange('stats')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: isStatsScreen }}
         >
-          <MaterialCommunityIcons 
-            name="chart-bar" 
-            size={20} 
-            color={isStatsScreen ? task.color : colors.textSecondary} 
+          <MaterialCommunityIcons
+            name="chart-bar"
+            size={20}
+            color={isStatsScreen ? task.color : colors.textSecondary}
           />
           <Text style={[styles.tabText, isStatsScreen && { color: task.color }]}>
             Stats
@@ -123,6 +131,8 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
         <TouchableOpacity
           style={[styles.tab, isStreaksScreen && styles.activeTab]}
           onPress={() => onTabChange('streaks')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: isStreaksScreen }}
         >
           <MaterialCommunityIcons
             name="fire"
