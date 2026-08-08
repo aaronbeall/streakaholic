@@ -112,24 +112,27 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
   }), [tasks, start, end, timeRange]);
   const maxTaskTotal = Math.max(1, ...taskTotals.map(t => t.total));
 
-  const chartData = {
+  // Memoized so react-native-chart-kit sees stable references (and can skip its own re-render/
+  // redraw work) whenever this component re-renders for an unrelated reason, not just when the
+  // underlying data actually changes.
+  const chartData = useMemo(() => ({
     labels,
     datasets: [{
       data,
       color: (opacity = 1) => ACCENT,
       strokeWidth: 2,
     }],
-  };
+  }), [labels, data]);
 
-  const dayOfWeekChartData = {
+  const dayOfWeekChartData = useMemo(() => ({
     labels: dayOfWeekLabels,
     datasets: [{ data: dayOfWeekData }],
-  };
+  }), [dayOfWeekData]);
 
-  const hourOfDayChartData = {
+  const hourOfDayChartData = useMemo(() => ({
     labels: hourOfDayLabels,
     datasets: [{ data: hourOfDayData }],
-  };
+  }), [hourOfDayData]);
 
   const baseChartConfig = {
     backgroundColor: colors.surface,

@@ -1,6 +1,6 @@
 import { format, subDays } from 'date-fns';
 import { Task, TaskCompletion } from '../../app/types';
-import { calculateTaskStats, getCompletionCount, isTaskCompleted, StreakScheduleInfo } from '../../app/utils/streaks';
+import { buildCompletionCountsByDate, calculateTaskStats, getCompletionCount, isTaskCompleted, StreakScheduleInfo } from '../../app/utils/streaks';
 
 const makeCompletion = (id: string, date: Date, timesCompleted = 1): TaskCompletion => ({
   id,
@@ -358,5 +358,29 @@ describe('getCompletionCount / isTaskCompleted', () => {
     });
     expect(getCompletionCount(task)).toBe(1);
     expect(isTaskCompleted(task)).toBe(true);
+  });
+});
+
+describe('buildCompletionCountsByDate', () => {
+  it('returns an empty map for no completions', () => {
+    expect(buildCompletionCountsByDate([]).size).toBe(0);
+  });
+
+  it('maps each date to its timesCompleted, agreeing with getCompletionCount for the same data', () => {
+    const today = new Date();
+    const completions = [
+      makeCompletion('a', subDays(today, 2), 1),
+      makeCompletion('b', subDays(today, 1), 3),
+      makeCompletion('c', today, 2),
+    ];
+    const map = buildCompletionCountsByDate(completions);
+    const task = makeFullTask({ completions });
+
+    expect(map.size).toBe(3);
+    for (const date of [subDays(today, 2), subDays(today, 1), today]) {
+      const dateString = format(date, 'yyyy-MM-dd');
+      expect(map.get(dateString) ?? 0).toBe(getCompletionCount(task, date));
+    }
+    expect(map.get(format(subDays(today, 5), 'yyyy-MM-dd')) ?? 0).toBe(0);
   });
 });

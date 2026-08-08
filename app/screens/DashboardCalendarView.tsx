@@ -9,7 +9,7 @@ import { PartialDayPie } from '../components/PartialDayPie';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
-import { getCompletionCount, isDueOnDate, isTaskCompleted } from '../utils/streaks';
+import { buildCompletionCountsByDate, isDueOnDate } from '../utils/streaks';
 
 const GRID_LABEL_WIDTH = 36;
 const GRID_CELL_SIZE = 32;
@@ -70,6 +70,18 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
   const today = useMemo(() => new Date(), []);
   const todayStr = format(today, 'yyyy-MM-dd');
 
+  // Built once per task (keyed on `tasks`, which itself only changes reference when a task is
+  // actually added/edited/completed/etc. -- see the taskStore migration notes) instead of a
+  // `.find()` scan per (task, day) cell. Both the Timeline grid (up to ~30 visible day columns x
+  // every selected task) and the per-task mini month grids below do many lookups against the same
+  // task's completions, so this turns each into one O(completions) pass per task up front plus
+  // O(1) lookups per cell after that -- and derives isCompleted from the same looked-up count
+  // instead of a separate isTaskCompleted call repeating the same lookup.
+  const completionCountsByTask = useMemo(
+    () => new Map(tasks.map(task => [task.id, buildCompletionCountsByDate(task.completions || [])])),
+    [tasks]
+  );
+
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
   const handleViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     if (viewableItems.length === 0) return;
@@ -105,18 +117,20 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
     const { daysInThisMonth, leadingBlanks, trailingBlanks } = monthShape;
     const year = visibleMonth.getFullYear();
     const month = visibleMonth.getMonth();
+    const requiredTimes = task.timesPerDay || 1;
+    const completionCounts = completionCountsByTask.get(task.id);
     const cells: MonthDotCell[] = [
       ...Array(leadingBlanks).fill(null),
       ...Array.from({ length: daysInThisMonth }, (_, i): MonthDotCell => {
         const date = new Date(year, month, i + 1);
         const dateString = format(date, 'yyyy-MM-dd');
-        const completionCount = getCompletionCount(task, date);
-        const isCompleted = isTaskCompleted(task, date);
+        const completionCount = completionCounts?.get(dateString) ?? 0;
+        const isCompleted = completionCount >= requiredTimes;
         return {
           isCompleted,
           isPartial: completionCount > 0 && !isCompleted,
           isFuture: dateString > todayStr,
-          fraction: Math.min(completionCount / (task.timesPerDay || 1), 1),
+          fraction: Math.min(completionCount / requiredTimes, 1),
         };
       }),
       ...Array(trailingBlanks).fill(null),
@@ -229,8 +243,12 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                 // position among *visible* segments, not raw task index. Otherwise a skipped
                 // segment at the very top would still leave a phantom gap between it and the
                 // first segment that does render.
+                const barDateString = format(day, 'yyyy-MM-dd');
                 const barSegments = tasks
-                  .map(task => ({ task, fraction: Math.min(getCompletionCount(task, day) / (task.timesPerDay || 1), 1) }))
+                  .map(task => {
+                    const completionCount = completionCountsByTask.get(task.id)?.get(barDateString) ?? 0;
+                    return { task, fraction: Math.min(completionCount / (task.timesPerDay || 1), 1) };
+                  })
                   .filter(({ fraction }) => fraction > 0);
                 return (
                   <View style={styles.gridColumn}>
@@ -261,8 +279,8 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                   {dateHeader}
                   {tasks.map(task => {
                     const dateString = format(day, 'yyyy-MM-dd');
-                    const completionCount = getCompletionCount(task, day);
-                    const isCompleted = isTaskCompleted(task, day);
+                    const completionCount = completionCountsByTask.get(task.id)?.get(dateString) ?? 0;
+                    const isCompleted = completionCount >= (task.timesPerDay || 1);
                     const isPartial = completionCount > 0 && !isCompleted;
                     const isFuture = dateString > todayStr;
                     const isDue = isDueOnDate(task, day);

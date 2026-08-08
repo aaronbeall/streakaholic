@@ -28,7 +28,7 @@ import { ParticleSystem } from './ParticleSystem';
 import { PartialDayPie } from './PartialDayPie';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { getExpectedPeriodTotal } from '../utils/periodStats';
-import { getCompletionCount, isTaskCompleted } from '../utils/streaks';
+import { buildCompletionCountsByDate, getCompletionCount } from '../utils/streaks';
 
 const AnimatedPath = Reanimated.createAnimatedComponent(Path);
 
@@ -201,7 +201,10 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
     transform: [{ scale: scale.value }]
   }));
 
-  const completed = isTaskCompleted(task) || isCompleting;
+  // Derived from the same `completionCount` already fetched above, rather than a second
+  // `isTaskCompleted(task)` call -- that would re-run its own internal `getCompletionCount` scan
+  // over `task.completions` a second time for the exact same (task, today) lookup.
+  const completed = completionCount >= timesPerDayCount || isCompleting;
 
   const badgeStyle = useAnimatedStyle(() => ({
     transform: [{ scale: badgeScale.value }]
@@ -370,11 +373,18 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
   const firstDayOfMonth = startOfMonth(currentMonth);
   const startingDayOfWeek = getDay(firstDayOfMonth);
 
+  // Built once per task (keyed on its own `completions` reference) instead of a `.find()` scan
+  // per day -- this grid does up to ~31 lookups against the same array, so this turns that into
+  // one O(completions) pass plus O(1) lookups, and derives isCompleted from the same looked-up
+  // count instead of also calling isTaskCompleted (which would repeat the same lookup again).
+  const completionCounts = useMemo(() => buildCompletionCountsByDate(task.completions || []), [task.completions]);
+  const requiredTimes = task.timesPerDay || 1;
+
   const days = Array.from({ length: daysInMonth }, (_, i) => {
     const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i + 1);
     const dateString = format(date, 'yyyy-MM-dd');
-    const completionCount = getCompletionCount(task, date);
-    const isCompleted = isTaskCompleted(task, date);
+    const completionCount = completionCounts.get(dateString) ?? 0;
+    const isCompleted = completionCount >= requiredTimes;
     const isPartial = completionCount > 0 && !isCompleted;
     const isToday = dateString === today;
     const isPast = dateString < today;

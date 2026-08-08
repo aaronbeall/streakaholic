@@ -58,20 +58,26 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
   // Scoped to just this task (not the app's full task list) -- "All Time" should mean this
   // task's own history, not incidentally shift based on some unrelated task's older completions.
   const { start, end } = useMemo(() => getDateRange(timeRange, [task]), [timeRange, task]);
-  const { dayOfWeekData, hourOfDayData } = getCompletionPatterns(
-    { start, end },
-    task.completions || []
+  // Missing this useMemo meant re-scanning every one of this task's completions (parsing dates,
+  // computing hours) on *every* render, not just when the range or completions actually changed --
+  // `allTimePatterns` right below already got this right.
+  const { dayOfWeekData, hourOfDayData } = useMemo(
+    () => getCompletionPatterns({ start, end }, task.completions || []),
+    [start, end, task.completions]
   );
 
   const { labels, data } = useMemo(() => getChartData(timeRange, task.completions || [], isCumulative), [timeRange, task.completions, isCumulative]);
-  const chartData = {
+  // Memoized so react-native-chart-kit sees a stable `chartData` reference (and can skip its own
+  // re-render/redraw work) whenever this component re-renders for an unrelated reason, not just
+  // when `labels`/`data`/`task.color` actually change.
+  const chartData = useMemo(() => ({
     labels,
     datasets: [{
       data,
       color: (opacity = 1) => task.color,
       strokeWidth: 2,
     }],
-  };
+  }), [labels, data, task.color]);
 
   const baseChartConfig = {
     backgroundColor: colors.surface,
@@ -89,19 +95,19 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
     },
   };
 
-  const dayOfWeekChartData = {
+  const dayOfWeekChartData = useMemo(() => ({
     labels: dayOfWeekLabels,
     datasets: [{
       data: dayOfWeekData,
     }],
-  };
+  }), [dayOfWeekData]);
 
-  const hourOfDayChartData = {
+  const hourOfDayChartData = useMemo(() => ({
     labels: hourOfDayLabels,
     datasets: [{
       data: hourOfDayData,
     }],
-  };
+  }), [hourOfDayData]);
 
   // The current streak already has its own badge up in TaskHeader -- repeating it here would be
   // redundant, so Best Streak is the headline stat instead, with a "current" tag when you're

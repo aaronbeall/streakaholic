@@ -296,3 +296,20 @@ export const getCompletionCount = (task: Task, date: Date = new Date()): number 
 export const isTaskCompleted = (task: Task, date: Date = new Date()): boolean => {
   return getCompletionCount(task, date) >= (task.timesPerDay || 1);
 };
+
+// For a single one-off lookup (e.g. "is this task completed today?"), `getCompletionCount`'s own
+// `.find()` is the right tool -- O(that task's completion count), trivial for one call. But a
+// calendar grid calls it once *per visible cell* for the *same* task (e.g. every day in a month,
+// or every visible column in an infinite timeline) -- that's O(cells x completions) of repeated
+// linear scans over the exact same array, and since completions are appended in chronological
+// order while these grids show the most *recent* days first, the common case is close to a
+// worst-case full-array scan on every single cell. Building this map once per task (keyed on that
+// task's own `completions` reference via the caller's `useMemo`) turns the whole grid into one
+// O(completions) pass up front plus O(1) lookups per cell after that.
+export const buildCompletionCountsByDate = (completions: TaskCompletion[]): Map<string, number> => {
+  const map = new Map<string, number>();
+  for (const completion of completions) {
+    map.set(completion.date, completion.timesCompleted);
+  }
+  return map;
+};

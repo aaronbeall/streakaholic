@@ -15,7 +15,7 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
-import { getCompletionCount, isTaskCompleted } from '../utils/streaks';
+import { buildCompletionCountsByDate } from '../utils/streaks';
 
 const TAP_DAY_HINT_TEXT = 'Tap a day to mark a day complete, tap again to clear it';
 
@@ -86,13 +86,20 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
   const firstDayOfMonth = startOfMonth(currentMonth);
   const startingDayOfWeek = getDay(firstDayOfMonth);
   const today = format(new Date(), 'yyyy-MM-dd');
+  const requiredTimes = task.timesPerDay || 1;
+
+  // Built once per task (keyed on its own `completions` reference) instead of a `.find()` scan
+  // per cell -- the Month grid does up to ~31 lookups and the Year grid up to 365, all against
+  // the same array, so this turns each into one O(completions) pass plus O(1) lookups per cell.
+  const completionCounts = useMemo(() => buildCompletionCountsByDate(task.completions || []), [task.completions]);
 
   const days = useMemo(() => Array.from({ length: daysInMonth }, (_, i) => {
     const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i + 1);
-    const completionCount = getCompletionCount(task, date);
-    const isCompleted = isTaskCompleted(task, date);
+    const dateString = format(date, 'yyyy-MM-dd');
+    const completionCount = completionCounts.get(dateString) ?? 0;
+    const isCompleted = completionCount >= requiredTimes;
     const isPartial = completionCount > 0 && !isCompleted;
-    const isToday = format(date, 'yyyy-MM-dd') === today;
+    const isToday = dateString === today;
     return {
       date,
       isCompleted,
@@ -102,7 +109,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
       dayNumber: i + 1
     };
   }),
-  [currentMonth, daysInMonth, task, today]);
+  [currentMonth, daysInMonth, completionCounts, requiredTimes, today]);
 
   // Always exactly 42 cells (6 weeks) -- chunked into week-rows for the Month view's plain-row
   // grid below (see the RN-traps note there for why it's not a FlatList).
@@ -133,8 +140,8 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
 
   // A full year's worth of per-day states, grouped by month and chunked into weeks (like the
   // month view's own grid, just non-interactive and without day numbers) -- only computed when
-  // actually viewing the year (365 isTaskCompleted/getCompletionCount lookups isn't free, so
-  // there's no reason to pay for it while in month view).
+  // actually viewing the year (365 lookups against `completionCounts` isn't free, so there's no
+  // reason to pay for it while in month view).
   const yearMonths = useMemo(() => {
     if (viewMode !== 'year') return [];
     const year = currentMonth.getFullYear();
@@ -149,13 +156,13 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
         ...Array.from({ length: daysInThisMonth }, (_, i): YearDayCell => {
           const date = new Date(year, monthIndex, i + 1);
           const dateString = format(date, 'yyyy-MM-dd');
-          const completionCount = getCompletionCount(task, date);
-          const isCompleted = isTaskCompleted(task, date);
+          const completionCount = completionCounts.get(dateString) ?? 0;
+          const isCompleted = completionCount >= requiredTimes;
           return {
             isCompleted,
             isPartial: completionCount > 0 && !isCompleted,
             isFuture: dateString > today,
-            fraction: Math.min(completionCount / (task.timesPerDay || 1), 1),
+            fraction: Math.min(completionCount / requiredTimes, 1),
           };
         }),
         ...Array(trailingBlanks).fill(null),
@@ -168,7 +175,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
 
       return { monthIndex, label: format(monthStart, 'MMM'), rows };
     });
-  }, [viewMode, currentMonth, task, today]);
+  }, [viewMode, currentMonth, completionCounts, requiredTimes, today]);
 
   const monthCardWidth = yearGridWidth > 0
     ? (yearGridWidth - YEAR_COLUMN_GAP * (YEAR_GRID_COLUMNS - 1)) / YEAR_GRID_COLUMNS
@@ -181,7 +188,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
 
   const handleDayPress = (date: Date) => {
     const dateString = format(date, 'yyyy-MM-dd');
-    const isCompleted = isTaskCompleted(task, date);
+    const isCompleted = (completionCounts.get(dateString) ?? 0) >= requiredTimes;
     const isFuture = dateString > today;
 
     if (isFuture) {
@@ -208,7 +215,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
       });
     } else {
       const timesPerDay = task.timesPerDay || 1;
-      const nextCount = getCompletionCount(task, date) + 1;
+      const nextCount = (completionCounts.get(dateString) ?? 0) + 1;
       // A full completion earns the stronger "success" buzz; logging one of several reps for a
       // >1x/day task gets a lighter tap instead, matching the toast's own full-vs-partial message.
       if (nextCount >= timesPerDay) {
