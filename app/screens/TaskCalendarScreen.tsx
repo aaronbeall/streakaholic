@@ -18,7 +18,7 @@ const TAP_DAY_HINT_TEXT = 'Tap a day to mark a day complete, tap again to clear 
 
 type ViewMode = 'month' | 'year';
 
-type YearDayCell = { isCompleted: boolean; isPartial: boolean; isFuture: boolean } | null;
+type YearDayCell = { isCompleted: boolean; isPartial: boolean; isFuture: boolean; fraction: number } | null;
 
 // 3 months per row makes a clean 4x3 grid for a full year, each still readable as a tiny
 // week-by-week calendar rather than a flat strip of dots.
@@ -113,6 +113,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
             isCompleted,
             isPartial: completionCount > 0 && !isCompleted,
             isFuture: dateString > today,
+            fraction: Math.min(completionCount / (task.timesPerDay || 1), 1),
           };
         }),
         ...Array(trailingBlanks).fill(null),
@@ -247,7 +248,10 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                             },
                             day === null && styles.yearDotEmpty,
                             day?.isCompleted && { backgroundColor: task.color },
-                            day?.isPartial && { backgroundColor: task.color, opacity: 0.4 },
+                            // Opacity scales with how much of the day's quota was hit, not a flat
+                            // shade for any nonzero-but-incomplete count -- floored at 0.35 so a
+                            // bare sliver of progress still reads clearly.
+                            day?.isPartial && { backgroundColor: task.color, opacity: Math.max(0.35, day.fraction) },
                             day?.isFuture && styles.yearDotFuture,
                           ]}
                         />

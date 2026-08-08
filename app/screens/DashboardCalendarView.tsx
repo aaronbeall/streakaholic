@@ -21,7 +21,7 @@ const DAYS_PAGE_SIZE = 30;
 
 // Same per-day state shape as TaskCalendarView's Year-mode mini grid -- no due/not-due distinction,
 // just completed/partial/future, matching that grid's already-established look.
-type MonthDotCell = { isCompleted: boolean; isPartial: boolean; isFuture: boolean } | null;
+type MonthDotCell = { isCompleted: boolean; isPartial: boolean; isFuture: boolean; fraction: number } | null;
 const MONTH_DOT_GAP = 4;
 const TASK_MONTH_CARD_GAP = 16;
 
@@ -85,11 +85,11 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
     const leadingBlanks = getDay(visibleMonth);
     const trailingBlanks = getTrailingBlankCount(leadingBlanks, daysInThisMonth);
     const totalCells = leadingBlanks + daysInThisMonth + trailingBlanks;
-    return { daysInThisMonth, leadingBlanks, numWeeks: totalCells / 7 };
+    return { daysInThisMonth, leadingBlanks, trailingBlanks, numWeeks: totalCells / 7 };
   }, [visibleMonth]);
 
   const buildMonthRows = (task: Task): MonthDotCell[][] => {
-    const { daysInThisMonth, leadingBlanks } = monthShape;
+    const { daysInThisMonth, leadingBlanks, trailingBlanks } = monthShape;
     const year = visibleMonth.getFullYear();
     const month = visibleMonth.getMonth();
     const cells: MonthDotCell[] = [
@@ -103,8 +103,10 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
           isCompleted,
           isPartial: completionCount > 0 && !isCompleted,
           isFuture: dateString > todayStr,
+          fraction: Math.min(completionCount / (task.timesPerDay || 1), 1),
         };
       }),
+      ...Array(trailingBlanks).fill(null),
     ];
     const rows: MonthDotCell[][] = [];
     for (let i = 0; i < cells.length; i += 7) {
@@ -242,7 +244,10 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                           },
                           day === null && styles.monthGridDotEmpty,
                           day?.isCompleted && { backgroundColor: task.color },
-                          day?.isPartial && { backgroundColor: task.color, opacity: 0.4 },
+                          // Opacity scales with how much of the day's quota was actually hit --
+                          // a >1x/day task's partial days no longer all read as one flat dimmed
+                          // shade regardless of whether 1 of 3 or 2 of 3 reps were done.
+                          day?.isPartial && { backgroundColor: task.color, opacity: Math.max(0.35, day.fraction) },
                           day?.isFuture && styles.monthGridDotFuture,
                         ]}
                       />
