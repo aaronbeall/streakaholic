@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { format } from 'date-fns';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +22,7 @@ const STREAK_LABEL_GAP = 8;
 // vertical instead of horizontal). Above the list: a hero/secondary stats block styled identically
 // to DashboardStatsView's no-card-chrome tiered hierarchy.
 export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
+  const router = useRouter();
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [sortMode, setSortMode] = useState<SortMode>('recent');
   // Measured once from the first row -- every row is the same width, so this doesn't need to be
@@ -151,7 +153,11 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
         </>
       }
       renderItem={({ item }) => (
-        <View style={styles.streakRow} onLayout={handleRowLayout}>
+        <TouchableOpacity
+          style={styles.streakRow}
+          onLayout={handleRowLayout}
+          onPress={() => router.push({ pathname: '/task-detail', params: { taskId: item.taskId, tab: 'streaks' } })}
+        >
           <Text style={[styles.streakDateLabel, styles.streakDateLabelStart]}>{format(item.startDate, 'MMM d')}</Text>
           <View
             style={[
@@ -163,7 +169,7 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
             <Text style={styles.streakBarText}>{item.length}</Text>
           </View>
           <Text style={[styles.streakDateLabel, styles.streakDateLabelEnd]}>{format(item.endDate, 'MMM d')}</Text>
-        </View>
+        </TouchableOpacity>
       )}
     />
   );

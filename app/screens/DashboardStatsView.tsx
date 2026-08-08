@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
+import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Dimensions, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BarChart, LineChart } from 'react-native-chart-kit';
@@ -38,6 +39,7 @@ const TimeRangeButton: React.FC<TimeRangeButtonProps> = ({ range, label, isSelec
 // for a task list instead of one task. `tasks` here is already filtered by the header's task
 // picker; that filter applies to everything below, both the headline stats and the charts.
 export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
+  const router = useRouter();
   const [timeRange, setTimeRange] = useState<TimeFrame>('week');
   const [isCumulative, setIsCumulative] = useState(false);
   // Measured from the actual rendered container rather than guessed from Dimensions.get('window')
@@ -208,7 +210,11 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
           <Text style={styles.chartTitle}>Total Completions</Text>
           <View style={styles.hBarList}>
             {taskTotals.map(({ task, total }) => (
-              <View key={task.id} style={styles.hBarRow}>
+              <TouchableOpacity
+                key={task.id}
+                style={styles.hBarRow}
+                onPress={() => router.push({ pathname: '/task-detail', params: { taskId: task.id, tab: 'stats' } })}
+              >
                 <MaterialCommunityIcons name={task.icon} size={16} color={task.color} style={styles.hBarIcon} />
                 <View style={styles.hBarTrack}>
                   <View
@@ -219,7 +225,7 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
                   />
                 </View>
                 <Text style={styles.hBarValue}>{total}</Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         </View>
