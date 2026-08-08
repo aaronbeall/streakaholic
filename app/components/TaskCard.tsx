@@ -226,9 +226,16 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
 
   useEffect(() => {
     if (streakBadgeStyle?.icon === 'fire') {
+      // Same pop shape as the icon's own completion animation below (explicit snap to a
+      // guaranteed peak, then a fast multi-bounce spring settle) -- just triggered off the streak
+      // badge flipping to `fire` instead of the completion press itself.
       badgeScale.value = withSequence(
-        withSpring(1.2, { damping: 8, stiffness: 100 }),
-        withSpring(1, { damping: 8, stiffness: 100 })
+        withTiming(POP_PEAK_SCALE, { duration: 100, easing: Easing.out(Easing.cubic) }),
+        withSpring(1, {
+          damping: 23,
+          stiffness: 1000,
+          energyThreshold: 0.0001,
+        })
       );
       setCelebrationKey(k => k + 1);
       setShowParticles(true);
