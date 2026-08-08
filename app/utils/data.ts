@@ -34,6 +34,24 @@ export const hourOfDayLabels = Array.from({ length: 24 }, (_, i) => {
   return '';
 });
 
+// react-native-chart-kit's BarChart draws every bar at a fixed 32px width times `chartConfig`'s
+// `barPercentage` (which defaults to 1 if unset) -- a flat pixel width with no awareness of the
+// chart's own rendered width or how many bars it's holding. That's fine for a 7-bar day-of-week
+// chart in a typical phone-width chart (each bar's own ~49px slot comfortably fits a 32px bar),
+// but the exact same fixed 32px bar in a 24-bar hour-of-day chart of the same width (~14px slots)
+// massively overlaps its neighbors. This derives `barPercentage` from the chart's actual measured
+// width and its own bar count instead, so a bar always fills a consistent fraction of its own
+// slot regardless of how many bars there are. Capped at 1 (never *wider* than the library's own
+// 32px default) so an already-fine chart like day-of-week doesn't change from how it looks today.
+export const getBarPercentage = (chartWidth: number, barCount: number, fillFraction = 0.7): number => {
+  if (chartWidth <= 0 || barCount <= 0) {
+    return 1;
+  }
+  const BASE_BAR_WIDTH = 32;
+  const slotWidth = chartWidth / barCount;
+  return Math.min(1, (slotWidth * fillFraction) / BASE_BAR_WIDTH);
+};
+
 export const getDateRange = (timeFrame: TimeFrame, tasks: Task[]): DateRange => {
   const end = startOfDay(new Date());
   

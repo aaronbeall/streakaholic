@@ -6,7 +6,7 @@ import { BarChart, LineChart } from 'react-native-chart-kit';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
-import { TimeFrame, dayOfWeekLabels, getChartData, getCompletionPatterns, getDateRange, hourOfDayLabels } from '../utils/data';
+import { TimeFrame, dayOfWeekLabels, getBarPercentage, getChartData, getCompletionPatterns, getDateRange, hourOfDayLabels } from '../utils/data';
 
 const CARD_HORIZONTAL_PADDING = 16;
 
@@ -270,6 +270,13 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
               chartConfig={{
                 ...baseChartConfig,
                 color: (opacity = 1) => task.color,
+                barPercentage: getBarPercentage(chartWidth, dayOfWeekLabels.length),
+                // BarChart's own bar fill defaults to 10% opacity (fillShadowGradientOpacity),
+                // reading as faded -- only its separate 2px "bar top" cap renders fully opaque,
+                // which is what actually looked like a solid border. Full opacity here makes the
+                // whole bar solid instead (LineChart's own area-shadow default is untouched,
+                // since this override lives on the BarChart's own config, not `baseChartConfig`).
+                fillShadowGradientOpacity: 1,
                 propsForBackgroundLines: {
                   strokeDasharray: '',
                   stroke: 'rgba(0,0,0,0)',
@@ -292,6 +299,8 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
               chartConfig={{
                 ...baseChartConfig,
                 color: (opacity = 1) => task.color,
+                barPercentage: getBarPercentage(chartWidth, hourOfDayLabels.length),
+                fillShadowGradientOpacity: 1,
                 propsForBackgroundLines: {
                   strokeDasharray: '',
                   stroke: 'rgba(0,0,0,0)',
