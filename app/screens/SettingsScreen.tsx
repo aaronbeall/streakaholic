@@ -103,7 +103,12 @@ export const SettingsScreen: React.FC = () => {
   // Either way the previous tasks are snapshotted first so the toast's Undo can restore them.
   const handleImport = async (mode: 'merge' | 'replace') => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
+      // Not filtered to 'application/json' -- several cloud-storage document providers (Dropbox
+      // in particular) don't reliably report that MIME type for synced files, which made the
+      // picker show the file but grey it out as unselectable. Content is already validated right
+      // below via `parseTasksImport` (with a clear error toast if it's not actually an export),
+      // so an OS-level type filter here was redundant safety that broke real imports.
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (result.canceled || !result.assets?.[0]) return;
 
       setIsBusy(true);

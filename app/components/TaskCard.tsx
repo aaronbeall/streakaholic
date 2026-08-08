@@ -28,7 +28,7 @@ import { ParticleSystem } from './ParticleSystem';
 import { PartialDayPie } from './PartialDayPie';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { getExpectedPeriodTotal } from '../utils/periodStats';
-import { buildCompletionCountsByDate, getCompletionCount, isTaskCompleted } from '../utils/streaks';
+import { buildCompletionCountsByDate, getCompletionCount, getStreakBadgeStyle, isTaskCompleted } from '../utils/streaks';
 
 const AnimatedPath = Reanimated.createAnimatedComponent(Path);
 
@@ -143,46 +143,7 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
   const iconFontSize = iconSize / 2;
   const iconMarginBottom = Math.max(2, Math.min(size * 0.03, 8));
 
-  const getStreakBadgeStyle = () => {
-    const currentStreak = task.stats?.currentStreak || 0;
-    const lastStreak = task.stats?.lastStreak || 0;
-    const bestStreak = task.stats?.bestStreak || 0;
-    const streakStatus = task.stats?.streakStatus;
-    
-    if (!streakStatus || streakStatus === 'never_started') {
-      return null;
-    }
-
-    if (currentStreak > 0) {
-      if (streakStatus === 'up_to_date') {
-        return {
-          backgroundColor: '#FF6B6B',
-          icon: 'fire' as const,
-          value: currentStreak,
-          showTrophy: currentStreak === bestStreak
-        };
-      }
-      return {
-        backgroundColor: '#FFA726',
-        icon: 'clock-outline' as const,
-        value: currentStreak,
-        showTrophy: currentStreak === bestStreak
-      };
-    }
-
-    if (lastStreak > 0) {
-      return {
-        backgroundColor: '#90A4AE',
-        icon: 'sleep' as const,
-        value: lastStreak,
-        showTrophy: false
-      };
-    }
-
-    return null;
-  };
-
-  const streakBadgeStyle = getStreakBadgeStyle();
+  const streakBadgeStyle = getStreakBadgeStyle(task);
 
   const CIRCLE_STROKE_WIDTH = 8;
   const CIRCLE_RADIUS = 60;
@@ -490,7 +451,7 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
       )}
       {streakBadgeStyle && (
         <Reanimated.View style={[styles.streakBadge, badgeStyle]}>
-          <View style={[styles.streakBubble, { backgroundColor: streakBadgeStyle.backgroundColor }]}>
+          <View style={[styles.streakBubble, { backgroundColor: streakBadgeStyle.color }]}>
             <MaterialCommunityIcons name={streakBadgeStyle.icon} size={14} color="#fff" />
             <Text style={styles.streakText}>{streakBadgeStyle.value}</Text>
           </View>
@@ -682,7 +643,7 @@ const PeriodStatRow: React.FC<{
   const fraction = total > 0 ? completed / total : 0;
 
   return (
-    <>
+    <View style={styles.periodStatGroup}>
       <View style={styles.statRow}>
         <Text style={styles.statLabel} numberOfLines={1} ellipsizeMode="tail">{label}</Text>
         <View style={styles.statValueRow}>
@@ -698,7 +659,7 @@ const PeriodStatRow: React.FC<{
           ]}
         />
       </View>
-    </>
+    </View>
   );
 };
 
@@ -737,30 +698,40 @@ const CardStats = React.memo(({ task }: { task: Task }) => {
   const weeklyStats = getWeeklyStats();
   const monthlyStats = getMonthlyStats();
   const isBestStreak = task.stats?.currentStreak === task.stats?.bestStreak && (task.stats?.bestStreak || 0) > 0;
+  // Same status -> icon/color mapping the front face's own badge uses, so the two faces of the
+  // same card agree on what a streak's current state looks like instead of the stats face using
+  // a flat neutral tint regardless of whether the streak is live, expiring, or dormant.
+  const streakBadgeStyle = getStreakBadgeStyle(task);
+  const currentStreakColor = streakBadgeStyle?.color ?? colors.textSecondary;
 
   return (
     <View style={styles.statsContainer}>
-      <View style={styles.statRow}>
-        <Text style={styles.statLabel}>Streak: <Text style={styles.statValue}>{task.stats?.currentStreak || 0}</Text></Text>
-        {isBestStreak ? (
-          <View style={styles.bestStreakContainer}>
-            <MaterialCommunityIcons name="trophy" size={16} color="#FFD700" />
-            <Text style={[styles.statLabel, styles.bestStreakText]}>Best!</Text>
+      <View style={styles.periodStatGroup}>
+        <View style={styles.statRow}>
+          <View style={styles.statValueRow}>
+            <MaterialCommunityIcons name={streakBadgeStyle?.icon ?? 'fire'} size={16} color={currentStreakColor} />
+            <Text style={styles.statValue} numberOfLines={1}>{task.stats?.currentStreak || 0}</Text>
           </View>
-        ) : (
-          <Text style={styles.statLabel}>Best: <Text style={styles.statValue}>{task.stats?.bestStreak || 0}</Text></Text>
-        )}
-      </View>
-      <View style={[styles.progressBar, { backgroundColor: task.color + '33' }]}>
-        <View 
-          style={[
-            styles.progressFill, 
-            { 
-              backgroundColor: task.color,
-              width: `${Math.min((task.stats?.currentStreak || 0) / 10 * 100, 100)}%` as const
-            }
-          ]} 
-        />
+          <View style={styles.statValueRow}>
+            <MaterialCommunityIcons name="trophy" size={16} color={isBestStreak ? '#FFD700' : colors.textSecondary} />
+            {isBestStreak ? (
+              <Text style={styles.bestStreakText} numberOfLines={1}>BEST!</Text>
+            ) : (
+              <Text style={styles.statValue} numberOfLines={1}>{task.stats?.bestStreak || 0}</Text>
+            )}
+          </View>
+        </View>
+        <View style={[styles.progressBar, { backgroundColor: task.color + '33' }]}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                backgroundColor: task.color,
+                width: `${Math.min((task.stats?.currentStreak || 0) / 10 * 100, 100)}%` as const
+              }
+            ]}
+          />
+        </View>
       </View>
 
       <PeriodStatRow label="This week" completed={weeklyStats.completed} total={weeklyStats.total} color={task.color} styles={styles} />
@@ -1100,7 +1071,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   statsContainer: {
     flex: 1,
     padding: 16,
+    // The space *between* each stat group (streak, this week, past 30 days) -- deliberately
+    // larger than periodStatGroup's own internal gap below, so each label reads as grouped with
+    // its own bar rather than sitting evenly between the bar above and the label below it.
     gap: 12,
+  },
+  // Wraps a stat row + its own progress bar as one visual unit -- a small internal gap keeps the
+  // label close to the bar it describes, distinct from statsContainer's larger between-group gap.
+  periodStatGroup: {
+    gap: 4,
   },
   statRow: {
     flexDirection: 'row',
@@ -1153,13 +1132,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     height: 2,
     backgroundColor: '#39FF14',
   },
-  bestStreakContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
   bestStreakText: {
     color: '#FFD700',
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 }); 

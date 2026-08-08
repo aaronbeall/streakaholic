@@ -1,5 +1,5 @@
 import { addDays, addMonths, differenceInCalendarDays, differenceInDays, endOfMonth, endOfWeek, format, parseISO, startOfDay, startOfMonth, startOfWeek } from 'date-fns';
-import { FrequencyType, StreakStatus, Task, TaskCompletion, TaskStats } from '../types';
+import { FrequencyType, MaterialCommunityIconName, StreakStatus, Task, TaskCompletion, TaskStats } from '../types';
 
 export interface StreakScheduleInfo {
   frequency: FrequencyType;
@@ -312,4 +312,56 @@ export const buildCompletionCountsByDate = (completions: TaskCompletion[]): Map<
     map.set(completion.date, completion.timesCompleted);
   }
   return map;
+};
+
+export interface StreakBadgeStyle {
+  // Named `color`, not `backgroundColor` -- used both as a badge pill's background (`TaskCard`'s
+  // front face) and as an icon/text tint (`CardStats`'s stats face), so a background-specific name
+  // would be misleading in the second context.
+  color: string;
+  icon: MaterialCommunityIconName;
+  value: number;
+  showTrophy: boolean;
+}
+
+// Derives the same current-streak-status → icon/color mapping the home-screen badge uses, so any
+// other place that wants to visually echo "what state is this streak in" (e.g. `CardStats`'s own
+// streak number) stays in sync with the badge by construction instead of duplicating the mapping.
+export const getStreakBadgeStyle = (task: Task): StreakBadgeStyle | null => {
+  const currentStreak = task.stats?.currentStreak || 0;
+  const lastStreak = task.stats?.lastStreak || 0;
+  const bestStreak = task.stats?.bestStreak || 0;
+  const streakStatus = task.stats?.streakStatus;
+
+  if (!streakStatus || streakStatus === 'never_started') {
+    return null;
+  }
+
+  if (currentStreak > 0) {
+    if (streakStatus === 'up_to_date') {
+      return {
+        color: '#FF6B6B',
+        icon: 'fire',
+        value: currentStreak,
+        showTrophy: currentStreak === bestStreak
+      };
+    }
+    return {
+      color: '#FFA726',
+      icon: 'clock-outline',
+      value: currentStreak,
+      showTrophy: currentStreak === bestStreak
+    };
+  }
+
+  if (lastStreak > 0) {
+    return {
+      color: '#90A4AE',
+      icon: 'sleep',
+      value: lastStreak,
+      showTrophy: false
+    };
+  }
+
+  return null;
 };
