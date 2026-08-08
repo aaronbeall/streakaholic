@@ -41,6 +41,32 @@ const AnimatedPath = Reanimated.createAnimatedComponent(Path);
 const DEPRESS_SCALE = 0.9;
 const POP_PEAK_SCALE = 1.2;
 const COMPLETION_HOLD_DURATION = 750;
+// A rough estimate of the streak *bubble*'s own rendered bounds (icon + streak count text,
+// padding -- deliberately not including the optional trophy icon, which sits outside the bubble
+// itself and shouldn't be covered by the spawn area), used as `ParticleSystem`'s `spawnArea` --
+// the bubble's actual size only varies by a couple pixels either way (streak digit count), so an
+// estimate is close enough without needing to measure it via `onLayout`. Module-level so it's a
+// stable reference across renders (matters since it's a prop on `ParticleSystem`, a `React.memo`'d
+// component).
+//
+// Shaped as a capsule (a line segment thickened by `radius`) rather than a rectangle -- the
+// bubble itself is a pill (`streakBubble`'s `borderRadius: 16` on a ~28px-tall bar rounds it into
+// a full stadium shape), so a capsule spawn area matches its actual rounded silhouette instead of
+// scattering particles into the rectangle's corners, which would read as blocky against a round
+// source. `radius` is half the estimated height (14); the line runs between the two points that
+// height would sweep out if slid across the estimated width, i.e. inset from each edge by that
+// same radius.
+const ESTIMATED_BADGE_HEIGHT = 28;
+const ESTIMATED_BADGE_WIDTH = 48;
+const ESTIMATED_BADGE_RADIUS = ESTIMATED_BADGE_HEIGHT / 2;
+const ESTIMATED_BADGE_SPAWN_AREA = {
+  start: { x: ESTIMATED_BADGE_RADIUS, y: ESTIMATED_BADGE_RADIUS },
+  end: { x: ESTIMATED_BADGE_WIDTH - ESTIMATED_BADGE_RADIUS, y: ESTIMATED_BADGE_RADIUS },
+  radius: ESTIMATED_BADGE_RADIUS,
+};
+// TEMP DEBUG -- flip off (or delete this flag and its render block below) once the capsule shape
+// is visually confirmed against the real badge.
+const DEBUG_SHOW_SPAWN_AREA = false;
 
 export type CardSide = 'task' | 'calendar' | 'stats';
 
@@ -377,7 +403,63 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
             <ParticleSystem
               key={celebrationKey}
               onComplete={handleParticlesComplete}
+              spawnArea={ESTIMATED_BADGE_SPAWN_AREA}
             />
+          )}
+          {/* TEMP DEBUG -- visualizing ESTIMATED_BADGE_SPAWN_AREA's capsule shape to confirm it
+              against the real badge before removing this block. */}
+          {DEBUG_SHOW_SPAWN_AREA && (
+            <>
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.debugSpawnCapsuleBody,
+                  {
+                    left: ESTIMATED_BADGE_SPAWN_AREA.start.x,
+                    top: ESTIMATED_BADGE_SPAWN_AREA.start.y - ESTIMATED_BADGE_SPAWN_AREA.radius,
+                    width: ESTIMATED_BADGE_SPAWN_AREA.end.x - ESTIMATED_BADGE_SPAWN_AREA.start.x,
+                    height: ESTIMATED_BADGE_SPAWN_AREA.radius * 2,
+                  },
+                ]}
+              />
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.debugSpawnCircle,
+                  {
+                    left: ESTIMATED_BADGE_SPAWN_AREA.start.x - ESTIMATED_BADGE_SPAWN_AREA.radius,
+                    top: ESTIMATED_BADGE_SPAWN_AREA.start.y - ESTIMATED_BADGE_SPAWN_AREA.radius,
+                    width: ESTIMATED_BADGE_SPAWN_AREA.radius * 2,
+                    height: ESTIMATED_BADGE_SPAWN_AREA.radius * 2,
+                    borderRadius: ESTIMATED_BADGE_SPAWN_AREA.radius,
+                  },
+                ]}
+              />
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.debugSpawnCircle,
+                  {
+                    left: ESTIMATED_BADGE_SPAWN_AREA.end.x - ESTIMATED_BADGE_SPAWN_AREA.radius,
+                    top: ESTIMATED_BADGE_SPAWN_AREA.end.y - ESTIMATED_BADGE_SPAWN_AREA.radius,
+                    width: ESTIMATED_BADGE_SPAWN_AREA.radius * 2,
+                    height: ESTIMATED_BADGE_SPAWN_AREA.radius * 2,
+                    borderRadius: ESTIMATED_BADGE_SPAWN_AREA.radius,
+                  },
+                ]}
+              />
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.debugSpawnLine,
+                  {
+                    left: ESTIMATED_BADGE_SPAWN_AREA.start.x,
+                    top: ESTIMATED_BADGE_SPAWN_AREA.start.y - 1,
+                    width: ESTIMATED_BADGE_SPAWN_AREA.end.x - ESTIMATED_BADGE_SPAWN_AREA.start.x,
+                  },
+                ]}
+              />
+            </>
           )}
         </Reanimated.View>
       )}
@@ -943,6 +1025,22 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   trophyIcon: {
     marginLeft: 2,
+  },
+  // TEMP DEBUG -- see DEBUG_SHOW_SPAWN_AREA above; remove alongside it.
+  debugSpawnCapsuleBody: {
+    position: 'absolute',
+    backgroundColor: 'rgba(57, 255, 20, 0.25)',
+  },
+  debugSpawnCircle: {
+    position: 'absolute',
+    backgroundColor: 'rgba(57, 255, 20, 0.25)',
+    borderWidth: 1,
+    borderColor: '#39FF14',
+  },
+  debugSpawnLine: {
+    position: 'absolute',
+    height: 2,
+    backgroundColor: '#39FF14',
   },
   bestStreakContainer: {
     flexDirection: 'row',

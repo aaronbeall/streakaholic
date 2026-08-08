@@ -71,6 +71,18 @@ interface ParticleSystemProps {
   count?: number;
   onComplete?: () => void;
   particles?: Partial<ParticleConfig>;
+  // When provided, particles spawn scattered across a capsule (a line segment thickened by
+  // `radius`, like a pill/stadium shape) instead of the default radial ring -- a much closer
+  // match to a rounded badge's own shape than a rectangle, whose corners would otherwise read as
+  // blocky against a round source. `start`/`end`/coordinates are relative to `ParticleSystem`'s
+  // own position, same coordinate space the radial `distance`/`driftAngle` spread already used.
+  // Falls back to the radial spread if omitted, so a caller that doesn't supply one still gets a
+  // sensible burst.
+  spawnArea?: {
+    start: { x: number; y: number };
+    end: { x: number; y: number };
+    radius: number;
+  };
 }
 
 // React Native has no additive/`plus` blend mode for plain Views (that needs a GPU canvas lib
@@ -332,19 +344,45 @@ export const ParticleSystem = React.memo(
     count = 18,
     onComplete,
     particles = EMPTY_PARTICLE_CONFIG,
+    spawnArea,
   }: ParticleSystemProps) => {
     const config = useMemo(
       () => ({ ...defaultParticles, ...particles }),
       [particles],
     );
 
+    const hasSpawnArea = !!spawnArea && spawnArea.radius > 0;
+
     const createParticle = useCallback((): Particle => {
       const particleSize = getRandomValue(config.size, config.sizeVariance);
-      const angle = Math.random() * Math.PI * 2;
-      const particleDistance = getRandomValue(
-        config.distance,
-        config.distanceVariance,
-      );
+
+      // Origin is either a point scattered across the `spawnArea` capsule (a parent's own
+      // rounded shape, e.g. `TaskCard`'s streak badge) or, absent that, the original radial
+      // spread -- a random angle/distance around this component's own position. Both are a fixed,
+      // one-time computation per particle at creation, not a per-frame cost either way.
+      let originX: number;
+      let originY: number;
+      if (hasSpawnArea) {
+        // Pick a random point along the capsule's line segment, then a random point within a
+        // disk of `radius` around it -- `sqrt` on the radius fraction is the standard trick for
+        // sampling a disk *uniformly by area* (without it, points would bunch up near the center
+        // instead of spreading evenly all the way to the edge).
+        const t = Math.random();
+        const baseX = spawnArea!.start.x + (spawnArea!.end.x - spawnArea!.start.x) * t;
+        const baseY = spawnArea!.start.y + (spawnArea!.end.y - spawnArea!.start.y) * t;
+        const offsetAngle = Math.random() * Math.PI * 2;
+        const offsetRadius = spawnArea!.radius * Math.sqrt(Math.random());
+        originX = baseX + Math.cos(offsetAngle) * offsetRadius;
+        originY = baseY + Math.sin(offsetAngle) * offsetRadius;
+      } else {
+        const angle = Math.random() * Math.PI * 2;
+        const particleDistance = getRandomValue(
+          config.distance,
+          config.distanceVariance,
+        );
+        originX = Math.cos(angle) * particleDistance;
+        originY = Math.sin(angle) * particleDistance;
+      }
 
       // Calculate drift direction and distance
       const driftAngle = degreesToRadians(
@@ -372,8 +410,8 @@ export const ParticleSystem = React.memo(
 
       return {
         id: Math.random(),
-        originX: Math.cos(angle) * particleDistance,
-        originY: Math.sin(angle) * particleDistance,
+        originX,
+        originY,
         size: particleSize,
         colorStart,
         colorEnd,
@@ -395,7 +433,7 @@ export const ParticleSystem = React.memo(
         swirlPhase: Math.random() * Math.PI * 2,
         spawnDelay: Math.random() * config.spawnWindow,
       };
-    }, [config]);
+    }, [config, hasSpawnArea, spawnArea]);
 
     // Lazy initializer -- runs exactly once per mount. The previous render-time
     // `if (particleState.length === 0) setParticleState(...)` check forced a wasted extra render
