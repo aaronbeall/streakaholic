@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Reanimated, {
   Easing,
+  interpolateColor,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -12,7 +13,13 @@ interface Particle {
   originX: number;
   originY: number;
   size: number;
-  color: string;
+  // Each particle's own color shifts from a hot start to a deeper/cooler end over its life
+  // (see `ParticleComponent`'s `interpolateColor` usage) rather than staying fixed -- so both
+  // the core and glow need a start/end pair instead of one static color.
+  colorStart: string;
+  colorEnd: string;
+  glowColorStart: string;
+  glowColorEnd: string;
   driftX: number;
   driftY: number;
   // Unit vector perpendicular to this particle's own drift direction -- the axis the swirl
@@ -31,11 +38,15 @@ interface Particle {
 }
 
 interface ParticleConfig {
-  color: string;
-  // Optional palette of base hues -- when provided, each particle picks one at random (then
-  // still applies `colorVariance` lighten/darken on top) instead of every particle sharing the
-  // same single `color`. Lets a flame-style burst span red/orange/gold rather than one hue.
-  colors?: string[];
+  // Hand-picked [hot, cooled] color pairs -- each particle picks one whole pair at random (then
+  // still applies `colorVariance` lighten/darken jitter to each end) rather than a start color
+  // being computed into an end color algorithmically. Curated pairs let the cooled end shift hue
+  // (toward a deeper, almost-black red/maroon) rather than just getting darker at the same hue,
+  // which reads as a much more dramatic hot-to-cool transition than a plain `darken()` produced.
+  colorPairs: [string, string][];
+  // Same idea for the glow layer -- its own [strong, weak] pairs, deliberately separate from
+  // `colorPairs` so the glow doesn't have to match its own particle's core exactly.
+  glowColorPairs: [string, string][];
   colorVariance: number;
   size: number;
   sizeVariance: number;
@@ -62,10 +73,36 @@ interface ParticleSystemProps {
   particles?: Partial<ParticleConfig>;
 }
 
+// React Native has no additive/`plus` blend mode for plain Views (that needs a GPU canvas lib
+// like react-native-skia, a much bigger dependency/architecture change) -- this fakes a glow
+// instead: a larger, dimmer, same-colored circle rendered behind each particle. Not a true blur
+// (no blur filter is applied, just a bigger soft-edged circle at low opacity), but cheap and
+// close enough at this size/scale to read as a warm halo.
+const GLOW_SIZE_MULTIPLIER = 2.2;
+const GLOW_OPACITY_CAP = 0.35;
+// A particle now pops in at this size (fast) rather than appearing instantly at full size --
+// see `growth` below. Short relative to `life` (1000ms+), so it reads as a quick "spawn" beat
+// before the normal drift/shrink/fade takes over, not a separate visible phase of its own.
+const GROWTH_DURATION = 70;
+// How much faster the hot->cool color transition runs than the overall life/opacity fade --
+// 1.6 means color finishes shifting to its cooled end at ~63% of life, while the particle's
+// still fairly opaque, rather than the reddest color only ever landing right as it vanishes.
+const COLOR_SHIFT_SPEED = 1.6;
+
 const ParticleComponent = React.memo(({ particle }: { particle: Particle }) => {
   const progress = useSharedValue(1);
+  // Independent of `progress` (which drives the whole drift/shrink/fade/color countdown) --
+  // this only ramps the particle's *scale* in from 0, in parallel with `progress`'s own decay
+  // starting immediately. Since `GROWTH_DURATION` is a small fraction of `life`, drift/swirl are
+  // still negligible (`t` is still tiny) by the time growth finishes, so visually the particle
+  // reads as "grow in, then drift off and die out" without needing to delay the main countdown.
+  const growth = useSharedValue(0);
 
   React.useEffect(() => {
+    growth.value = withTiming(1, {
+      duration: GROWTH_DURATION,
+      easing: Easing.out(Easing.cubic),
+    });
     progress.value = withTiming(0, {
       duration: particle.life,
       easing: Easing.bezier(0.4, 0, 0.2, 1),
@@ -77,8 +114,26 @@ const ParticleComponent = React.memo(({ particle }: { particle: Particle }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Split from the animated style below -- these never change over the particle's life, so
-  // there's no reason to rebuild them on the UI thread every frame `progress` ticks.
+  // The wrapper carries position+scale for the whole particle+glow group, sized to match the
+  // particle itself (not the glow) so the shared transform-origin (center of this box) lines up
+  // with where the solid particle's own center always was -- keeps the particle shrinking toward
+  // its own center exactly as before, with the glow (offset to share that same center, see below)
+  // riding along with it rather than introducing its own drift.
+  const wrapperStaticStyle = useMemo(
+    () => ({
+      position: "absolute" as const,
+      left: 0,
+      top: 0,
+      width: particle.size,
+      height: particle.size,
+    }),
+    [particle],
+  );
+
+  // Split from the animated styles below -- size/position/shape never change over the particle's
+  // life, so there's no reason to rebuild them on the UI thread every frame `progress` ticks.
+  // `backgroundColor` isn't here -- it shifts hot-to-cool over life, so it lives in the animated
+  // styles below instead.
   const staticStyle = useMemo(
     () => ({
       position: "absolute" as const,
@@ -87,12 +142,25 @@ const ParticleComponent = React.memo(({ particle }: { particle: Particle }) => {
       width: particle.size,
       height: particle.size,
       borderRadius: particle.size / 2,
-      backgroundColor: particle.color,
     }),
     [particle],
   );
 
-  const animatedStyle = useAnimatedStyle(() => {
+  const glowStaticStyle = useMemo(() => {
+    const glowSize = particle.size * GLOW_SIZE_MULTIPLIER;
+    const glowOffset = (glowSize - particle.size) / 2;
+    return {
+      position: "absolute" as const,
+      // Centered on the same point as the particle itself despite being bigger.
+      left: -glowOffset,
+      top: -glowOffset,
+      width: glowSize,
+      height: glowSize,
+      borderRadius: glowSize / 2,
+    };
+  }, [particle]);
+
+  const wrapperAnimatedStyle = useAnimatedStyle(() => {
     const t = 1 - progress.value;
     // Swirl builds rather than decays -- negligible near the start of life, growing toward the
     // end (a real ember tends to drift fairly straight at first, then curl more as it cools and
@@ -103,10 +171,6 @@ const ParticleComponent = React.memo(({ particle }: { particle: Particle }) => {
       swirlEnvelope *
       particle.swirlAmplitude *
       Math.sin(t * particle.swirlFrequency * Math.PI * 2 + particle.swirlPhase);
-    // A fast, subtle shimmer layered on top of the main fade -- real embers flicker rather than
-    // dimming perfectly smoothly. Bounded well short of 1 so it only ever modulates the fade
-    // envelope, never brightens past it.
-    const flicker = 0.85 + 0.15 * Math.sin(t * 22 + particle.swirlPhase * 3);
 
     return {
       transform: [
@@ -122,13 +186,60 @@ const ParticleComponent = React.memo(({ particle }: { particle: Particle }) => {
             particle.driftY * t +
             particle.perpY * swirlOffset,
         },
-        { scale: progress.value },
+        { scale: growth.value * progress.value },
       ],
-      opacity: progress.value * flicker,
     };
   });
 
-  return <Reanimated.View style={[staticStyle, animatedStyle]} />;
+  // A fast, subtle shimmer layered on top of the main fade -- real embers flicker rather than
+  // dimming perfectly smoothly. Bounded well short of 1 so it only ever modulates the fade
+  // envelope, never brightens past it. Computed independently for the particle and its glow
+  // (rather than once in the shared wrapper style above) since each needs its own opacity cap.
+  // Also carries the hot-to-cool color shift -- `interpolateColor` runs on the UI thread as part
+  // of this same worklet, right alongside the swirl/flicker math already happening here every
+  // frame, so it's not adding a meaningfully new category of work.
+  //
+  // Uses `cos` and varies *frequency* (not phase offset) per particle via `swirlPhase` -- that
+  // guarantees `flicker` is exactly 1 at `t = 0` for every particle regardless of its random
+  // phase, so opacity always starts at a true 100% (matching growth being size-only, not an
+  // opacity fade-in too) while still flickering at a per-particle-unique rate after that.
+  const particleAnimatedStyle = useAnimatedStyle(() => {
+    const t = 1 - progress.value;
+    const flicker = 0.85 + 0.15 * Math.cos(t * (18 + particle.swirlPhase * 2));
+    // Reaches its cooled end color well before `t` hits 1 (i.e. before life is fully over and
+    // opacity has faded to nothing) -- otherwise the reddest part of the transition only ever
+    // lands right as the particle is already vanishing, and barely reads as red at all.
+    const colorT = Math.min(t * COLOR_SHIFT_SPEED, 1);
+    return {
+      opacity: progress.value * flicker,
+      backgroundColor: interpolateColor(
+        colorT,
+        [0, 1],
+        [particle.colorStart, particle.colorEnd],
+      ),
+    };
+  });
+
+  const glowAnimatedStyle = useAnimatedStyle(() => {
+    const t = 1 - progress.value;
+    const flicker = 0.85 + 0.15 * Math.cos(t * (18 + particle.swirlPhase * 2));
+    const colorT = Math.min(t * COLOR_SHIFT_SPEED, 1);
+    return {
+      opacity: progress.value * flicker * GLOW_OPACITY_CAP,
+      backgroundColor: interpolateColor(
+        colorT,
+        [0, 1],
+        [particle.glowColorStart, particle.glowColorEnd],
+      ),
+    };
+  });
+
+  return (
+    <Reanimated.View style={[wrapperStaticStyle, wrapperAnimatedStyle]}>
+      <Reanimated.View style={[glowStaticStyle, glowAnimatedStyle]} />
+      <Reanimated.View style={[staticStyle, particleAnimatedStyle]} />
+    </Reanimated.View>
+  );
 });
 
 ParticleComponent.displayName = "ParticleComponent";
@@ -153,18 +264,44 @@ const getRandomValue = (base: number, variance: number) => {
 const degreesToRadians = (degrees: number) => degrees * (Math.PI / 180);
 
 const defaultParticles: ParticleConfig = {
-  color: "#FF1E1E",
-  // Skewed red rather than an even hue spread, and picked for saturation over the muted salmon
-  // `#FF6B6B` used earlier -- `#FF1E1E`/`#FF3B1F` (each repeated for weight) are vivid, fully
-  // saturated reds rather than a pastel tint, with `#FF6B00` as an occasional vivid-orange accent
-  // rather than true yellow/gold.
-  colors: ["#FF1E1E", "#FF1E1E", "#FF3B1F", "#FF3B1F", "#FF6B00"],
-  // Lowered slightly from 12 -- `getRandomColor`'s 50/50 lighten/darken swing was washing an
-  // already-fairly-light red like the old `#FF6B6B` out toward pastel about half the time; a
-  // smaller swing keeps these more saturated bases reliably vivid instead.
-  colorVariance: 8,
-  size: 13,
-  sizeVariance: 9,
+  // Hand-picked rather than computed. Per explicit user direction, the hot/birth end skews
+  // bright yellow (a deliberate reversal of the earlier "no yellow" call -- that was about a
+  // flat yellow-heavy palette across every particle at all times, not a birth-only flash), with
+  // a few pairs starting more orange/red-orange instead for reddish variation right at birth.
+  // The cooled/death end skews deep red -- a real hue shift, not just a darker version of the
+  // same hot color -- but a *vivid, readable* red (not near-black): the previous near-black ends
+  // (`#8B0000`/`#4A0404`/etc.) coincided with the particle already being nearly transparent by
+  // the time it fully cooled, so the red barely read as red at all. See `COLOR_SHIFT_SPEED`
+  // above too -- these ends are also now reached earlier in life, while still fairly opaque.
+  colorPairs: [
+    ["#FFEB3B", "#D32F2F"], // bright yellow -> vivid red
+    ["#FFD700", "#C62828"], // gold -> deep red
+    ["#FFC107", "#B71C1C"], // amber -> dark red
+    ["#FFA500", "#E53935"], // orange -> vivid red (reddish birth)
+    ["#FF6B00", "#C62828"], // vivid orange -> deep red (reddish birth)
+    ["#FF4500", "#B71C1C"], // orange-red -> dark red (most reddish birth)
+  ],
+  // The glow stays a mix of oranges and reds -- complementing whatever yellow-to-red shade its
+  // own particle is showing, rather than matching it exactly -- ending even darker than the
+  // core's cooled ends since the glow is meant to fade toward nothing.
+  glowColorPairs: [
+    ["#FF8C00", "#4A0404"], // orange -> near-black red
+    ["#FF6B00", "#3B0000"], // vivid orange -> very dark red
+    ["#FF4500", "#450000"], // orange-red -> deep maroon
+    ["#FF3B1F", "#2B0000"], // red-orange -> near-black red
+    ["#D50000", "#1F0000"], // vivid red -> near-black red
+    ["#B22222", "#1A0000"], // firebrick -> near-black
+  ],
+  // Bumped from 8 -- with the wider hue spread across `colorPairs` now doing most of the visual
+  // work, a bit more per-particle jitter reads as "healthy variance" rather than washing anything
+  // out. Still applied on top of each end of a chosen pair above, not the source of the hot/cool
+  // shift itself.
+  colorVariance: 10,
+  // Down from the pre-glow 13/9, but not as far down as the first pass (7/5, which read as too
+  // small) -- with the glow layer added, the solid "core" reads better a bit smaller than before,
+  // just not shrunk this much.
+  size: 9,
+  sizeVariance: 6,
   distance: 18,
   distanceVariance: 12,
   life: 1600,
@@ -180,7 +317,9 @@ const defaultParticles: ParticleConfig = {
   swirlAmplitudeVariance: 8,
   swirlFrequency: 2,
   swirlFrequencyVariance: 1.4,
-  spawnWindow: 250,
+  // Widened from 250 per explicit user direction ("spread out a bit more") -- particles now
+  // trickle in over a longer window instead of arriving in a tighter burst.
+  spawnWindow: 450,
 };
 
 // Module-level so the default is a stable reference across renders -- an inline `= {}` default
@@ -217,17 +356,29 @@ export const ParticleSystem = React.memo(
       );
       const perpAngle = driftAngle + Math.PI / 2;
 
-      const baseColor =
-        config.colors && config.colors.length > 0
-          ? config.colors[Math.floor(Math.random() * config.colors.length)]
-          : config.color;
+      const pickColorPair = (pairs: [string, string][]) =>
+        pairs[Math.floor(Math.random() * pairs.length)];
+
+      const [coreHot, coreCool] = pickColorPair(config.colorPairs);
+      const [glowHot, glowCool] = pickColorPair(config.glowColorPairs);
+
+      // `colorVariance` still adds a little per-particle jitter on top of each authored hue --
+      // the hot-to-cool *shift* itself, though, comes entirely from the picked pair, not a
+      // computed lighten/darken.
+      const colorStart = getRandomColor(coreHot, config.colorVariance);
+      const colorEnd = getRandomColor(coreCool, config.colorVariance);
+      const glowColorStart = getRandomColor(glowHot, config.colorVariance);
+      const glowColorEnd = getRandomColor(glowCool, config.colorVariance);
 
       return {
         id: Math.random(),
         originX: Math.cos(angle) * particleDistance,
         originY: Math.sin(angle) * particleDistance,
         size: particleSize,
-        color: getRandomColor(baseColor, config.colorVariance),
+        colorStart,
+        colorEnd,
+        glowColorStart,
+        glowColorEnd,
         driftX: Math.cos(driftAngle) * driftDistance,
         driftY: Math.sin(driftAngle) * driftDistance,
         perpX: Math.cos(perpAngle),
