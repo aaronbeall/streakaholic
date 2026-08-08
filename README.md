@@ -20,3 +20,4 @@ A playful, modern habit and streak tracker for Android.
 - [TODO.md](TODO.md)
 - [CLAUDE.md](CLAUDE.md)
 - [PUBLISHING.md](PUBLISHING.md)
+- [MONETIZATION.md](MONETIZATION.md)

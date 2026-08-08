@@ -49,12 +49,11 @@
 
 ## MMP
 
-- [ ] Monetization
-  - [ ] Freemium
-  - [ ] AdMob
-  - [ ] Unlocks
-  - [ ] Unfreeze streak
-  - [ ] Tip jar
+- [ ] Monetization — see [MONETIZATION.md](MONETIZATION.md) for the actual plan (one-time Pro unlock + tip jar + streak unfreeze, no ads/subscription) and sequencing
+  - [ ] Tip jar (build first — see PUBLISHING.md's implementation guide)
+  - [ ] Pro unlock (unlimited tasks, widgets, extra customization — build once task cap + widgets exist)
+  - [ ] Unfreeze streak (needs the underlying "restore a lapsed streak" feature designed first, not just billing)
+  - [ ] ~~AdMob~~ — decided against, see MONETIZATION.md
 - [ ] Rate this app
 - [ ] Widgets
 - [ ] Sync (Drive or Dropbox)
