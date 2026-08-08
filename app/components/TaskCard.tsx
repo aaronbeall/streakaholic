@@ -44,6 +44,10 @@ const COMPLETION_HOLD_DURATION = 750;
 // The gap (in degrees) left between each arc segment of a >1x/day task's split progress ring --
 // see `ringSegments` in `CardTask` below.
 const RING_SEGMENT_GAP_DEGREES = 14;
+// The incomplete-state ring/track's opacity -- deliberately more faded than the 0.35 used by the
+// today's-progress wedge below, so the track reads as an empty/base state that the press-and-hold
+// sweep (full solid `task.color`, no opacity) then visibly "fills in" over.
+const INCOMPLETE_RING_OPACITY = 0.25;
 // A rough estimate of the streak *bubble*'s own rendered bounds (icon + streak count text,
 // padding -- deliberately not including the optional trophy icon, which sits outside the bubble
 // itself and shouldn't be covered by the spawn area), used as `ParticleSystem`'s `spawnArea` --
@@ -180,13 +184,38 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
   const CIRCLE_CENTER = 64;
   const INNER_CIRCLE_RADIUS = CIRCLE_RADIUS - CIRCLE_STROKE_WIDTH;
 
-  const animatedProps = useAnimatedProps(() => {
+  // The press-and-hold confirmation, driven by the same `progress.value * 360` sweep, renders as
+  // two coordinated pieces: a stroke arc along the ring/track itself (below), so holding reads as
+  // filling up the muted track like a circular progress bar -- plus (per explicit user direction,
+  // brought back after initially being replaced) the original filled pie slice growing from the
+  // center too, so both the ring and the icon's interior fill together rather than just the ring.
+  const holdProgressAnimatedProps = useAnimatedProps(() => {
     const angle = progress.value * 360;
+    if (angle <= 0) {
+      return { d: '' };
+    }
+    const radians = (angle - 90) * (Math.PI / 180);
+    const x = CIRCLE_CENTER + CIRCLE_RADIUS * Math.cos(radians);
+    const y = CIRCLE_CENTER + CIRCLE_RADIUS * Math.sin(radians);
+    const largeArcFlag = angle > 180 ? 1 : 0;
+    const path = [
+      `M ${CIRCLE_CENTER} ${CIRCLE_CENTER - CIRCLE_RADIUS}`,
+      `A ${CIRCLE_RADIUS} ${CIRCLE_RADIUS} 0 ${largeArcFlag} 1 ${x} ${y}`
+    ].join(' ');
+
+    return {
+      d: path
+    };
+  });
+
+  const holdProgressPieAnimatedProps = useAnimatedProps(() => {
+    const angle = progress.value * 360;
+    if (angle <= 0) {
+      return { d: '' };
+    }
     const radians = (angle - 90) * (Math.PI / 180);
     const x = CIRCLE_CENTER + INNER_CIRCLE_RADIUS * Math.cos(radians);
     const y = CIRCLE_CENTER + INNER_CIRCLE_RADIUS * Math.sin(radians);
-    
-    // Create the path for the pie slice
     const largeArcFlag = angle > 180 ? 1 : 0;
     const path = [
       `M ${CIRCLE_CENTER} ${CIRCLE_CENTER}`,
@@ -234,7 +263,7 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
 
   // Animated pie slice showing how many of today's timesPerDay reps are logged so far --
   // eases toward the new fraction whenever a rep is logged, echoing the same sweep-in
-  // motion as `animatedProps` above (the transient press-and-hold confirmation ring).
+  // motion as `holdProgressAnimatedProps` above (the transient press-and-hold confirmation).
   const dayProgress = useSharedValue(dayProgressFraction);
 
   useEffect(() => {
@@ -358,9 +387,10 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
     <View style={styles.contentContainer}>
       <Reanimated.View style={[styles.iconContainer, { width: iconSize, height: iconSize, borderRadius: iconSize / 2, marginBottom: iconMarginBottom, backgroundColor: 'transparent' }, containerStyle]}>
         <Svg width={iconSize} height={iconSize} viewBox="0 0 128 128">
-          {/* Outer circle (border) -- solid fill once completed, regardless of timesPerDay;
-              while incomplete, either one continuous ring (1x/day) or split into equal arc
-              segments with gaps (>1x/day, see `ringSegments`) */}
+          {/* Outer circle (border) -- solid fill once completed, regardless of timesPerDay.
+              While incomplete it's a faded/muted track instead (either one continuous ring for
+              1x/day, or split into equal arc segments with gaps for >1x/day, see `ringSegments`)
+              that the press-and-hold sweep below then fills in with solid color. */}
           {completed ? (
             <Circle
               cx={CIRCLE_CENTER}
@@ -371,6 +401,10 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
               fill={task.color}
             />
           ) : ringSegments ? (
+            // Segments for reps already logged today render solid (full opacity) even though the
+            // overall task isn't complete yet -- only the remaining, not-yet-done segments stay
+            // muted. Segment order matches rep order (index 0 first), not tied to which particular
+            // press logged which rep, since reps themselves are interchangeable increments.
             ringSegments.map((d, i) => (
               <Path
                 key={i}
@@ -379,6 +413,7 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
                 strokeWidth={CIRCLE_STROKE_WIDTH}
                 strokeLinecap="round"
                 fill="none"
+                opacity={i < completionCount ? 1 : INCOMPLETE_RING_OPACITY}
               />
             ))
           ) : (
@@ -389,18 +424,26 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
               stroke={task.color}
               strokeWidth={CIRCLE_STROKE_WIDTH}
               fill="none"
+              opacity={INCOMPLETE_RING_OPACITY}
             />
           )}
           {/* Today's times-per-day progress, when this task requires more than one rep a day */}
           {!completed && timesPerDayCount > 1 && (
             <AnimatedPath fill={task.color} opacity={0.35} animatedProps={dayProgressAnimatedProps} />
           )}
-          {/* Inner circle (progress) */}
+          {/* Press-and-hold confirmation -- both fill the ring/track itself like a progress bar
+              AND grow a solid pie slice from the center, together */}
           {!completed && (
-            <AnimatedPath
-              fill={task.color}
-              animatedProps={animatedProps}
-            />
+            <>
+              <AnimatedPath fill={task.color} animatedProps={holdProgressPieAnimatedProps} />
+              <AnimatedPath
+                stroke={task.color}
+                strokeWidth={CIRCLE_STROKE_WIDTH}
+                strokeLinecap="round"
+                fill="none"
+                animatedProps={holdProgressAnimatedProps}
+              />
+            </>
           )}
         </Svg>
         <Reanimated.View style={[StyleSheet.absoluteFill, iconStyle]}>
