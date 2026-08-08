@@ -1,0 +1,2501 @@
+{
+  "schemaVersion": 1,
+  "exportId": "demo-data-20260808",
+  "exportedAt": "2026-08-08T00:00:00Z",
+  "appVersion": "1.0.0",
+  "taskCount": 9,
+  "tasks": [
+    {
+      "id": "demo-task-1",
+      "name": "Morning Workout",
+      "icon": "dumbbell",
+      "color": "#FF6B6B",
+      "frequency": "daily",
+      "daysOfWeek": [],
+      "daysPerWeek": 3,
+      "daysPerMonth": 10,
+      "timesPerDay": 1,
+      "createdAt": "2026-05-11T08:00:00Z",
+      "updatedAt": "2026-08-08T08:00:00Z",
+      "completions": [
+        {
+          "id": "demo-comp-2",
+          "taskId": "demo-task-1",
+          "date": "2026-05-11",
+          "completedAt": "2026-05-11T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-3",
+          "taskId": "demo-task-1",
+          "date": "2026-05-12",
+          "completedAt": "2026-05-12T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-4",
+          "taskId": "demo-task-1",
+          "date": "2026-05-13",
+          "completedAt": "2026-05-13T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-5",
+          "taskId": "demo-task-1",
+          "date": "2026-05-14",
+          "completedAt": "2026-05-14T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-6",
+          "taskId": "demo-task-1",
+          "date": "2026-05-15",
+          "completedAt": "2026-05-15T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-7",
+          "taskId": "demo-task-1",
+          "date": "2026-05-16",
+          "completedAt": "2026-05-16T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-8",
+          "taskId": "demo-task-1",
+          "date": "2026-05-17",
+          "completedAt": "2026-05-17T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-9",
+          "taskId": "demo-task-1",
+          "date": "2026-05-18",
+          "completedAt": "2026-05-18T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-10",
+          "taskId": "demo-task-1",
+          "date": "2026-05-19",
+          "completedAt": "2026-05-19T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-11",
+          "taskId": "demo-task-1",
+          "date": "2026-05-20",
+          "completedAt": "2026-05-20T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-12",
+          "taskId": "demo-task-1",
+          "date": "2026-05-21",
+          "completedAt": "2026-05-21T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-13",
+          "taskId": "demo-task-1",
+          "date": "2026-05-22",
+          "completedAt": "2026-05-22T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-14",
+          "taskId": "demo-task-1",
+          "date": "2026-05-23",
+          "completedAt": "2026-05-23T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-15",
+          "taskId": "demo-task-1",
+          "date": "2026-05-24",
+          "completedAt": "2026-05-24T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-16",
+          "taskId": "demo-task-1",
+          "date": "2026-05-25",
+          "completedAt": "2026-05-25T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-17",
+          "taskId": "demo-task-1",
+          "date": "2026-05-26",
+          "completedAt": "2026-05-26T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-18",
+          "taskId": "demo-task-1",
+          "date": "2026-05-27",
+          "completedAt": "2026-05-27T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-19",
+          "taskId": "demo-task-1",
+          "date": "2026-05-28",
+          "completedAt": "2026-05-28T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-20",
+          "taskId": "demo-task-1",
+          "date": "2026-05-29",
+          "completedAt": "2026-05-29T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-21",
+          "taskId": "demo-task-1",
+          "date": "2026-05-30",
+          "completedAt": "2026-05-30T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-22",
+          "taskId": "demo-task-1",
+          "date": "2026-05-31",
+          "completedAt": "2026-05-31T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-23",
+          "taskId": "demo-task-1",
+          "date": "2026-06-01",
+          "completedAt": "2026-06-01T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-24",
+          "taskId": "demo-task-1",
+          "date": "2026-06-02",
+          "completedAt": "2026-06-02T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-25",
+          "taskId": "demo-task-1",
+          "date": "2026-06-03",
+          "completedAt": "2026-06-03T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-26",
+          "taskId": "demo-task-1",
+          "date": "2026-06-04",
+          "completedAt": "2026-06-04T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-27",
+          "taskId": "demo-task-1",
+          "date": "2026-06-05",
+          "completedAt": "2026-06-05T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-28",
+          "taskId": "demo-task-1",
+          "date": "2026-06-06",
+          "completedAt": "2026-06-06T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-29",
+          "taskId": "demo-task-1",
+          "date": "2026-06-07",
+          "completedAt": "2026-06-07T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-30",
+          "taskId": "demo-task-1",
+          "date": "2026-06-08",
+          "completedAt": "2026-06-08T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-31",
+          "taskId": "demo-task-1",
+          "date": "2026-06-09",
+          "completedAt": "2026-06-09T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-32",
+          "taskId": "demo-task-1",
+          "date": "2026-06-10",
+          "completedAt": "2026-06-10T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-33",
+          "taskId": "demo-task-1",
+          "date": "2026-06-11",
+          "completedAt": "2026-06-11T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-34",
+          "taskId": "demo-task-1",
+          "date": "2026-06-12",
+          "completedAt": "2026-06-12T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-35",
+          "taskId": "demo-task-1",
+          "date": "2026-06-13",
+          "completedAt": "2026-06-13T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-36",
+          "taskId": "demo-task-1",
+          "date": "2026-06-14",
+          "completedAt": "2026-06-14T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-37",
+          "taskId": "demo-task-1",
+          "date": "2026-06-15",
+          "completedAt": "2026-06-15T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-38",
+          "taskId": "demo-task-1",
+          "date": "2026-06-16",
+          "completedAt": "2026-06-16T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-39",
+          "taskId": "demo-task-1",
+          "date": "2026-06-17",
+          "completedAt": "2026-06-17T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-40",
+          "taskId": "demo-task-1",
+          "date": "2026-06-18",
+          "completedAt": "2026-06-18T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-41",
+          "taskId": "demo-task-1",
+          "date": "2026-06-19",
+          "completedAt": "2026-06-19T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-42",
+          "taskId": "demo-task-1",
+          "date": "2026-06-20",
+          "completedAt": "2026-06-20T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-43",
+          "taskId": "demo-task-1",
+          "date": "2026-06-21",
+          "completedAt": "2026-06-21T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-44",
+          "taskId": "demo-task-1",
+          "date": "2026-06-22",
+          "completedAt": "2026-06-22T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-45",
+          "taskId": "demo-task-1",
+          "date": "2026-06-23",
+          "completedAt": "2026-06-23T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-46",
+          "taskId": "demo-task-1",
+          "date": "2026-06-24",
+          "completedAt": "2026-06-24T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-47",
+          "taskId": "demo-task-1",
+          "date": "2026-06-25",
+          "completedAt": "2026-06-25T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-48",
+          "taskId": "demo-task-1",
+          "date": "2026-06-26",
+          "completedAt": "2026-06-26T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-49",
+          "taskId": "demo-task-1",
+          "date": "2026-06-27",
+          "completedAt": "2026-06-27T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-50",
+          "taskId": "demo-task-1",
+          "date": "2026-06-28",
+          "completedAt": "2026-06-28T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-51",
+          "taskId": "demo-task-1",
+          "date": "2026-06-29",
+          "completedAt": "2026-06-29T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-52",
+          "taskId": "demo-task-1",
+          "date": "2026-07-05",
+          "completedAt": "2026-07-05T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-53",
+          "taskId": "demo-task-1",
+          "date": "2026-07-06",
+          "completedAt": "2026-07-06T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-54",
+          "taskId": "demo-task-1",
+          "date": "2026-07-07",
+          "completedAt": "2026-07-07T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-55",
+          "taskId": "demo-task-1",
+          "date": "2026-07-08",
+          "completedAt": "2026-07-08T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-56",
+          "taskId": "demo-task-1",
+          "date": "2026-07-09",
+          "completedAt": "2026-07-09T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-57",
+          "taskId": "demo-task-1",
+          "date": "2026-07-10",
+          "completedAt": "2026-07-10T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-58",
+          "taskId": "demo-task-1",
+          "date": "2026-07-11",
+          "completedAt": "2026-07-11T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-59",
+          "taskId": "demo-task-1",
+          "date": "2026-07-12",
+          "completedAt": "2026-07-12T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-60",
+          "taskId": "demo-task-1",
+          "date": "2026-07-13",
+          "completedAt": "2026-07-13T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-61",
+          "taskId": "demo-task-1",
+          "date": "2026-07-14",
+          "completedAt": "2026-07-14T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-62",
+          "taskId": "demo-task-1",
+          "date": "2026-07-15",
+          "completedAt": "2026-07-15T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-63",
+          "taskId": "demo-task-1",
+          "date": "2026-07-16",
+          "completedAt": "2026-07-16T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-64",
+          "taskId": "demo-task-1",
+          "date": "2026-07-17",
+          "completedAt": "2026-07-17T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-65",
+          "taskId": "demo-task-1",
+          "date": "2026-07-18",
+          "completedAt": "2026-07-18T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-66",
+          "taskId": "demo-task-1",
+          "date": "2026-07-19",
+          "completedAt": "2026-07-19T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-67",
+          "taskId": "demo-task-1",
+          "date": "2026-07-20",
+          "completedAt": "2026-07-20T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-68",
+          "taskId": "demo-task-1",
+          "date": "2026-07-21",
+          "completedAt": "2026-07-21T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-69",
+          "taskId": "demo-task-1",
+          "date": "2026-07-22",
+          "completedAt": "2026-07-22T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-70",
+          "taskId": "demo-task-1",
+          "date": "2026-07-23",
+          "completedAt": "2026-07-23T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-71",
+          "taskId": "demo-task-1",
+          "date": "2026-07-24",
+          "completedAt": "2026-07-24T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-72",
+          "taskId": "demo-task-1",
+          "date": "2026-07-25",
+          "completedAt": "2026-07-25T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-73",
+          "taskId": "demo-task-1",
+          "date": "2026-07-26",
+          "completedAt": "2026-07-26T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-74",
+          "taskId": "demo-task-1",
+          "date": "2026-07-27",
+          "completedAt": "2026-07-27T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-75",
+          "taskId": "demo-task-1",
+          "date": "2026-07-28",
+          "completedAt": "2026-07-28T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-76",
+          "taskId": "demo-task-1",
+          "date": "2026-07-29",
+          "completedAt": "2026-07-29T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-77",
+          "taskId": "demo-task-1",
+          "date": "2026-07-30",
+          "completedAt": "2026-07-30T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-78",
+          "taskId": "demo-task-1",
+          "date": "2026-07-31",
+          "completedAt": "2026-07-31T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-79",
+          "taskId": "demo-task-1",
+          "date": "2026-08-01",
+          "completedAt": "2026-08-01T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-80",
+          "taskId": "demo-task-1",
+          "date": "2026-08-02",
+          "completedAt": "2026-08-02T08:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-81",
+          "taskId": "demo-task-1",
+          "date": "2026-08-03",
+          "completedAt": "2026-08-03T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-82",
+          "taskId": "demo-task-1",
+          "date": "2026-08-04",
+          "completedAt": "2026-08-04T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-83",
+          "taskId": "demo-task-1",
+          "date": "2026-08-05",
+          "completedAt": "2026-08-05T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-84",
+          "taskId": "demo-task-1",
+          "date": "2026-08-06",
+          "completedAt": "2026-08-06T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-85",
+          "taskId": "demo-task-1",
+          "date": "2026-08-07",
+          "completedAt": "2026-08-07T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-86",
+          "taskId": "demo-task-1",
+          "date": "2026-08-08",
+          "completedAt": "2026-08-08T08:00:00Z",
+          "timesCompleted": 1
+        }
+      ]
+    },
+    {
+      "id": "demo-task-87",
+      "name": "Drink Water",
+      "icon": "cup-water",
+      "color": "#4ECDC4",
+      "frequency": "daily",
+      "daysOfWeek": [],
+      "daysPerWeek": 3,
+      "daysPerMonth": 10,
+      "timesPerDay": 4,
+      "createdAt": "2026-05-11T08:00:00Z",
+      "updatedAt": "2026-08-08T08:00:00Z",
+      "completions": [
+        {
+          "id": "demo-comp-88",
+          "taskId": "demo-task-87",
+          "date": "2026-05-11",
+          "completedAt": "2026-05-11T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-89",
+          "taskId": "demo-task-87",
+          "date": "2026-05-12",
+          "completedAt": "2026-05-12T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-90",
+          "taskId": "demo-task-87",
+          "date": "2026-05-13",
+          "completedAt": "2026-05-13T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-91",
+          "taskId": "demo-task-87",
+          "date": "2026-05-14",
+          "completedAt": "2026-05-14T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-92",
+          "taskId": "demo-task-87",
+          "date": "2026-05-15",
+          "completedAt": "2026-05-15T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-93",
+          "taskId": "demo-task-87",
+          "date": "2026-05-16",
+          "completedAt": "2026-05-16T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-94",
+          "taskId": "demo-task-87",
+          "date": "2026-05-17",
+          "completedAt": "2026-05-17T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-95",
+          "taskId": "demo-task-87",
+          "date": "2026-05-18",
+          "completedAt": "2026-05-18T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-96",
+          "taskId": "demo-task-87",
+          "date": "2026-05-19",
+          "completedAt": "2026-05-19T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-97",
+          "taskId": "demo-task-87",
+          "date": "2026-05-20",
+          "completedAt": "2026-05-20T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-98",
+          "taskId": "demo-task-87",
+          "date": "2026-05-21",
+          "completedAt": "2026-05-21T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-99",
+          "taskId": "demo-task-87",
+          "date": "2026-05-22",
+          "completedAt": "2026-05-22T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-100",
+          "taskId": "demo-task-87",
+          "date": "2026-05-23",
+          "completedAt": "2026-05-23T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-101",
+          "taskId": "demo-task-87",
+          "date": "2026-05-24",
+          "completedAt": "2026-05-24T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-102",
+          "taskId": "demo-task-87",
+          "date": "2026-05-25",
+          "completedAt": "2026-05-25T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-103",
+          "taskId": "demo-task-87",
+          "date": "2026-05-26",
+          "completedAt": "2026-05-26T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-104",
+          "taskId": "demo-task-87",
+          "date": "2026-05-27",
+          "completedAt": "2026-05-27T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-105",
+          "taskId": "demo-task-87",
+          "date": "2026-05-28",
+          "completedAt": "2026-05-28T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-106",
+          "taskId": "demo-task-87",
+          "date": "2026-05-29",
+          "completedAt": "2026-05-29T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-107",
+          "taskId": "demo-task-87",
+          "date": "2026-05-30",
+          "completedAt": "2026-05-30T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-108",
+          "taskId": "demo-task-87",
+          "date": "2026-05-31",
+          "completedAt": "2026-05-31T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-109",
+          "taskId": "demo-task-87",
+          "date": "2026-06-01",
+          "completedAt": "2026-06-01T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-110",
+          "taskId": "demo-task-87",
+          "date": "2026-06-02",
+          "completedAt": "2026-06-02T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-111",
+          "taskId": "demo-task-87",
+          "date": "2026-06-03",
+          "completedAt": "2026-06-03T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-112",
+          "taskId": "demo-task-87",
+          "date": "2026-06-04",
+          "completedAt": "2026-06-04T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-113",
+          "taskId": "demo-task-87",
+          "date": "2026-06-05",
+          "completedAt": "2026-06-05T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-114",
+          "taskId": "demo-task-87",
+          "date": "2026-06-06",
+          "completedAt": "2026-06-06T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-115",
+          "taskId": "demo-task-87",
+          "date": "2026-06-07",
+          "completedAt": "2026-06-07T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-116",
+          "taskId": "demo-task-87",
+          "date": "2026-06-08",
+          "completedAt": "2026-06-08T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-117",
+          "taskId": "demo-task-87",
+          "date": "2026-06-09",
+          "completedAt": "2026-06-09T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-118",
+          "taskId": "demo-task-87",
+          "date": "2026-06-10",
+          "completedAt": "2026-06-10T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-119",
+          "taskId": "demo-task-87",
+          "date": "2026-06-11",
+          "completedAt": "2026-06-11T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-120",
+          "taskId": "demo-task-87",
+          "date": "2026-06-12",
+          "completedAt": "2026-06-12T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-121",
+          "taskId": "demo-task-87",
+          "date": "2026-06-13",
+          "completedAt": "2026-06-13T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-122",
+          "taskId": "demo-task-87",
+          "date": "2026-06-14",
+          "completedAt": "2026-06-14T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-123",
+          "taskId": "demo-task-87",
+          "date": "2026-06-15",
+          "completedAt": "2026-06-15T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-124",
+          "taskId": "demo-task-87",
+          "date": "2026-06-16",
+          "completedAt": "2026-06-16T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-125",
+          "taskId": "demo-task-87",
+          "date": "2026-06-17",
+          "completedAt": "2026-06-17T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-126",
+          "taskId": "demo-task-87",
+          "date": "2026-06-18",
+          "completedAt": "2026-06-18T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-127",
+          "taskId": "demo-task-87",
+          "date": "2026-06-19",
+          "completedAt": "2026-06-19T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-128",
+          "taskId": "demo-task-87",
+          "date": "2026-06-20",
+          "completedAt": "2026-06-20T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-129",
+          "taskId": "demo-task-87",
+          "date": "2026-06-21",
+          "completedAt": "2026-06-21T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-130",
+          "taskId": "demo-task-87",
+          "date": "2026-06-22",
+          "completedAt": "2026-06-22T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-131",
+          "taskId": "demo-task-87",
+          "date": "2026-06-23",
+          "completedAt": "2026-06-23T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-132",
+          "taskId": "demo-task-87",
+          "date": "2026-06-24",
+          "completedAt": "2026-06-24T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-133",
+          "taskId": "demo-task-87",
+          "date": "2026-06-25",
+          "completedAt": "2026-06-25T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-134",
+          "taskId": "demo-task-87",
+          "date": "2026-06-26",
+          "completedAt": "2026-06-26T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-135",
+          "taskId": "demo-task-87",
+          "date": "2026-06-27",
+          "completedAt": "2026-06-27T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-136",
+          "taskId": "demo-task-87",
+          "date": "2026-06-28",
+          "completedAt": "2026-06-28T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-137",
+          "taskId": "demo-task-87",
+          "date": "2026-06-29",
+          "completedAt": "2026-06-29T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-138",
+          "taskId": "demo-task-87",
+          "date": "2026-06-30",
+          "completedAt": "2026-06-30T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-139",
+          "taskId": "demo-task-87",
+          "date": "2026-07-01",
+          "completedAt": "2026-07-01T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-140",
+          "taskId": "demo-task-87",
+          "date": "2026-07-02",
+          "completedAt": "2026-07-02T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-141",
+          "taskId": "demo-task-87",
+          "date": "2026-07-03",
+          "completedAt": "2026-07-03T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-142",
+          "taskId": "demo-task-87",
+          "date": "2026-07-04",
+          "completedAt": "2026-07-04T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-143",
+          "taskId": "demo-task-87",
+          "date": "2026-07-05",
+          "completedAt": "2026-07-05T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-144",
+          "taskId": "demo-task-87",
+          "date": "2026-07-06",
+          "completedAt": "2026-07-06T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-145",
+          "taskId": "demo-task-87",
+          "date": "2026-07-07",
+          "completedAt": "2026-07-07T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-146",
+          "taskId": "demo-task-87",
+          "date": "2026-07-08",
+          "completedAt": "2026-07-08T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-147",
+          "taskId": "demo-task-87",
+          "date": "2026-07-09",
+          "completedAt": "2026-07-09T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-148",
+          "taskId": "demo-task-87",
+          "date": "2026-07-10",
+          "completedAt": "2026-07-10T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-149",
+          "taskId": "demo-task-87",
+          "date": "2026-07-11",
+          "completedAt": "2026-07-11T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-150",
+          "taskId": "demo-task-87",
+          "date": "2026-07-12",
+          "completedAt": "2026-07-12T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-151",
+          "taskId": "demo-task-87",
+          "date": "2026-07-13",
+          "completedAt": "2026-07-13T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-152",
+          "taskId": "demo-task-87",
+          "date": "2026-07-14",
+          "completedAt": "2026-07-14T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-153",
+          "taskId": "demo-task-87",
+          "date": "2026-07-15",
+          "completedAt": "2026-07-15T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-154",
+          "taskId": "demo-task-87",
+          "date": "2026-07-16",
+          "completedAt": "2026-07-16T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-155",
+          "taskId": "demo-task-87",
+          "date": "2026-07-17",
+          "completedAt": "2026-07-17T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-156",
+          "taskId": "demo-task-87",
+          "date": "2026-07-18",
+          "completedAt": "2026-07-18T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-157",
+          "taskId": "demo-task-87",
+          "date": "2026-07-19",
+          "completedAt": "2026-07-19T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-158",
+          "taskId": "demo-task-87",
+          "date": "2026-07-20",
+          "completedAt": "2026-07-20T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-159",
+          "taskId": "demo-task-87",
+          "date": "2026-07-21",
+          "completedAt": "2026-07-21T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-160",
+          "taskId": "demo-task-87",
+          "date": "2026-07-22",
+          "completedAt": "2026-07-22T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-161",
+          "taskId": "demo-task-87",
+          "date": "2026-07-23",
+          "completedAt": "2026-07-23T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-162",
+          "taskId": "demo-task-87",
+          "date": "2026-07-24",
+          "completedAt": "2026-07-24T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-163",
+          "taskId": "demo-task-87",
+          "date": "2026-07-25",
+          "completedAt": "2026-07-25T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-164",
+          "taskId": "demo-task-87",
+          "date": "2026-07-26",
+          "completedAt": "2026-07-26T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-165",
+          "taskId": "demo-task-87",
+          "date": "2026-07-27",
+          "completedAt": "2026-07-27T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-166",
+          "taskId": "demo-task-87",
+          "date": "2026-07-28",
+          "completedAt": "2026-07-28T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-167",
+          "taskId": "demo-task-87",
+          "date": "2026-07-29",
+          "completedAt": "2026-07-29T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-168",
+          "taskId": "demo-task-87",
+          "date": "2026-07-30",
+          "completedAt": "2026-07-30T19:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-169",
+          "taskId": "demo-task-87",
+          "date": "2026-07-31",
+          "completedAt": "2026-07-31T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-170",
+          "taskId": "demo-task-87",
+          "date": "2026-08-01",
+          "completedAt": "2026-08-01T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-171",
+          "taskId": "demo-task-87",
+          "date": "2026-08-02",
+          "completedAt": "2026-08-02T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-172",
+          "taskId": "demo-task-87",
+          "date": "2026-08-03",
+          "completedAt": "2026-08-03T22:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-173",
+          "taskId": "demo-task-87",
+          "date": "2026-08-04",
+          "completedAt": "2026-08-04T20:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-174",
+          "taskId": "demo-task-87",
+          "date": "2026-08-05",
+          "completedAt": "2026-08-05T21:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-175",
+          "taskId": "demo-task-87",
+          "date": "2026-08-06",
+          "completedAt": "2026-08-06T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-176",
+          "taskId": "demo-task-87",
+          "date": "2026-08-07",
+          "completedAt": "2026-08-07T18:00:00Z",
+          "timesCompleted": 4
+        },
+        {
+          "id": "demo-comp-177",
+          "taskId": "demo-task-87",
+          "date": "2026-08-08",
+          "completedAt": "2026-08-08T13:00:00Z",
+          "timesCompleted": 2
+        }
+      ]
+    },
+    {
+      "id": "demo-task-178",
+      "name": "Read Before Bed",
+      "icon": "book-open-page-variant",
+      "color": "#9B59B6",
+      "frequency": "specific_days_of_week",
+      "daysOfWeek": [
+        0,
+        1,
+        3,
+        5
+      ],
+      "daysPerWeek": 3,
+      "daysPerMonth": 10,
+      "timesPerDay": 1,
+      "createdAt": "2026-05-11T08:00:00Z",
+      "updatedAt": "2026-08-08T08:00:00Z",
+      "completions": [
+        {
+          "id": "demo-comp-179",
+          "taskId": "demo-task-178",
+          "date": "2026-05-17",
+          "completedAt": "2026-05-17T21:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-180",
+          "taskId": "demo-task-178",
+          "date": "2026-05-18",
+          "completedAt": "2026-05-18T23:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-181",
+          "taskId": "demo-task-178",
+          "date": "2026-05-22",
+          "completedAt": "2026-05-22T22:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-182",
+          "taskId": "demo-task-178",
+          "date": "2026-05-27",
+          "completedAt": "2026-05-27T21:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-183",
+          "taskId": "demo-task-178",
+          "date": "2026-05-29",
+          "completedAt": "2026-05-29T22:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-184",
+          "taskId": "demo-task-178",
+          "date": "2026-06-01",
+          "completedAt": "2026-06-01T23:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-185",
+          "taskId": "demo-task-178",
+          "date": "2026-06-05",
+          "completedAt": "2026-06-05T21:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-186",
+          "taskId": "demo-task-178",
+          "date": "2026-06-14",
+          "completedAt": "2026-06-14T23:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-187",
+          "taskId": "demo-task-178",
+          "date": "2026-06-17",
+          "completedAt": "2026-06-17T23:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-188",
+          "taskId": "demo-task-178",
+          "date": "2026-06-19",
+          "completedAt": "2026-06-19T21:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-189",
+          "taskId": "demo-task-178",
+          "date": "2026-06-21",
+          "completedAt": "2026-06-21T22:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-190",
+          "taskId": "demo-task-178",
+          "date": "2026-06-22",
+          "completedAt": "2026-06-22T23:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-191",
+          "taskId": "demo-task-178",
+          "date": "2026-06-24",
+          "completedAt": "2026-06-24T21:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-192",
+          "taskId": "demo-task-178",
+          "date": "2026-06-26",
+          "completedAt": "2026-06-26T23:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-193",
+          "taskId": "demo-task-178",
+          "date": "2026-06-29",
+          "completedAt": "2026-06-29T21:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-194",
+          "taskId": "demo-task-178",
+          "date": "2026-07-03",
+          "completedAt": "2026-07-03T21:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-195",
+          "taskId": "demo-task-178",
+          "date": "2026-07-05",
+          "completedAt": "2026-07-05T22:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-196",
+          "taskId": "demo-task-178",
+          "date": "2026-07-06",
+          "completedAt": "2026-07-06T21:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-197",
+          "taskId": "demo-task-178",
+          "date": "2026-07-12",
+          "completedAt": "2026-07-12T21:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-198",
+          "taskId": "demo-task-178",
+          "date": "2026-07-17",
+          "completedAt": "2026-07-17T21:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-199",
+          "taskId": "demo-task-178",
+          "date": "2026-07-20",
+          "completedAt": "2026-07-20T22:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-200",
+          "taskId": "demo-task-178",
+          "date": "2026-07-22",
+          "completedAt": "2026-07-22T23:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-201",
+          "taskId": "demo-task-178",
+          "date": "2026-07-24",
+          "completedAt": "2026-07-24T23:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-202",
+          "taskId": "demo-task-178",
+          "date": "2026-07-27",
+          "completedAt": "2026-07-27T22:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-203",
+          "taskId": "demo-task-178",
+          "date": "2026-08-02",
+          "completedAt": "2026-08-02T21:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-204",
+          "taskId": "demo-task-178",
+          "date": "2026-08-03",
+          "completedAt": "2026-08-03T22:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-205",
+          "taskId": "demo-task-178",
+          "date": "2026-08-05",
+          "completedAt": "2026-08-05T21:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-206",
+          "taskId": "demo-task-178",
+          "date": "2026-08-07",
+          "completedAt": "2026-08-07T21:00:00Z",
+          "timesCompleted": 1
+        }
+      ]
+    },
+    {
+      "id": "demo-task-207",
+      "name": "Meal Prep",
+      "icon": "chef-hat",
+      "color": "#2ECC71",
+      "frequency": "days_per_week",
+      "daysOfWeek": [],
+      "daysPerWeek": 3,
+      "daysPerMonth": 10,
+      "timesPerDay": 1,
+      "createdAt": "2026-05-11T08:00:00Z",
+      "updatedAt": "2026-08-08T08:00:00Z",
+      "completions": [
+        {
+          "id": "demo-comp-208",
+          "taskId": "demo-task-207",
+          "date": "2026-05-14",
+          "completedAt": "2026-05-14T09:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-209",
+          "taskId": "demo-task-207",
+          "date": "2026-05-15",
+          "completedAt": "2026-05-15T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-210",
+          "taskId": "demo-task-207",
+          "date": "2026-05-11",
+          "completedAt": "2026-05-11T09:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-211",
+          "taskId": "demo-task-207",
+          "date": "2026-05-24",
+          "completedAt": "2026-05-24T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-212",
+          "taskId": "demo-task-207",
+          "date": "2026-05-19",
+          "completedAt": "2026-05-19T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-213",
+          "taskId": "demo-task-207",
+          "date": "2026-05-23",
+          "completedAt": "2026-05-23T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-214",
+          "taskId": "demo-task-207",
+          "date": "2026-05-31",
+          "completedAt": "2026-05-31T10:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-215",
+          "taskId": "demo-task-207",
+          "date": "2026-05-28",
+          "completedAt": "2026-05-28T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-216",
+          "taskId": "demo-task-207",
+          "date": "2026-05-25",
+          "completedAt": "2026-05-25T09:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-217",
+          "taskId": "demo-task-207",
+          "date": "2026-06-03",
+          "completedAt": "2026-06-03T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-218",
+          "taskId": "demo-task-207",
+          "date": "2026-06-04",
+          "completedAt": "2026-06-04T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-219",
+          "taskId": "demo-task-207",
+          "date": "2026-06-07",
+          "completedAt": "2026-06-07T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-220",
+          "taskId": "demo-task-207",
+          "date": "2026-06-09",
+          "completedAt": "2026-06-09T09:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-221",
+          "taskId": "demo-task-207",
+          "date": "2026-06-10",
+          "completedAt": "2026-06-10T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-222",
+          "taskId": "demo-task-207",
+          "date": "2026-06-14",
+          "completedAt": "2026-06-14T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-223",
+          "taskId": "demo-task-207",
+          "date": "2026-06-20",
+          "completedAt": "2026-06-20T09:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-224",
+          "taskId": "demo-task-207",
+          "date": "2026-06-17",
+          "completedAt": "2026-06-17T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-225",
+          "taskId": "demo-task-207",
+          "date": "2026-06-15",
+          "completedAt": "2026-06-15T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-226",
+          "taskId": "demo-task-207",
+          "date": "2026-06-28",
+          "completedAt": "2026-06-28T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-227",
+          "taskId": "demo-task-207",
+          "date": "2026-06-26",
+          "completedAt": "2026-06-26T09:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-228",
+          "taskId": "demo-task-207",
+          "date": "2026-06-23",
+          "completedAt": "2026-06-23T10:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-229",
+          "taskId": "demo-task-207",
+          "date": "2026-06-22",
+          "completedAt": "2026-06-22T09:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-230",
+          "taskId": "demo-task-207",
+          "date": "2026-07-03",
+          "completedAt": "2026-07-03T10:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-231",
+          "taskId": "demo-task-207",
+          "date": "2026-06-29",
+          "completedAt": "2026-06-29T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-232",
+          "taskId": "demo-task-207",
+          "date": "2026-07-10",
+          "completedAt": "2026-07-10T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-233",
+          "taskId": "demo-task-207",
+          "date": "2026-07-07",
+          "completedAt": "2026-07-07T09:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-234",
+          "taskId": "demo-task-207",
+          "date": "2026-07-12",
+          "completedAt": "2026-07-12T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-235",
+          "taskId": "demo-task-207",
+          "date": "2026-07-16",
+          "completedAt": "2026-07-16T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-236",
+          "taskId": "demo-task-207",
+          "date": "2026-07-18",
+          "completedAt": "2026-07-18T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-237",
+          "taskId": "demo-task-207",
+          "date": "2026-07-17",
+          "completedAt": "2026-07-17T11:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-238",
+          "taskId": "demo-task-207",
+          "date": "2026-07-21",
+          "completedAt": "2026-07-21T10:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-239",
+          "taskId": "demo-task-207",
+          "date": "2026-07-25",
+          "completedAt": "2026-07-25T11:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-240",
+          "taskId": "demo-task-207",
+          "date": "2026-07-22",
+          "completedAt": "2026-07-22T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-241",
+          "taskId": "demo-task-207",
+          "date": "2026-08-05",
+          "completedAt": "2026-08-05T11:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-242",
+          "taskId": "demo-task-207",
+          "date": "2026-08-07",
+          "completedAt": "2026-08-07T12:00:00Z",
+          "timesCompleted": 1
+        }
+      ]
+    },
+    {
+      "id": "demo-task-243",
+      "name": "Deep Clean",
+      "icon": "broom",
+      "color": "#E67E22",
+      "frequency": "days_per_month",
+      "daysOfWeek": [],
+      "daysPerWeek": 3,
+      "daysPerMonth": 4,
+      "timesPerDay": 1,
+      "createdAt": "2026-05-11T08:00:00Z",
+      "updatedAt": "2026-08-08T08:00:00Z",
+      "completions": [
+        {
+          "id": "demo-comp-244",
+          "taskId": "demo-task-243",
+          "date": "2026-06-01",
+          "completedAt": "2026-06-01T14:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-245",
+          "taskId": "demo-task-243",
+          "date": "2026-05-31",
+          "completedAt": "2026-05-31T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-246",
+          "taskId": "demo-task-243",
+          "date": "2026-05-25",
+          "completedAt": "2026-05-25T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-247",
+          "taskId": "demo-task-243",
+          "date": "2026-05-20",
+          "completedAt": "2026-05-20T15:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-248",
+          "taskId": "demo-task-243",
+          "date": "2026-06-29",
+          "completedAt": "2026-06-29T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-249",
+          "taskId": "demo-task-243",
+          "date": "2026-06-28",
+          "completedAt": "2026-06-28T16:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-250",
+          "taskId": "demo-task-243",
+          "date": "2026-06-13",
+          "completedAt": "2026-06-13T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-251",
+          "taskId": "demo-task-243",
+          "date": "2026-07-21",
+          "completedAt": "2026-07-21T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-252",
+          "taskId": "demo-task-243",
+          "date": "2026-07-18",
+          "completedAt": "2026-07-18T14:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-253",
+          "taskId": "demo-task-243",
+          "date": "2026-07-14",
+          "completedAt": "2026-07-14T14:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-254",
+          "taskId": "demo-task-243",
+          "date": "2026-07-12",
+          "completedAt": "2026-07-12T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-255",
+          "taskId": "demo-task-243",
+          "date": "2026-08-05",
+          "completedAt": "2026-08-05T15:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-256",
+          "taskId": "demo-task-243",
+          "date": "2026-08-07",
+          "completedAt": "2026-08-07T13:00:00Z",
+          "timesCompleted": 1
+        }
+      ]
+    },
+    {
+      "id": "demo-task-257",
+      "name": "Guitar Practice",
+      "icon": "guitar-acoustic",
+      "color": "#E74C3C",
+      "frequency": "daily",
+      "daysOfWeek": [],
+      "daysPerWeek": 3,
+      "daysPerMonth": 10,
+      "timesPerDay": 1,
+      "createdAt": "2026-08-05T08:00:00Z",
+      "updatedAt": "2026-08-08T08:00:00Z",
+      "completions": [
+        {
+          "id": "demo-comp-258",
+          "taskId": "demo-task-257",
+          "date": "2026-08-05",
+          "completedAt": "2026-08-05T19:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-259",
+          "taskId": "demo-task-257",
+          "date": "2026-08-06",
+          "completedAt": "2026-08-06T20:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-260",
+          "taskId": "demo-task-257",
+          "date": "2026-08-07",
+          "completedAt": "2026-08-07T20:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-261",
+          "taskId": "demo-task-257",
+          "date": "2026-08-08",
+          "completedAt": "2026-08-08T19:00:00Z",
+          "timesCompleted": 1
+        }
+      ]
+    },
+    {
+      "id": "demo-task-262",
+      "name": "Meditate",
+      "icon": "meditation",
+      "color": "#5B6EE1",
+      "frequency": "days_per_week",
+      "daysOfWeek": [],
+      "daysPerWeek": 5,
+      "daysPerMonth": 10,
+      "timesPerDay": 1,
+      "createdAt": "2026-05-11T08:00:00Z",
+      "updatedAt": "2026-08-08T08:00:00Z",
+      "completions": [
+        {
+          "id": "demo-comp-263",
+          "taskId": "demo-task-262",
+          "date": "2026-05-15",
+          "completedAt": "2026-05-15T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-264",
+          "taskId": "demo-task-262",
+          "date": "2026-05-16",
+          "completedAt": "2026-05-16T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-265",
+          "taskId": "demo-task-262",
+          "date": "2026-05-17",
+          "completedAt": "2026-05-17T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-266",
+          "taskId": "demo-task-262",
+          "date": "2026-05-11",
+          "completedAt": "2026-05-11T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-267",
+          "taskId": "demo-task-262",
+          "date": "2026-05-13",
+          "completedAt": "2026-05-13T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-268",
+          "taskId": "demo-task-262",
+          "date": "2026-05-20",
+          "completedAt": "2026-05-20T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-269",
+          "taskId": "demo-task-262",
+          "date": "2026-05-18",
+          "completedAt": "2026-05-18T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-270",
+          "taskId": "demo-task-262",
+          "date": "2026-05-23",
+          "completedAt": "2026-05-23T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-271",
+          "taskId": "demo-task-262",
+          "date": "2026-05-19",
+          "completedAt": "2026-05-19T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-272",
+          "taskId": "demo-task-262",
+          "date": "2026-05-21",
+          "completedAt": "2026-05-21T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-273",
+          "taskId": "demo-task-262",
+          "date": "2026-05-26",
+          "completedAt": "2026-05-26T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-274",
+          "taskId": "demo-task-262",
+          "date": "2026-05-30",
+          "completedAt": "2026-05-30T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-275",
+          "taskId": "demo-task-262",
+          "date": "2026-05-27",
+          "completedAt": "2026-05-27T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-276",
+          "taskId": "demo-task-262",
+          "date": "2026-05-28",
+          "completedAt": "2026-05-28T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-277",
+          "taskId": "demo-task-262",
+          "date": "2026-05-31",
+          "completedAt": "2026-05-31T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-278",
+          "taskId": "demo-task-262",
+          "date": "2026-06-01",
+          "completedAt": "2026-06-01T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-279",
+          "taskId": "demo-task-262",
+          "date": "2026-06-07",
+          "completedAt": "2026-06-07T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-280",
+          "taskId": "demo-task-262",
+          "date": "2026-06-03",
+          "completedAt": "2026-06-03T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-281",
+          "taskId": "demo-task-262",
+          "date": "2026-06-02",
+          "completedAt": "2026-06-02T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-282",
+          "taskId": "demo-task-262",
+          "date": "2026-06-05",
+          "completedAt": "2026-06-05T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-283",
+          "taskId": "demo-task-262",
+          "date": "2026-06-13",
+          "completedAt": "2026-06-13T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-284",
+          "taskId": "demo-task-262",
+          "date": "2026-06-11",
+          "completedAt": "2026-06-11T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-285",
+          "taskId": "demo-task-262",
+          "date": "2026-06-12",
+          "completedAt": "2026-06-12T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-286",
+          "taskId": "demo-task-262",
+          "date": "2026-06-08",
+          "completedAt": "2026-06-08T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-287",
+          "taskId": "demo-task-262",
+          "date": "2026-06-14",
+          "completedAt": "2026-06-14T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-288",
+          "taskId": "demo-task-262",
+          "date": "2026-06-21",
+          "completedAt": "2026-06-21T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-289",
+          "taskId": "demo-task-262",
+          "date": "2026-06-17",
+          "completedAt": "2026-06-17T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-290",
+          "taskId": "demo-task-262",
+          "date": "2026-06-19",
+          "completedAt": "2026-06-19T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-291",
+          "taskId": "demo-task-262",
+          "date": "2026-06-16",
+          "completedAt": "2026-06-16T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-292",
+          "taskId": "demo-task-262",
+          "date": "2026-06-18",
+          "completedAt": "2026-06-18T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-293",
+          "taskId": "demo-task-262",
+          "date": "2026-06-24",
+          "completedAt": "2026-06-24T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-294",
+          "taskId": "demo-task-262",
+          "date": "2026-06-23",
+          "completedAt": "2026-06-23T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-295",
+          "taskId": "demo-task-262",
+          "date": "2026-06-27",
+          "completedAt": "2026-06-27T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-296",
+          "taskId": "demo-task-262",
+          "date": "2026-06-22",
+          "completedAt": "2026-06-22T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-297",
+          "taskId": "demo-task-262",
+          "date": "2026-06-26",
+          "completedAt": "2026-06-26T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-298",
+          "taskId": "demo-task-262",
+          "date": "2026-06-30",
+          "completedAt": "2026-06-30T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-299",
+          "taskId": "demo-task-262",
+          "date": "2026-07-05",
+          "completedAt": "2026-07-05T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-300",
+          "taskId": "demo-task-262",
+          "date": "2026-07-04",
+          "completedAt": "2026-07-04T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-301",
+          "taskId": "demo-task-262",
+          "date": "2026-07-02",
+          "completedAt": "2026-07-02T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-302",
+          "taskId": "demo-task-262",
+          "date": "2026-06-29",
+          "completedAt": "2026-06-29T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-303",
+          "taskId": "demo-task-262",
+          "date": "2026-07-12",
+          "completedAt": "2026-07-12T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-304",
+          "taskId": "demo-task-262",
+          "date": "2026-07-11",
+          "completedAt": "2026-07-11T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-305",
+          "taskId": "demo-task-262",
+          "date": "2026-07-07",
+          "completedAt": "2026-07-07T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-306",
+          "taskId": "demo-task-262",
+          "date": "2026-07-08",
+          "completedAt": "2026-07-08T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-307",
+          "taskId": "demo-task-262",
+          "date": "2026-07-06",
+          "completedAt": "2026-07-06T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-308",
+          "taskId": "demo-task-262",
+          "date": "2026-07-14",
+          "completedAt": "2026-07-14T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-309",
+          "taskId": "demo-task-262",
+          "date": "2026-07-19",
+          "completedAt": "2026-07-19T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-310",
+          "taskId": "demo-task-262",
+          "date": "2026-07-16",
+          "completedAt": "2026-07-16T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-311",
+          "taskId": "demo-task-262",
+          "date": "2026-07-15",
+          "completedAt": "2026-07-15T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-312",
+          "taskId": "demo-task-262",
+          "date": "2026-07-18",
+          "completedAt": "2026-07-18T05:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-313",
+          "taskId": "demo-task-262",
+          "date": "2026-07-23",
+          "completedAt": "2026-07-23T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-314",
+          "taskId": "demo-task-262",
+          "date": "2026-07-22",
+          "completedAt": "2026-07-22T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-315",
+          "taskId": "demo-task-262",
+          "date": "2026-07-25",
+          "completedAt": "2026-07-25T07:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-316",
+          "taskId": "demo-task-262",
+          "date": "2026-07-20",
+          "completedAt": "2026-07-20T06:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-317",
+          "taskId": "demo-task-262",
+          "date": "2026-07-21",
+          "completedAt": "2026-07-21T07:00:00Z",
+          "timesCompleted": 1
+        }
+      ]
+    },
+    {
+      "id": "demo-task-318",
+      "name": "No Sugar",
+      "icon": "close-octagon",
+      "color": "#95A5A6",
+      "frequency": "daily",
+      "daysOfWeek": [],
+      "daysPerWeek": 3,
+      "daysPerMonth": 10,
+      "timesPerDay": 1,
+      "createdAt": "2026-05-11T08:00:00Z",
+      "updatedAt": "2026-08-08T08:00:00Z",
+      "completions": [
+        {
+          "id": "demo-comp-319",
+          "taskId": "demo-task-318",
+          "date": "2026-05-12",
+          "completedAt": "2026-05-12T09:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-320",
+          "taskId": "demo-task-318",
+          "date": "2026-05-13",
+          "completedAt": "2026-05-13T11:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-321",
+          "taskId": "demo-task-318",
+          "date": "2026-05-14",
+          "completedAt": "2026-05-14T11:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-322",
+          "taskId": "demo-task-318",
+          "date": "2026-05-15",
+          "completedAt": "2026-05-15T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-323",
+          "taskId": "demo-task-318",
+          "date": "2026-05-16",
+          "completedAt": "2026-05-16T14:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-324",
+          "taskId": "demo-task-318",
+          "date": "2026-05-18",
+          "completedAt": "2026-05-18T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-325",
+          "taskId": "demo-task-318",
+          "date": "2026-05-19",
+          "completedAt": "2026-05-19T13:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-326",
+          "taskId": "demo-task-318",
+          "date": "2026-05-20",
+          "completedAt": "2026-05-20T09:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-327",
+          "taskId": "demo-task-318",
+          "date": "2026-05-22",
+          "completedAt": "2026-05-22T15:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-328",
+          "taskId": "demo-task-318",
+          "date": "2026-05-23",
+          "completedAt": "2026-05-23T14:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-329",
+          "taskId": "demo-task-318",
+          "date": "2026-05-26",
+          "completedAt": "2026-05-26T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-330",
+          "taskId": "demo-task-318",
+          "date": "2026-05-27",
+          "completedAt": "2026-05-27T14:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-331",
+          "taskId": "demo-task-318",
+          "date": "2026-05-29",
+          "completedAt": "2026-05-29T14:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-332",
+          "taskId": "demo-task-318",
+          "date": "2026-06-01",
+          "completedAt": "2026-06-01T11:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-333",
+          "taskId": "demo-task-318",
+          "date": "2026-06-02",
+          "completedAt": "2026-06-02T11:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-334",
+          "taskId": "demo-task-318",
+          "date": "2026-06-03",
+          "completedAt": "2026-06-03T11:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-335",
+          "taskId": "demo-task-318",
+          "date": "2026-06-04",
+          "completedAt": "2026-06-04T10:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-336",
+          "taskId": "demo-task-318",
+          "date": "2026-06-05",
+          "completedAt": "2026-06-05T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-337",
+          "taskId": "demo-task-318",
+          "date": "2026-06-06",
+          "completedAt": "2026-06-06T10:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-338",
+          "taskId": "demo-task-318",
+          "date": "2026-06-07",
+          "completedAt": "2026-06-07T11:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-339",
+          "taskId": "demo-task-318",
+          "date": "2026-06-08",
+          "completedAt": "2026-06-08T15:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-340",
+          "taskId": "demo-task-318",
+          "date": "2026-06-09",
+          "completedAt": "2026-06-09T11:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-341",
+          "taskId": "demo-task-318",
+          "date": "2026-06-10",
+          "completedAt": "2026-06-10T15:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-342",
+          "taskId": "demo-task-318",
+          "date": "2026-06-11",
+          "completedAt": "2026-06-11T14:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-343",
+          "taskId": "demo-task-318",
+          "date": "2026-06-12",
+          "completedAt": "2026-06-12T12:00:00Z",
+          "timesCompleted": 1
+        },
+        {
+          "id": "demo-comp-344",
+          "taskId": "demo-task-318",
+          "date": "2026-06-13",
+          "completedAt": "2026-06-13T10:00:00Z",
+          "timesCompleted": 1
+        }
+      ],
+      "archived": true
+    },
+    {
+      "id": "demo-task-345",
+      "name": "Learn Spanish",
+      "icon": "translate",
+      "color": "#F39C12",
+      "frequency": "daily",
+      "daysOfWeek": [],
+      "daysPerWeek": 3,
+      "daysPerMonth": 10,
+      "timesPerDay": 1,
+      "createdAt": "2026-08-08T08:00:00Z",
+      "updatedAt": "2026-08-08T08:00:00Z",
+      "completions": []
+    }
+  ]
+}
