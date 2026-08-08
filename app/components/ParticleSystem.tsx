@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Reanimated, {
   Easing,
   useAnimatedStyle,
@@ -39,7 +39,7 @@ interface ParticleSystemProps {
   particles?: Partial<ParticleConfig>;
 }
 
-const ParticleComponent = ({ particle }: { particle: Particle }) => {
+const ParticleComponent = React.memo(({ particle }: { particle: Particle }) => {
   const progress = useSharedValue(1);
 
   React.useEffect(() => {
@@ -54,14 +54,19 @@ const ParticleComponent = ({ particle }: { particle: Particle }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const style = useAnimatedStyle(() => ({
-    position: 'absolute',
+  // Split from the animated style below -- these never change over the particle's life, so
+  // there's no reason to rebuild them on the UI thread every frame `progress` ticks.
+  const staticStyle = useMemo(() => ({
+    position: 'absolute' as const,
     left: 0,
     top: 0,
     width: particle.size,
     height: particle.size,
     borderRadius: particle.size / 2,
-    backgroundColor: particle.color,
+    backgroundColor: particle.color
+  }), [particle]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: particle.originX + particle.driftX * (1 - progress.value) },
       { translateY: particle.originY + particle.driftY * (1 - progress.value) },
@@ -70,8 +75,10 @@ const ParticleComponent = ({ particle }: { particle: Particle }) => {
     opacity: progress.value
   }));
 
-  return <Reanimated.View style={style} />;
-};
+  return <Reanimated.View style={[staticStyle, animatedStyle]} />;
+});
+
+ParticleComponent.displayName = 'ParticleComponent';
 
 const getRandomColor = (color: string, variance: number) => {
   const baseColor = tinycolor(color);
@@ -107,24 +114,27 @@ const defaultParticles: ParticleConfig = {
   driftDistanceVariance: 20
 };
 
-export const ParticleSystem = React.memo(({ 
+// Module-level so the default is a stable reference across renders -- an inline `= {}` default
+// parameter creates a brand new object every render, which would defeat `config`'s `useMemo`
+// below every single time a caller omits the `particles` prop (the common case).
+const EMPTY_PARTICLE_CONFIG: Partial<ParticleConfig> = {};
+
+export const ParticleSystem = React.memo(({
   count = 12,
   onComplete,
-  particles = {}
+  particles = EMPTY_PARTICLE_CONFIG
 }: ParticleSystemProps) => {
-  const [particleState, setParticleState] = useState<Particle[]>([]);
-  
   const config = useMemo(() => ({ ...defaultParticles, ...particles }), [particles]);
 
-  const createParticle = useCallback(() => {
+  const createParticle = useCallback((): Particle => {
     const particleSize = getRandomValue(config.size, config.sizeVariance);
     const angle = Math.random() * Math.PI * 2;
     const particleDistance = getRandomValue(config.distance, config.distanceVariance);
-    
+
     // Calculate drift direction and distance
     const driftAngle = degreesToRadians(getRandomValue(config.driftAngle, config.driftAngleVariance));
     const driftDistance = getRandomValue(config.driftDistance, config.driftDistanceVariance);
-    
+
     return {
       id: Math.random(),
       originX: Math.cos(angle) * particleDistance,
@@ -132,24 +142,36 @@ export const ParticleSystem = React.memo(({
       size: particleSize,
       color: getRandomColor(config.color, config.colorVariance),
       driftX: Math.cos(driftAngle) * driftDistance,
-      driftY: Math.sin(driftAngle) * driftDistance
+      driftY: Math.sin(driftAngle) * driftDistance,
+      life: getRandomValue(config.life, config.lifeVariance)
     };
   }, [config]);
 
-  // Initialize particles
-  if (particleState.length === 0) {
-    const initialParticles = Array.from({ length: count }, () => createParticle());
-    setParticleState(initialParticles);
-  }
+  // Lazy initializer -- runs exactly once per mount. The previous render-time
+  // `if (particleState.length === 0) setParticleState(...)` check forced a wasted extra render
+  // pass on every mount, and (combined with `ParticleSystem` never actually calling `onComplete`,
+  // fixed below) meant a still-mounted instance from an earlier celebration never regenerated
+  // fresh particles for a later one.
+  const [particleState] = useState<Particle[]>(() => Array.from({ length: count }, createParticle));
+
+  // Reanimated's own animation-completion callbacks aren't reliable enough to drive real control
+  // flow on Android (the same lesson `TaskCard`'s completion-pop animation learned the hard way --
+  // see CLAUDE.md). So instead of waiting on each particle's own `withTiming` to report it's done,
+  // fire `onComplete` once, deterministically, after the worst-case total particle lifetime has
+  // elapsed -- long enough that every particle is guaranteed to have finished fading out.
+  useEffect(() => {
+    const maxLife = config.life + config.lifeVariance;
+    const timeout = setTimeout(() => onComplete?.(), maxLife);
+    return () => clearTimeout(timeout);
+    // Deliberately mount-only: this timer represents this specific mounted instance's one
+    // lifetime, not something that should reset if `config`/`onComplete` happen to change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
       {particleState.map(particle => (
-        <ParticleComponent 
-          key={particle.id} 
-          particle={particle} 
-          life={getRandomValue(config.life, config.lifeVariance)}
-        />
+        <ParticleComponent key={particle.id} particle={particle} />
       ))}
     </>
   );
