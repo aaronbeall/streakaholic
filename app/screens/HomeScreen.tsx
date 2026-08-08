@@ -309,22 +309,28 @@ export const HomeScreen: React.FC = () => {
     router.push({ pathname: '/task-detail', params: { taskId, tab: 'stats' } });
   }, [router, markOnboardingHintSeen]);
 
+  // Only ever called for a task that isn't completed yet -- `TaskCard` itself checks
+  // `isTaskCompleted` before deciding whether to trigger this (a real completion) or
+  // `handleLongPressCompletedTask` below (open task-detail, nothing to complete).
   const handleLongPressTask = useCallback((taskId: string) => {
     const task = tasksRef.current.find(t => t.id === taskId);
     if (!task) return;
-    if (isTaskCompleted(task)) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      router.push({ pathname: '/add-task', params: { taskId: task.id } });
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      completeTask(task.id);
-      if (task.id === onboardingTargetTaskIdRef.current) markOnboardingHintSeen('hold-to-complete');
-      showToast({
-        message: `"${task.name}" completed`,
-        action: { label: 'Undo', onPress: () => undoCompleteTask(task.id) },
-      });
-    }
-  }, [router, completeTask, undoCompleteTask, showToast, markOnboardingHintSeen]);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    completeTask(task.id);
+    if (task.id === onboardingTargetTaskIdRef.current) markOnboardingHintSeen('hold-to-complete');
+    showToast({
+      message: `"${task.name}" completed`,
+      action: { label: 'Undo', onPress: () => undoCompleteTask(task.id) },
+    });
+  }, [completeTask, undoCompleteTask, showToast, markOnboardingHintSeen]);
+
+  // Long-pressing an already-completed task's face -- opens task-detail on whichever tab was
+  // last viewed (no `tab` param, same fallback-to-`taskDetailLastTab` behavior `task-detail`
+  // already has for any other no-tab-specified navigation), with no completion animation since
+  // there's nothing left to complete.
+  const handleLongPressCompletedTask = useCallback((taskId: string) => {
+    router.push({ pathname: '/task-detail', params: { taskId } });
+  }, [router]);
 
   const handleFlip = useCallback((taskId: string, side: CardSide) => {
     if (taskId !== onboardingTargetTaskIdRef.current) return;
@@ -343,10 +349,11 @@ export const HomeScreen: React.FC = () => {
         onLongPressCalendar={handleLongPressCalendar}
         onLongPressStats={handleLongPressStats}
         onLongPressTask={handleLongPressTask}
+        onLongPressCompletedTask={handleLongPressCompletedTask}
         onFlip={handleFlip}
       />
     );
-  }, [cardSize, handleLongPressCalendar, handleLongPressStats, handleLongPressTask, handleFlip]);
+  }, [cardSize, handleLongPressCalendar, handleLongPressStats, handleLongPressTask, handleLongPressCompletedTask, handleFlip]);
 
   return (
     <View style={styles.container} ref={onboardingContainerRef}>

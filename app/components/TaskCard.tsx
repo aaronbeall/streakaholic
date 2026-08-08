@@ -28,7 +28,7 @@ import { ParticleSystem } from './ParticleSystem';
 import { PartialDayPie } from './PartialDayPie';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { getExpectedPeriodTotal } from '../utils/periodStats';
-import { buildCompletionCountsByDate, getCompletionCount } from '../utils/streaks';
+import { buildCompletionCountsByDate, getCompletionCount, isTaskCompleted } from '../utils/streaks';
 
 const AnimatedPath = Reanimated.createAnimatedComponent(Path);
 
@@ -86,6 +86,11 @@ interface TaskCardProps {
   onLongPressCalendar?: (taskId: string) => void;
   onLongPressStats?: (taskId: string) => void;
   onLongPressTask?: (taskId: string) => void;
+  // Long-pressing the task face of an *already-completed* task is a separate gesture from
+  // completing it -- opens task-detail (whichever tab was last viewed) instead, with no
+  // completion animation. Kept distinct from `onLongPressTask` rather than having that same
+  // prop branch on completed state itself, so neither callback has to know about the other's case.
+  onLongPressCompletedTask?: (taskId: string) => void;
   onFlip?: (taskId: string, visibleSide: CardSide) => void;
   onLayout?: () => void;
 }
@@ -772,6 +777,7 @@ export const TaskCard = React.memo(React.forwardRef<View, TaskCardProps>(({
   onLongPressCalendar,
   onLongPressStats,
   onLongPressTask,
+  onLongPressCompletedTask,
   onFlip,
   onLayout,
 }: TaskCardProps, ref) => {
@@ -807,8 +813,15 @@ export const TaskCard = React.memo(React.forwardRef<View, TaskCardProps>(({
       onLongPressCalendar(task.id);
     } else if (visibleSide === 'stats' && onLongPressStats) {
       onLongPressStats(task.id);
-    } else if (visibleSide === 'task' && onLongPressTask) {
-      setIsCompleting(true);
+    } else if (visibleSide === 'task') {
+      // An already-completed task has nothing left to complete -- open task-detail directly
+      // (no completion pop first) rather than running the completion animation and only
+      // afterward discovering there was nothing to commit.
+      if (isTaskCompleted(task)) {
+        onLongPressCompletedTask?.(task.id);
+      } else if (onLongPressTask) {
+        setIsCompleting(true);
+      }
     }
   };
 
@@ -888,7 +901,7 @@ export const TaskCard = React.memo(React.forwardRef<View, TaskCardProps>(({
   // `handleLongPress` the physical gesture uses, so the two stay in sync automatically.
   const visibleSide = isFlipped ? sides[1] : sides[0];
   const longPressActionLabel = visibleSide === 'task'
-    ? 'Mark complete'
+    ? (isTaskCompleted(task) ? 'Open task details' : 'Mark complete')
     : visibleSide === 'calendar'
     ? 'Open full calendar'
     : 'Open full stats';
