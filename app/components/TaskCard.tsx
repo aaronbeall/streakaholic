@@ -80,6 +80,20 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
   const scale = useSharedValue(1);
   const badgeScale = useSharedValue(1);
   const [showParticles, setShowParticles] = useState(false);
+  // Bumped every time the celebration effect below actually fires, and used as `ParticleSystem`'s
+  // `key` -- forces a fresh mount (fresh internal particle state) on every genuine "became a fire
+  // streak" transition, even if `currentStreak` repeats a value it already hit before (e.g.
+  // complete -> undo -> complete again cycles 5->6->5->6) or if the previous instance never got a
+  // chance to unmount in between. Without this, a second celebration reusing the still-mounted
+  // instance from the first one silently produced no new particles, since `ParticleSystem`'s own
+  // particle state only ever initializes once per mount.
+  const [celebrationKey, setCelebrationKey] = useState(0);
+  // Stable so `ParticleSystem`'s own `React.memo` isn't defeated by a fresh closure every time
+  // `CardTask` re-renders while particles are showing (e.g. isPressed/isCompleting toggling
+  // during the same completion animation) -- a fresh `onComplete` each time meant ParticleSystem
+  // re-rendered too, re-running its particles' random `life` duration calculation on every one of
+  // those renders and restarting each particle's fade/drift animation mid-flight.
+  const handleParticlesComplete = useCallback(() => setShowParticles(false), []);
 
   // Scale the icon with the actual card size instead of a fixed 128px -- on a small grid
   // (3+ columns, narrow phones) a fixed-size icon left no room for the name/counter text
@@ -216,6 +230,7 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
         withSpring(1.2, { damping: 8, stiffness: 100 }),
         withSpring(1, { damping: 8, stiffness: 100 })
       );
+      setCelebrationKey(k => k + 1);
       setShowParticles(true);
     }
   }, [task.stats?.currentStreak, streakBadgeStyle?.icon]);
@@ -352,8 +367,9 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
             />
           )}
           {showParticles && (
-            <ParticleSystem 
-              onComplete={() => setShowParticles(false)}
+            <ParticleSystem
+              key={celebrationKey}
+              onComplete={handleParticlesComplete}
             />
           )}
         </Reanimated.View>

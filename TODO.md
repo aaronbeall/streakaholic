@@ -39,10 +39,11 @@
 - [ ] Performance optimizations
   - [x] Performance pass (audited Context re-render fan-out, memoization/referential-stability gaps, and common RN FlatList traps — see CLAUDE.md's "State management" section)
   - [x] Migrate to Zustand? (`TaskContext`/`SettingsContext` → `app/stores/*` — selector-based selective subscription, fixes `TaskCard` re-rendering on unrelated task changes and every screen re-rendering on any settings change)
-  - [x] Reduce unnecessary task stat re-recalculations (see CLAUDE.md's "State management" section for the full audit — the two real finds: `getCompletionCount`+`isTaskCompleted` were called back-to-back on the same (task, date) in 6 places, the second call redundantly repeating the first's lookup; and the calendar grids called those per-cell against the same task's `completions` array via O(n) `.find()`, up to `cells × completions` scans per render. Fixed via a new `buildCompletionCountsByDate` map, memoized per task, giving O(1) lookups. Also found and fixed a genuinely missing `useMemo` in `TaskStatsScreen.tsx` (its sibling `DashboardStatsView.tsx` had the equivalent call memoized, this one didn't). One duplication considered and *not* pursued: `streaks.ts`'s aggregate stats and `reports.ts`'s streak-chain history independently re-walk very similar day/period segmentation to derive overlapping numbers — left alone since unifying two independently-tested nontrivial algorithms for a computational-efficiency gain that's already mitigated by caching (`task.stats` precomputed at mutation time, chain history memoized) wasn't a good risk/reward trade)
+  - [x] Reduce unnecessary task stat re-recalculations (see CLAUDE.md's "State management" section for the full audit — the two real finds: `getCompletionCount`+`isTaskCompleted` were called back-to-back on the same (task, date) in 6 places, the second call redundantly repeating the first's lookup; and the calendar grids called those per-cell against the same task's `completions` array via O(n) `.find()`, up to `cells × completions` scans per render. Fixed via a new `buildCompletionCountsByDate` map, memoized per task, giving O(1) lookups. Also found and fixed a genuinely missing `useMemo` in `TaskStatsScreen.tsx` (its sibling `DashboardStatsView.tsx` had the equivalent call memoized, this one didn't). One duplication considered and _not_ pursued: `streaks.ts`'s aggregate stats and `reports.ts`'s streak-chain history independently re-walk very similar day/period segmentation to derive overlapping numbers — left alone since unifying two independently-tested nontrivial algorithms for a computational-efficiency gain that's already mitigated by caching (`task.stats` precomputed at mutation time, chain history memoized) wasn't a good risk/reward trade)
   - [x] WeakMap caching (considered during the Zustand migration for `getCompletionCount`/`isTaskCompleted` — went the other way instead: dropped the existing `completionCache` Map entirely in favor of a plain `task.completions.find()`, since the cache was also a real staleness bug (one render behind `tasks`), not just a perf question, and the O(n) lookup is trivial at this app's scale)
 - [x] Layout/navigation improvement with proper screen transitions (`RootStack`'s `slide_from_right` animation)
 - [ ] Already completed task on home screen should not have press-and-hold triggering completion animation
+- [ ] Split up task card icon ring based on per-day count
 
 ## MMP
 
@@ -66,3 +67,6 @@
 - [ ] Personal leaderboard
 - [ ] Login with google
 - [ ] Social features (friends, friend streaks, competitions, leaderboards)
+- [ ] Task groups (swipe left/right on home, etc)
+- [ ] Home screen customization (default=icons, calendar, timeline, list)
+- [ ] Duration based tasks

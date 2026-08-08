@@ -15,6 +15,7 @@ interface Particle {
   color: string;
   driftX: number;
   driftY: number;
+  life: number;
 }
 
 interface ParticleConfig {
@@ -38,15 +39,20 @@ interface ParticleSystemProps {
   particles?: Partial<ParticleConfig>;
 }
 
-const ParticleComponent = ({ particle, life }: { particle: Particle; life: number }) => {
+const ParticleComponent = ({ particle }: { particle: Particle }) => {
   const progress = useSharedValue(1);
 
   React.useEffect(() => {
-    progress.value = withTiming(0, { 
-      duration: life,
+    progress.value = withTiming(0, {
+      duration: particle.life,
       easing: Easing.bezier(0.4, 0, 0.2, 1)
     });
-  }, [life, progress]);
+    // Deliberately fires once per mount only -- `particle` is a stable object created once by
+    // `createParticle`, and re-running this on every parent re-render (it used to depend on a
+    // `life` value recomputed fresh in the parent's `.map()` each time) restarted the fade/drift
+    // animation mid-flight instead of letting it play through.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const style = useAnimatedStyle(() => ({
     position: 'absolute',
