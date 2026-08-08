@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -266,8 +267,10 @@ export const HomeScreen: React.FC = () => {
 
   const handleTaskLongPress = (task: Task) => {
     if (isTaskCompleted(task)) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       router.push({ pathname: '/add-task', params: { taskId: task.id } });
     } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       completeTask(task.id);
       if (task.id === onboardingTargetTaskId) markOnboardingHintSeen('hold-to-complete');
       showToast({

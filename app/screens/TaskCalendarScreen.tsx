@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { addMonths, addYears, format, getDay, getDaysInMonth, startOfMonth, subMonths, subYears } from 'date-fns';
+import * as Haptics from 'expo-haptics';
 import React, { useMemo, useRef, useState } from 'react';
 import { FlatList, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -155,6 +156,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
     if (isCompleted) {
       // uncompleteTask clears the whole day, which can wipe out a `timesCompleted` > 1 for a
       // multi-rep task -- snapshot the exact completion so Undo can restore it precisely.
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const existingCompletion = task.completions?.find(c => c.date === dateString);
       uncompleteTask(taskId, date);
       showToast({
@@ -166,6 +168,13 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
     } else {
       const timesPerDay = task.timesPerDay || 1;
       const nextCount = getCompletionCount(task, date) + 1;
+      // A full completion earns the stronger "success" buzz; logging one of several reps for a
+      // >1x/day task gets a lighter tap instead, matching the toast's own full-vs-partial message.
+      if (nextCount >= timesPerDay) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
       completeTask(taskId, date);
       showToast({
         message: nextCount >= timesPerDay ? `${label} completed` : `${label}: ${nextCount}/${timesPerDay}`,

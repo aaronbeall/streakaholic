@@ -26,12 +26,12 @@
 - [x] Quick undo for accidental task completions (toast + Undo right on Home after completing; `undoCompleteTask` reverses exactly one press, not the whole day)
 - [ ] Touch target sizes below platform minimums (Add/Edit Task's +/- steppers and day-of-week buttons)
 - [ ] Accessibility support (no accessibilityLabel/Role/Hint anywhere in app/ — icon-only buttons are silent to screen readers)
-- [ ] Haptic feedback (expo-haptics is installed but unused; completions/streaks/celebrations are natural fits)
+- [x] Haptic feedback (task completion, long-press gesture recognition, calendar day toggle, toast Undo, archive/delete/restore — see CLAUDE.md)
 - [ ] Hide unscheduled tasks option (Home filter to only show tasks due today)
 - [ ] Pause tasks (also hidden, but still shown in dashboard)
 - [ ] Remember dashboard selection
 - [ ] Re-order tasks on home screen
-- [ ] Double-wide task card is not okay
+- [x] Double-wide task card is not okay (`TaskCard`'s `container` had `flex: 1`, whose implied `flexBasis: 0%` overrode the explicit `width` in `HomeScreen`'s row, stretching a lone last-row card to fill the row; fixed by dropping `flex: 1` and centering a partial last row via `justifyContent: 'center'`)
 - [ ] Archive/Delete task should take you back to homepage
 - [ ] New best streak congratulations
 - [ ] Perfect day congratulations

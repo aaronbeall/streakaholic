@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { addDays, endOfWeek, format, getDay, getDaysInMonth, parseISO, startOfMonth, startOfWeek } from 'date-fns';
+import * as Haptics from 'expo-haptics';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
@@ -569,6 +570,9 @@ export const TaskCard = React.memo(React.forwardRef<View, TaskCardProps>(({
   };
 
   const handleLongPress = () => {
+    // Immediate tactile acknowledgment that the hold registered, before whatever it triggers
+    // (navigation, or the completion pop below) actually plays out.
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const visibleSide = isFlipped ? sides[1] : sides[0];
     if (visibleSide === 'calendar' && onLongPressCalendar) {
       onLongPressCalendar();

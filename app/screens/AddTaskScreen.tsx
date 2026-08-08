@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
@@ -114,6 +115,7 @@ export const AddTaskScreen: React.FC = () => {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             deleteTask(deletedTask.id);
             router.back();
             showToast({
@@ -130,6 +132,7 @@ export const AddTaskScreen: React.FC = () => {
     if (!editingTask) return;
 
     if (editingTask.archived) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       restoreTask(editingTask.id);
       router.back();
       return;
@@ -144,6 +147,7 @@ export const AddTaskScreen: React.FC = () => {
         {
           text: 'Archive',
           onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             archiveTask(archivedTask.id);
             router.back();
             showToast({
