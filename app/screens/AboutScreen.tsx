@@ -54,6 +54,19 @@ export const AboutScreen: React.FC = () => {
           <Text style={styles.appCopyright}>© {copyrightYear} Metamodern Monkey. All rights reserved.</Text>
         </View>
 
+        <Text style={styles.sectionTitle}>Support</Text>
+        <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.contactRow}
+            onPress={() => Linking.openURL('mailto:support@metamodernmonkey.com')}
+            accessibilityRole="link"
+            accessibilityLabel="Email support@metamodernmonkey.com"
+          >
+            <MaterialCommunityIcons name="email-outline" size={22} color={colors.textSecondary} />
+            <Text style={styles.contactText}>support@metamodernmonkey.com</Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionTitle}>Privacy Policy</Text>
         <View style={styles.card}>
           <Text style={styles.bodyText}>
@@ -186,6 +199,17 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     overflow: 'hidden',
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    minHeight: 56,
+  },
+  contactText: {
+    fontSize: 15,
+    color: '#007AFF',
   },
   bodyText: {
     fontSize: 14,
