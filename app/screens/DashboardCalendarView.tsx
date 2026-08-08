@@ -19,6 +19,17 @@ const GRID_DAY_HEADER_HEIGHT = 20;
 const GRID_DATE_HEADER_HEIGHT = GRID_MONTH_HEADER_HEIGHT + GRID_DAY_HEADER_HEIGHT;
 const DAYS_PAGE_SIZE = 30;
 
+// Bars mode's per-task segment unit height -- same as a single Grid-mode dot row, so a day where
+// every task is fully done reaches exactly the same total height Grid mode's task rows already
+// occupy (tasks.length * GRID_CELL_SIZE), keeping the two modes' vertical scale consistent.
+const BAR_UNIT_HEIGHT = GRID_CELL_SIZE;
+const BAR_SEGMENT_GAP = 2;
+const BAR_SEGMENT_RADIUS = 7;
+// Narrower than the full track width, centered, so adjacent days' bars read as visually distinct
+// columns rather than one nearly-touching band.
+const BAR_SEGMENT_WIDTH = '75%';
+type MainGridMode = 'grid' | 'bars';
+
 // Same per-day state shape as TaskCalendarView's Year-mode mini grid -- no due/not-due distinction,
 // just completed/partial/future, matching that grid's already-established look.
 type MonthDotCell = { isCompleted: boolean; isPartial: boolean; isFuture: boolean; fraction: number } | null;
@@ -45,6 +56,10 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
   // paginating further into the past as the user scrolls right. Starts with one page and grows
   // via onEndReached.
   const [loadedDays, setLoadedDays] = useState(DAYS_PAGE_SIZE);
+  // Grid vs Bars only changes what each day column renders below its date header -- the
+  // underlying FlatList (data, ref, scroll position, pagination) is shared, so toggling doesn't
+  // reset or remount the scroll.
+  const [mainGridMode, setMainGridMode] = useState<MainGridMode>('grid');
   // Which month the main grid is currently scrolled to -- drives the mini month grids below it,
   // so they always reflect whatever's actually in view rather than always showing "now".
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
@@ -137,8 +152,38 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
     setLoadedDays(prev => Math.min(prev + DAYS_PAGE_SIZE, maxDays));
   };
 
+  // A segment's own rendered height can't just be `fraction * BAR_UNIT_HEIGHT` -- the
+  // `BAR_SEGMENT_GAP` margins between segments add extra height on top of that, so a day with
+  // every task fully completed (worst case: tasks.length - 1 gaps, the most any day can need)
+  // would overshoot `barColumnTrack`'s fixed `tasks.length * BAR_UNIT_HEIGHT`. Shrinking each
+  // unit by that worst-case gap total, spread evenly across every task, means the full-completion
+  // case now lands exactly on the track's height instead of past it.
+  const barSegmentUnitHeight = tasks.length > 0
+    ? BAR_UNIT_HEIGHT - ((tasks.length - 1) * BAR_SEGMENT_GAP) / tasks.length
+    : BAR_UNIT_HEIGHT;
+
   return (
     <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom }}>
+      {tasks.length > 0 && (
+        <View style={styles.timelineHeaderRow}>
+          <Text style={styles.timelineTitle}>Timeline</Text>
+          <View style={styles.mainGridModeToggle}>
+            <TouchableOpacity
+              style={[styles.mainGridModeButton, mainGridMode === 'grid' && styles.mainGridModeButtonActive]}
+              onPress={() => setMainGridMode('grid')}
+            >
+              <Text style={[styles.mainGridModeButtonText, mainGridMode === 'grid' && styles.mainGridModeButtonTextActive]}>Grid</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.mainGridModeButton, mainGridMode === 'bars' && styles.mainGridModeButtonActive]}
+              onPress={() => setMainGridMode('bars')}
+            >
+              <Text style={[styles.mainGridModeButtonText, mainGridMode === 'bars' && styles.mainGridModeButtonTextActive]}>Bars</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {tasks.length === 0 ? (
         <Text style={styles.emptyText}>No tasks selected.</Text>
       ) : (
@@ -163,18 +208,55 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
             style={styles.gridScroll}
             renderItem={({ item: day }) => {
               const isMonthStart = day.getDate() === 1;
-              return (
-                <View style={styles.gridColumn}>
-                  <View style={styles.gridDateHeaderCell}>
-                    <View style={styles.gridMonthHeaderRow}>
-                      {isMonthStart && (
-                        <Text style={styles.gridMonthLabel} numberOfLines={1}>{format(day, 'MMM yy')}</Text>
-                      )}
-                    </View>
-                    <View style={styles.gridDayHeaderRow}>
-                      <Text style={styles.gridDateLabel}>{format(day, 'd')}</Text>
+              const dateHeader = (
+                <View style={styles.gridDateHeaderCell}>
+                  <View style={styles.gridMonthHeaderRow}>
+                    {isMonthStart && (
+                      <Text style={styles.gridMonthLabel} numberOfLines={1}>{format(day, 'MMM yy')}</Text>
+                    )}
+                  </View>
+                  <View style={styles.gridDayHeaderRow}>
+                    <Text style={styles.gridDateLabel}>{format(day, 'd')}</Text>
+                  </View>
+                </View>
+              );
+
+              if (mainGridMode === 'bars') {
+                // Only the segments that actually contributed that day -- filtered before mapping
+                // (rather than skipping in place) so the gap between segments can be based on
+                // position among *visible* segments, not raw task index. Otherwise a skipped
+                // segment at the very top would still leave a phantom gap between it and the
+                // first segment that does render.
+                const barSegments = tasks
+                  .map(task => ({ task, fraction: Math.min(getCompletionCount(task, day) / (task.timesPerDay || 1), 1) }))
+                  .filter(({ fraction }) => fraction > 0);
+                return (
+                  <View style={styles.gridColumn}>
+                    {dateHeader}
+                    <View style={[styles.barColumnTrack, { height: tasks.length * BAR_UNIT_HEIGHT }]}>
+                      <View style={styles.barStack}>
+                        {barSegments.map(({ task, fraction }, index) => (
+                          <View
+                            key={task.id}
+                            style={[
+                              styles.barSegment,
+                              {
+                                height: fraction * barSegmentUnitHeight,
+                                backgroundColor: task.color,
+                                marginTop: index > 0 ? BAR_SEGMENT_GAP : 0,
+                              },
+                            ]}
+                          />
+                        ))}
+                      </View>
                     </View>
                   </View>
+                );
+              }
+
+              return (
+                <View style={styles.gridColumn}>
+                  {dateHeader}
                   {tasks.map(task => {
                     const dateString = format(day, 'yyyy-MM-dd');
                     const completionCount = getCompletionCount(task, day);
@@ -280,6 +362,40 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.textTertiary,
     marginBottom: 20,
   },
+  timelineHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  timelineTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  mainGridModeToggle: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 20,
+    padding: 3,
+    gap: 3,
+  },
+  mainGridModeButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 17,
+  },
+  mainGridModeButtonActive: {
+    backgroundColor: '#007AFF',
+  },
+  mainGridModeButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  mainGridModeButtonTextActive: {
+    color: '#fff',
+  },
   gridWrapper: {
     flexDirection: 'row',
     marginBottom: 24,
@@ -351,6 +467,30 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     // Matches gridDotNotDue's opacity -- the X should read as equally muted as the dimmed
     // not-due circle, not more prominent than it.
     opacity: 0.3,
+  },
+  // Fixed height (tasks.length * BAR_UNIT_HEIGHT, set inline) so every day column shares the same
+  // vertical scale regardless of that day's own total -- `justifyContent: 'flex-end'` anchors the
+  // (auto-height) stack to the bottom of that shared space. marginHorizontal gives adjacent days'
+  // bars visible separation instead of touching edge-to-edge.
+  barColumnTrack: {
+    justifyContent: 'flex-end',
+    marginHorizontal: 3,
+  },
+  // Normal top-to-bottom column order -- the first task in `tasks` order renders as the topmost
+  // segment (matching the label column's own top-to-bottom task order), with later tasks stacking
+  // downward. The stack auto-sizes to the sum of only the segments actually present that day;
+  // `barColumnTrack`'s `justifyContent: 'flex-end'` then anchors this whole (shorter) block flush
+  // against the fixed-height track's bottom edge, so the *last* rendered segment ends up touching
+  // bottom, not the first.
+  barStack: {
+    // Centers the (narrower-than-track) segments horizontally -- every segment shares the same
+    // BAR_SEGMENT_WIDTH, so centering the stack keeps them all aligned on the same vertical axis.
+    alignItems: 'center',
+  },
+  barSegment: {
+    width: BAR_SEGMENT_WIDTH,
+    borderRadius: BAR_SEGMENT_RADIUS,
+    overflow: 'hidden',
   },
   taskMonthGrid: {
     flexDirection: 'row',
