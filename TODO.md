@@ -37,10 +37,10 @@
 - [ ] Perfect day congratulations
 - [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
 - [ ] Performance optimizations
-  - [ ] Performance pass (profile the app and audit for bottlenecks)
-  - [ ] Migrate to Zustand?
+  - [x] Performance pass (audited Context re-render fan-out, memoization/referential-stability gaps, and common RN FlatList traps — see CLAUDE.md's "State management" section)
+  - [x] Migrate to Zustand? (`TaskContext`/`SettingsContext` → `app/stores/*` — selector-based selective subscription, fixes `TaskCard` re-rendering on unrelated task changes and every screen re-rendering on any settings change)
   - [ ] Reduce unnecessary task stat re-recalculations
-  - [ ] WeakMap caching
+  - [x] WeakMap caching (considered during the Zustand migration for `getCompletionCount`/`isTaskCompleted` — went the other way instead: dropped the existing `completionCache` Map entirely in favor of a plain `task.completions.find()`, since the cache was also a real staleness bug (one render behind `tasks`), not just a perf question, and the O(n) lookup is trivial at this app's scale)
 - [x] Layout/navigation improvement with proper screen transitions (`RootStack`'s `slide_from_right` animation)
 - [ ] Already completed task on home screen should not have press-and-hold triggering completion animation
 

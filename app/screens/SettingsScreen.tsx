@@ -11,12 +11,15 @@ import * as Sharing from 'expo-sharing';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ThemeMode, useSettings } from '../context/SettingsContext';
-import { useTaskContext } from '../context/TaskContext';
+import { useShallow } from 'zustand/react/shallow';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { useLastImportStore } from '../stores/lastImportStore';
+import { ThemeMode, useSettingsStore } from '../stores/settingsStore';
+import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
 import { createTasksExport, ParsedTasksImport, parseTasksImport } from '../utils/importExport';
+import { isTaskCompleted } from '../utils/streaks';
 
 // react-native-web's Switch splits the thumb color into two props: `thumbColor` (off state)
 // and `activeThumbColor` (on state, defaulting to Material teal if unset). Native RN's own
@@ -32,7 +35,10 @@ const THEME_MODE_OPTIONS: { value: ThemeMode; label: string }[] = [
 
 export const SettingsScreen: React.FC = () => {
   const router = useRouter();
-  const { tasks, importTasks, lastImport, isTaskCompleted } = useTaskContext();
+  const { tasks, importTasks } = useTaskStore(
+    useShallow(state => ({ tasks: state.tasks, importTasks: state.importTasks }))
+  );
+  const lastImport = useLastImportStore(state => state.lastImport);
   const { showToast } = useToast();
   const {
     themeMode, setThemeMode,
@@ -40,7 +46,19 @@ export const SettingsScreen: React.FC = () => {
     showTaskName, setShowTaskName,
     showTaskCounter, setShowTaskCounter,
     resetOnboardingHints,
-  } = useSettings();
+  } = useSettingsStore(
+    useShallow(state => ({
+      themeMode: state.themeMode,
+      setThemeMode: state.setThemeMode,
+      showCardBackground: state.showCardBackground,
+      setShowCardBackground: state.setShowCardBackground,
+      showTaskName: state.showTaskName,
+      setShowTaskName: state.setShowTaskName,
+      showTaskCounter: state.showTaskCounter,
+      setShowTaskCounter: state.setShowTaskCounter,
+      resetOnboardingHints: state.resetOnboardingHints,
+    }))
+  );
   const [isBusy, setIsBusy] = useState(false);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();

@@ -2,18 +2,20 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { addMonths, addYears, format, getDay, getDaysInMonth, startOfMonth, subMonths, subYears } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import React, { useMemo, useRef, useState } from 'react';
-import { FlatList, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useShallow } from 'zustand/react/shallow';
 import { MissedDayMark } from '../components/MissedDayMark';
 import { OnboardingHint } from '../components/OnboardingHint';
 import { PartialDayPie } from '../components/PartialDayPie';
-import { useSettings } from '../context/SettingsContext';
-import { useTaskContext } from '../context/TaskContext';
 import { useToast } from '../context/ToastContext';
 import { useOnboardingTarget } from '../hooks/useOnboardingTarget';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { useSettingsStore } from '../stores/settingsStore';
+import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
+import { getCompletionCount, isTaskCompleted } from '../utils/streaks';
 
 const TAP_DAY_HINT_TEXT = 'Tap a day to mark a day complete, tap again to clear it';
 
@@ -51,9 +53,21 @@ type CalendarItem = CalendarDay | EmptyDay;
 // TaskDetailScreen) rather than a full navigation that re-transitions the header too.
 export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = ({ task, initialMonth }) => {
   const taskId = task.id;
-  const { completeTask, uncompleteTask, undoCompleteTask, restoreCompletion, isTaskCompleted, getCompletionCount } = useTaskContext();
+  const { completeTask, uncompleteTask, undoCompleteTask, restoreCompletion } = useTaskStore(
+    useShallow(state => ({
+      completeTask: state.completeTask,
+      uncompleteTask: state.uncompleteTask,
+      undoCompleteTask: state.undoCompleteTask,
+      restoreCompletion: state.restoreCompletion,
+    }))
+  );
   const { showToast } = useToast();
-  const { onboardingHintsSeen, setOnboardingHintSeen } = useSettings();
+  const { onboardingHintsSeen, setOnboardingHintSeen } = useSettingsStore(
+    useShallow(state => ({
+      onboardingHintsSeen: state.onboardingHintsSeen,
+      setOnboardingHintSeen: state.setOnboardingHintSeen,
+    }))
+  );
   const [currentMonth, setCurrentMonth] = useState(initialMonth ?? new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [yearGridWidth, setYearGridWidth] = useState(0);
@@ -88,7 +102,34 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
       dayNumber: i + 1
     };
   }),
-  [currentMonth, daysInMonth, task, isTaskCompleted, getCompletionCount, today]);
+  [currentMonth, daysInMonth, task, today]);
+
+  // Always exactly 42 cells (6 weeks) -- chunked into week-rows for the Month view's plain-row
+  // grid below (see the RN-traps note there for why it's not a FlatList).
+  const calendarWeeks = useMemo(() => {
+    const cells: CalendarItem[] = Array(42).fill(null).map((_, index) => {
+      const dayIndex = index - startingDayOfWeek;
+      if (dayIndex < 0 || dayIndex >= daysInMonth) {
+        return { type: 'empty', index };
+      }
+      const day = days[dayIndex];
+      return {
+        type: 'day',
+        date: day.date,
+        isCompleted: day.isCompleted || false,
+        isPartial: day.isPartial || false,
+        completionCount: day.completionCount || 0,
+        isToday: day.isToday,
+        dayNumber: day.dayNumber,
+        index,
+      };
+    });
+    const rows: CalendarItem[][] = [];
+    for (let i = 0; i < cells.length; i += 7) {
+      rows.push(cells.slice(i, i + 7));
+    }
+    return rows;
+  }, [startingDayOfWeek, daysInMonth, days]);
 
   // A full year's worth of per-day states, grouped by month and chunked into weeks (like the
   // month view's own grid, just non-interactive and without day numbers) -- only computed when
@@ -127,7 +168,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
 
       return { monthIndex, label: format(monthStart, 'MMM'), rows };
     });
-  }, [viewMode, currentMonth, task, isTaskCompleted, getCompletionCount, today]);
+  }, [viewMode, currentMonth, task, today]);
 
   const monthCardWidth = yearGridWidth > 0
     ? (yearGridWidth - YEAR_COLUMN_GAP * (YEAR_GRID_COLUMNS - 1)) / YEAR_GRID_COLUMNS
@@ -294,89 +335,75 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                 <Text key={day} style={styles.weekDay}>{day}</Text>
               ))}
             </View>
-            <FlatList<CalendarItem>
-              data={Array(42).fill(null).map((_, index) => {
-                const dayIndex = index - startingDayOfWeek;
-                if (dayIndex < 0 || dayIndex >= daysInMonth) {
-                  return { type: 'empty', index };
-                }
-                const day = days[dayIndex];
-                return {
-                  type: 'day',
-                  date: day.date,
-                  isCompleted: day.isCompleted || false,
-                  isPartial: day.isPartial || false,
-                  completionCount: day.completionCount || 0,
-                  isToday: day.isToday,
-                  dayNumber: day.dayNumber,
-                  index
-                };
-              })}
-              renderItem={({ item }) => {
-                if (item.type === 'empty') {
-                  return <View key={`empty-${item.index}`} style={styles.day} />;
-                }
+            {/* Plain week-row chunks instead of a FlatList with numColumns -- this grid is always
+                exactly 42 cells (6 weeks), fully bounded and never scrolled (scrollEnabled was
+                already false), so the VirtualizedList machinery was pure overhead. Matches the
+                same plain-row pattern used for the other bounded calendar grids elsewhere. */}
+            {calendarWeeks.map((week, weekIndex) => (
+              <View key={weekIndex} style={styles.weekRow}>
+                {week.map((item) => {
+                  if (item.type === 'empty') {
+                    return <View key={`empty-${item.index}`} style={styles.day} />;
+                  }
 
-                const { date, isCompleted, isPartial, completionCount, isToday, dayNumber } = item;
-                const dateString = format(date, 'yyyy-MM-dd');
-                const isPast = dateString < today;
-                const isMissed = isPast && !isCompleted && !isPartial;
-                const isFuture = dateString > today;
+                  const { date, isCompleted, isPartial, completionCount, isToday, dayNumber } = item;
+                  const dateString = format(date, 'yyyy-MM-dd');
+                  const isPast = dateString < today;
+                  const isMissed = isPast && !isCompleted && !isPartial;
+                  const isFuture = dateString > today;
 
-                const stateLabel = isCompleted
-                  ? 'Completed'
-                  : isPartial
-                  ? `${completionCount} of ${task.timesPerDay || 1} completed`
-                  : isMissed
-                  ? 'Missed'
-                  : '';
+                  const stateLabel = isCompleted
+                    ? 'Completed'
+                    : isPartial
+                    ? `${completionCount} of ${task.timesPerDay || 1} completed`
+                    : isMissed
+                    ? 'Missed'
+                    : '';
 
-                return (
-                  <TouchableOpacity
-                    key={dateString}
-                    style={styles.day}
-                    onPress={() => handleDayPress(date)}
-                    delayLongPress={500}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${format(date, 'EEEE, MMMM d')}${stateLabel ? `, ${stateLabel}` : ''}`}
-                    accessibilityHint={isFuture ? undefined : 'Double tap to toggle completion'}
-                    accessibilityState={{ disabled: isFuture }}
-                  >
-                    <View
-                      key={ `${task.id}-${isCompleted}-${isPartial}` }
-                      ref={dayNumber === 1 ? calendarGridRef : undefined}
-                      style={[
-                        styles.dayContent,
-                        isCompleted && { backgroundColor: task.color },
-                        isToday && !isCompleted && { borderWidth: 2, borderColor: task.color }
-                      ]}>
-                      {isMissed ? (
-                        <MissedDayMark color={colors.textTertiary} size={16} />
-                      ) : isPartial ? (
-                        <>
-                          <View style={StyleSheet.absoluteFill}>
-                            <PartialDayPie fraction={completionCount / (task.timesPerDay || 1)} color={task.color} />
-                          </View>
-                          <Text style={[styles.dayNumber, { color: task.color }]}>{dayNumber}</Text>
-                        </>
-                      ) : (
-                        <Text style={[
-                          styles.dayNumber,
-                          isCompleted && styles.completedDayNumber,
-                          isToday && !isCompleted && { color: task.color },
-                          isFuture && styles.futureDay
+                  return (
+                    <TouchableOpacity
+                      key={dateString}
+                      style={styles.day}
+                      onPress={() => handleDayPress(date)}
+                      delayLongPress={500}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${format(date, 'EEEE, MMMM d')}${stateLabel ? `, ${stateLabel}` : ''}`}
+                      accessibilityHint={isFuture ? undefined : 'Double tap to toggle completion'}
+                      accessibilityState={{ disabled: isFuture }}
+                    >
+                      <View
+                        key={ `${task.id}-${isCompleted}-${isPartial}` }
+                        ref={dayNumber === 1 ? calendarGridRef : undefined}
+                        style={[
+                          styles.dayContent,
+                          isCompleted && { backgroundColor: task.color },
+                          isToday && !isCompleted && { borderWidth: 2, borderColor: task.color }
                         ]}>
-                          {dayNumber}
-                        </Text>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
-              numColumns={7}
-              scrollEnabled={false}
-              keyExtractor={(item) => item.type === 'empty' ? `empty-${item.index}` : format(item.date, 'yyyy-MM-dd')}
-            />
+                        {isMissed ? (
+                          <MissedDayMark color={colors.textTertiary} size={16} />
+                        ) : isPartial ? (
+                          <>
+                            <View style={StyleSheet.absoluteFill}>
+                              <PartialDayPie fraction={completionCount / (task.timesPerDay || 1)} color={task.color} />
+                            </View>
+                            <Text style={[styles.dayNumber, { color: task.color }]}>{dayNumber}</Text>
+                          </>
+                        ) : (
+                          <Text style={[
+                            styles.dayNumber,
+                            isCompleted && styles.completedDayNumber,
+                            isToday && !isCompleted && { color: task.color },
+                            isFuture && styles.futureDay
+                          ]}>
+                            {dayNumber}
+                          </Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
           </View>
         )}
       </View>
@@ -451,6 +478,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: colors.textSecondary,
+  },
+  weekRow: {
+    flexDirection: 'row',
   },
   day: {
     flex: 1,

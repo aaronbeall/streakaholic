@@ -1,5 +1,5 @@
 import { addDays, addMonths, differenceInCalendarDays, differenceInDays, endOfMonth, endOfWeek, format, parseISO, startOfDay, startOfMonth, startOfWeek } from 'date-fns';
-import { FrequencyType, StreakStatus, TaskCompletion, TaskStats } from '../types';
+import { FrequencyType, StreakStatus, Task, TaskCompletion, TaskStats } from '../types';
 
 export interface StreakScheduleInfo {
   frequency: FrequencyType;
@@ -280,4 +280,19 @@ export const calculateTaskStats = (task: StreakScheduleInfo, completions: TaskCo
     default:
       return calculateDueDayStats(task, qualifyingCompletions);
   }
+};
+
+// Pure, cache-free reads straight off the task's own `completions` array -- moved here from
+// TaskContext's old `completionCache` (a Map rebuilt via a useEffect keyed on `tasks`, which
+// lagged one render behind `tasks` itself right after a mutation, a real staleness window, not
+// just a perf cost). A `.find()` over one task's own completions is O(its completion count),
+// which for a personal habit tracker (months/years of daily entries) is trivial -- not worth a
+// cache that can go stale.
+export const getCompletionCount = (task: Task, date: Date = new Date()): number => {
+  const dateString = format(date, 'yyyy-MM-dd');
+  return task.completions?.find(c => c.date === dateString)?.timesCompleted ?? 0;
+};
+
+export const isTaskCompleted = (task: Task, date: Date = new Date()): boolean => {
+  return getCompletionCount(task, date) >= (task.timesPerDay || 1);
 };

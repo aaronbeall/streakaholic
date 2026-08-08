@@ -4,7 +4,6 @@ import * as Haptics from 'expo-haptics';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AccessibilityActionEvent,
-  FlatList,
   Pressable,
   StyleSheet,
   Text,
@@ -21,15 +20,15 @@ import Reanimated, {
   withTiming
 } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { useSettings } from '../context/SettingsContext';
-import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { useSettingsStore } from '../stores/settingsStore';
 import { Task } from '../types';
 import { MissedDayMark } from './MissedDayMark';
 import { ParticleSystem } from './ParticleSystem';
 import { PartialDayPie } from './PartialDayPie';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { getExpectedPeriodTotal } from '../utils/periodStats';
+import { getCompletionCount, isTaskCompleted } from '../utils/streaks';
 
 const AnimatedPath = Reanimated.createAnimatedComponent(Path);
 
@@ -48,10 +47,13 @@ export type CardSide = 'task' | 'calendar' | 'stats';
 interface TaskCardProps {
   task: Task;
   size: number;
-  onLongPressCalendar?: () => void;
-  onLongPressStats?: () => void;
-  onLongPressTask?: () => void;
-  onFlip?: (visibleSide: CardSide) => void;
+  // Take the task's id rather than being pre-bound to one task -- lets a parent (HomeScreen) hand
+  // every card the exact same stable, useCallback'd function reference instead of constructing a
+  // fresh closure per card per render, which used to defeat this component's own React.memo.
+  onLongPressCalendar?: (taskId: string) => void;
+  onLongPressStats?: (taskId: string) => void;
+  onLongPressTask?: (taskId: string) => void;
+  onFlip?: (taskId: string, visibleSide: CardSide) => void;
   onLayout?: () => void;
 }
 
@@ -65,8 +67,12 @@ interface CardTaskProps {
 }
 
 const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, onCompleted }: CardTaskProps) => {
-  const { isTaskCompleted, getCompletionCount } = useTaskContext();
-  const { showTaskName, showTaskCounter, showCardBackground } = useSettings();
+  // Three independent primitive selectors (not one bulk-destructured object) -- each only
+  // re-renders this card when that specific flag changes, not on unrelated settings changes
+  // (e.g. themeMode, dashboardLastTab) the way a single wide-context read used to.
+  const showTaskName = useSettingsStore(state => state.showTaskName);
+  const showTaskCounter = useSettingsStore(state => state.showTaskCounter);
+  const showCardBackground = useSettingsStore(state => state.showCardBackground);
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const checkmarkOpacity = useSharedValue(0);
@@ -356,7 +362,6 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
 CardTask.displayName = 'CardTask';
 
 const CardCalendar = React.memo(({ task }: { task: Task }) => {
-  const { isTaskCompleted, getCompletionCount } = useTaskContext();
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const today = format(new Date(), 'yyyy-MM-dd');
@@ -388,6 +393,22 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
   // Pad the tail to a full multiple of 7 too, matching the leading padding.
   const trailingBlanks = getTrailingBlankCount(startingDayOfWeek, days.length);
 
+  // Chunked into week-rows via a plain array instead of a FlatList with numColumns -- this grid
+  // is small and fully bounded (at most 6 weeks), so the VirtualizedList machinery a FlatList
+  // carries (windowing, scroll-event bookkeeping) was pure overhead for something never actually
+  // scrolled (scrollEnabled was already false). Matches the same plain-row pattern already used
+  // for the other bounded calendar grids elsewhere (DashboardCalendarView's mini month grids,
+  // TaskCalendarScreen's Year-mode dot grids).
+  const cells: (typeof days[number] | null)[] = [
+    ...Array(startingDayOfWeek).fill(null),
+    ...days,
+    ...Array(trailingBlanks).fill(null),
+  ];
+  const weeks: (typeof days[number] | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    weeks.push(cells.slice(i, i + 7));
+  }
+
   return (
     <View style={styles.calendarContainer}>
       <View style={styles.calendarGrid}>
@@ -396,37 +417,31 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
             <Text key={index} style={styles.calendarDayName}>{day}</Text>
           ))}
         </View>
-        <FlatList
-          data={[
-            ...Array(startingDayOfWeek).fill(null),
-            ...days,
-            ...Array(trailingBlanks).fill(null)
-          ]}
-          renderItem={({ item: day, index }) => (
-            <View style={styles.calendarDay}>
-              {day ? (
-                <View style={styles.calendarDayInner}>
-                  {day.isCompleted ? (
-                    <View style={[styles.calendarDot, { backgroundColor: task.color }]} />
-                  ) : day.isPartial ? (
-                    <View style={[styles.calendarDot, day.isToday && { borderWidth: 2, borderColor: task.color }]}>
-                      <PartialDayPie fraction={day.completionCount / (task.timesPerDay || 1)} color={task.color} />
-                    </View>
-                  ) : day.isToday ? (
-                    <View style={[styles.calendarDot, { borderWidth: 2, borderColor: task.color, backgroundColor: 'transparent' }]} />
-                  ) : day.isMissed ? (
-                    <MissedDayMark color={colors.textTertiary} size={11} />
-                  ) : (
-                    <View style={[styles.calendarDot, styles.calendarDotFuture]} />
-                  )}
-                </View>
-              ) : null}
-            </View>
-          )}
-          numColumns={7}
-          scrollEnabled={false}
-          keyExtractor={(_, index) => index.toString()}
-        />
+        {weeks.map((week, weekIndex) => (
+          <View key={weekIndex} style={styles.calendarWeekRow}>
+            {week.map((day, dayIndex) => (
+              <View key={dayIndex} style={styles.calendarDay}>
+                {day ? (
+                  <View style={styles.calendarDayInner}>
+                    {day.isCompleted ? (
+                      <View style={[styles.calendarDot, { backgroundColor: task.color }]} />
+                    ) : day.isPartial ? (
+                      <View style={[styles.calendarDot, day.isToday && { borderWidth: 2, borderColor: task.color }]}>
+                        <PartialDayPie fraction={day.completionCount / (task.timesPerDay || 1)} color={task.color} />
+                      </View>
+                    ) : day.isToday ? (
+                      <View style={[styles.calendarDot, { borderWidth: 2, borderColor: task.color, backgroundColor: 'transparent' }]} />
+                    ) : day.isMissed ? (
+                      <MissedDayMark color={colors.textTertiary} size={11} />
+                    ) : (
+                      <View style={[styles.calendarDot, styles.calendarDotFuture]} />
+                    )}
+                  </View>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -547,7 +562,7 @@ export const TaskCard = React.memo(React.forwardRef<View, TaskCardProps>(({
   onFlip,
   onLayout,
 }: TaskCardProps, ref) => {
-  const { showCardBackground } = useSettings();
+  const showCardBackground = useSettingsStore(state => state.showCardBackground);
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const flipAnim = useSharedValue(0);
@@ -576,9 +591,9 @@ export const TaskCard = React.memo(React.forwardRef<View, TaskCardProps>(({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const visibleSide = isFlipped ? sides[1] : sides[0];
     if (visibleSide === 'calendar' && onLongPressCalendar) {
-      onLongPressCalendar();
+      onLongPressCalendar(task.id);
     } else if (visibleSide === 'stats' && onLongPressStats) {
-      onLongPressStats();
+      onLongPressStats(task.id);
     } else if (visibleSide === 'task' && onLongPressTask) {
       setIsCompleting(true);
     }
@@ -608,7 +623,7 @@ export const TaskCard = React.memo(React.forwardRef<View, TaskCardProps>(({
     setSides(nextSides);
     const nextIsFlipped = !isFlipped;
     setIsFlipped(nextIsFlipped);
-    onFlip?.(nextIsFlipped ? nextSides[1] : nextSides[0]);
+    onFlip?.(task.id, nextIsFlipped ? nextSides[1] : nextSides[0]);
 
     flipAnim.value = withTiming(isFlipped ? 0 : 1, {
       duration: 800,
@@ -635,8 +650,8 @@ export const TaskCard = React.memo(React.forwardRef<View, TaskCardProps>(({
   }));
 
   const handleTaskCompleted = useCallback(() => {
-    onLongPressTask?.();
-  }, [onLongPressTask]);
+    onLongPressTask?.(task.id);
+  }, [onLongPressTask, task.id]);
 
   useEffect(() => {
     setIsCompleting(false);
@@ -819,6 +834,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     textAlign: 'center',
     fontSize: 10,
     color: colors.textSecondary,
+  },
+  calendarWeekRow: {
+    flexDirection: 'row',
   },
   calendarDay: {
     flex: 1,

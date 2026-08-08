@@ -12,12 +12,13 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useShallow } from 'zustand/react/shallow';
 import { ColorPicker } from '../components/ColorPicker';
 import { IconPicker } from '../components/IconPicker';
 import { DEFAULT_COLORS, DEFAULT_ICONS } from '../constants/task';
-import { useTaskContext } from '../context/TaskContext';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { useTaskStore } from '../stores/taskStore';
 import { FrequencyType, MaterialCommunityIconName } from '../types';
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -25,7 +26,17 @@ const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const AddTaskScreen: React.FC = () => {
   const router = useRouter();
   const { taskId } = useLocalSearchParams<{ taskId?: string }>();
-  const { addTask, updateTask, tasks, deleteTask, restoreDeletedTask, archiveTask, restoreTask } = useTaskContext();
+  const { addTask, updateTask, tasks, deleteTask, restoreDeletedTask, archiveTask, restoreTask } = useTaskStore(
+    useShallow(state => ({
+      addTask: state.addTask,
+      updateTask: state.updateTask,
+      tasks: state.tasks,
+      deleteTask: state.deleteTask,
+      restoreDeletedTask: state.restoreDeletedTask,
+      archiveTask: state.archiveTask,
+      restoreTask: state.restoreTask,
+    }))
+  );
   const { showToast } = useToast();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();

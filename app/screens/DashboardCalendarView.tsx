@@ -6,11 +6,10 @@ import { FlatList, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpa
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MissedDayMark } from '../components/MissedDayMark';
 import { PartialDayPie } from '../components/PartialDayPie';
-import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
-import { isDueOnDate } from '../utils/streaks';
+import { getCompletionCount, isDueOnDate, isTaskCompleted } from '../utils/streaks';
 
 const GRID_LABEL_WIDTH = 36;
 const GRID_CELL_SIZE = 32;
@@ -50,7 +49,6 @@ const getTaskMonthColumnCount = (width: number): number => {
 // on the Stats tab's Activity section instead, which is the thing that actually needs a bounded
 // window.
 export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
-  const { isTaskCompleted, getCompletionCount } = useTaskContext();
   const router = useRouter();
   // The grid is its own thing, independent of any timeframe toggle -- always "infinite",
   // paginating further into the past as the user scrolls right. Starts with one page and grows

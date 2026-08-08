@@ -3,12 +3,13 @@ import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { useTaskStore } from '../stores/taskStore';
 
 export const ArchivedTasksScreen: React.FC = () => {
   const router = useRouter();
-  const { tasks, restoreTask } = useTaskContext();
+  const tasks = useTaskStore(state => state.tasks);
+  const restoreTask = useTaskStore(state => state.restoreTask);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);

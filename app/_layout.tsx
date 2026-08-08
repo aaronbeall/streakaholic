@@ -4,10 +4,11 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ToastBanner } from './components/ToastBanner';
-import { SettingsProvider, useSettings } from './context/SettingsContext';
-import { TaskProvider, useTaskContext } from './context/TaskContext';
 import { ToastProvider } from './context/ToastContext';
 import { useThemeColors } from './hooks/useThemeColors';
+import { useLastImportStore } from './stores/lastImportStore';
+import { useSettingsStore } from './stores/settingsStore';
+import { useTaskStore } from './stores/taskStore';
 
 function RootStack() {
   const colors = useThemeColors();
@@ -94,14 +95,19 @@ function LoadingScreen() {
   );
 }
 
-// Settings and tasks both load asynchronously from AsyncStorage -- without this gate, the
-// first frame renders with default settings (wrong theme override) and an empty task list
-// (a flash of the "no tasks yet" empty state) before either resolves.
+// Settings, tasks, and lastImport are all Zustand `persist` stores backed by AsyncStorage --
+// without this gate, the first frame renders with each store's default in-memory state (wrong
+// theme override, an empty task list flashing the "no tasks yet" empty state) before `persist`
+// finishes reading them back. `hasHydrated` is a plain field on each store, flipped by that
+// store's own `onRehydrateStorage` callback once its async read resolves -- the direct
+// Zustand-native equivalent of the old Context setup's hand-rolled `isLoaded` state. No
+// `<Provider>` wrapping needed for any of them; they're just imported hook modules.
 function AppGate() {
-  const { isLoaded: settingsLoaded } = useSettings();
-  const { isLoaded: tasksLoaded } = useTaskContext();
+  const settingsHydrated = useSettingsStore(state => state.hasHydrated);
+  const tasksHydrated = useTaskStore(state => state.hasHydrated);
+  const lastImportHydrated = useLastImportStore(state => state.hasHydrated);
 
-  if (!settingsLoaded || !tasksLoaded) {
+  if (!settingsHydrated || !tasksHydrated || !lastImportHydrated) {
     return <LoadingScreen />;
   }
 
@@ -115,14 +121,10 @@ export default function Layout() {
     // runtime on native. Expo Router's own Stack doesn't provide it, so it's added here at
     // the true root.
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SettingsProvider>
-        <TaskProvider>
-          <ToastProvider>
-            <AppGate />
-            <ToastBanner />
-          </ToastProvider>
-        </TaskProvider>
-      </SettingsProvider>
+      <ToastProvider>
+        <AppGate />
+        <ToastBanner />
+      </ToastProvider>
     </GestureHandlerRootView>
   );
 }

@@ -4,9 +4,9 @@ import React, { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Reanimated, { FadeIn } from 'react-native-reanimated';
 import { TaskDetailTab, TaskHeader } from '../components/TaskHeader';
-import { useSettings } from '../context/SettingsContext';
-import { useTaskContext } from '../context/TaskContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { useSettingsStore } from '../stores/settingsStore';
+import { useTaskStore } from '../stores/taskStore';
 import { DashboardStreaksView } from './DashboardStreaksView';
 import { TaskCalendarView } from './TaskCalendarScreen';
 import { TaskStatsView } from './TaskStatsScreen';
@@ -18,8 +18,9 @@ import { TaskStatsView } from './TaskStatsScreen';
 // it's not actually leaving the screen.
 export default function TaskDetailScreen() {
   const { taskId, tab, month } = useLocalSearchParams<{ taskId: string; tab?: string; month?: string }>();
-  const { tasks } = useTaskContext();
-  const { taskDetailLastTab, setTaskDetailLastTab } = useSettings();
+  const tasks = useTaskStore(state => state.tasks);
+  const taskDetailLastTab = useSettingsStore(state => state.taskDetailLastTab);
+  const setTaskDetailLastTab = useSettingsStore(state => state.setTaskDetailLastTab);
   // An explicit `tab` param (e.g. Home's long-press-calendar-face action) always wins; absent
   // that, restore whichever tab was last viewed rather than always defaulting to Calendar.
   const linkedTab: TaskDetailTab | undefined =

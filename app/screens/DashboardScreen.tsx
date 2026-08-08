@@ -4,11 +4,12 @@ import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Reanimated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useShallow } from 'zustand/react/shallow';
 import { OnboardingHint } from '../components/OnboardingHint';
-import { useSettings } from '../context/SettingsContext';
-import { useTaskContext } from '../context/TaskContext';
 import { useOnboardingTarget } from '../hooks/useOnboardingTarget';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { useSettingsStore } from '../stores/settingsStore';
+import { useTaskStore } from '../stores/taskStore';
 import { DashboardCalendarView } from './DashboardCalendarView';
 import { DashboardStatsView } from './DashboardStatsView';
 import { DashboardStreaksView } from './DashboardStreaksView';
@@ -24,7 +25,7 @@ const DashboardHeader: React.FC<{
   onTaskToggle: (taskId: string) => void;
   taskFilterRef: React.RefObject<View | null>;
 }> = ({ activeTab, onTabChange, selectedTasks, onTaskToggle, taskFilterRef }) => {
-  const { tasks } = useTaskContext();
+  const tasks = useTaskStore(state => state.tasks);
   const router = useRouter();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
@@ -134,9 +135,16 @@ const DashboardHeader: React.FC<{
 // tabs) renders once; only the content below swaps on local `activeTab` state, cross-faded
 // rather than navigated, so flipping tabs doesn't re-transition the header.
 export const DashboardScreen: React.FC = () => {
-  const { tasks: allTasks } = useTaskContext();
+  const allTasks = useTaskStore(state => state.tasks);
   const tasks = useMemo(() => allTasks.filter(task => !task.archived), [allTasks]);
-  const { dashboardLastTab, setDashboardLastTab, onboardingHintsSeen, setOnboardingHintSeen } = useSettings();
+  const { dashboardLastTab, setDashboardLastTab, onboardingHintsSeen, setOnboardingHintSeen } = useSettingsStore(
+    useShallow(state => ({
+      dashboardLastTab: state.dashboardLastTab,
+      setDashboardLastTab: state.setDashboardLastTab,
+      onboardingHintsSeen: state.onboardingHintsSeen,
+      setOnboardingHintSeen: state.setOnboardingHintSeen,
+    }))
+  );
   // Dashboard has no deep-linked tab of its own (unlike task-detail's `tab` search param), so it
   // always just restores whichever tab was last viewed.
   const [activeTab, setActiveTab] = useState<DashboardTab>(dashboardLastTab);

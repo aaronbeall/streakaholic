@@ -16,6 +16,10 @@ const ALL_STREAKS_LIMIT = 5000;
 type SortMode = 'recent' | 'best';
 const STREAK_DATE_LABEL_WIDTH = 48;
 const STREAK_LABEL_GAP = 8;
+// streakBar's own height (24) plus streakRow's marginBottom (12) -- every row is this exact
+// height regardless of streak length (only the bar's *width* varies), so this can be a real
+// getItemLayout instead of leaving FlatList to measure each row on the fly.
+const STREAK_ROW_HEIGHT = 24 + 12;
 
 // A color/icon-coded list of every historical streak run across the filtered tasks, with infinite
 // vertical scroll further into the past (same pagination idea as the Calendar tab's grid, just
@@ -95,6 +99,7 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
       contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom }}
       data={visibleStreaks}
       keyExtractor={(item, index) => `${item.taskId}-${item.startDate.toISOString()}-${index}`}
+      getItemLayout={(_data, index) => ({ length: STREAK_ROW_HEIGHT, offset: STREAK_ROW_HEIGHT * index, index })}
       onEndReached={handleEndReached}
       onEndReachedThreshold={0.5}
       ListHeaderComponent={

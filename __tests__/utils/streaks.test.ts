@@ -1,6 +1,6 @@
 import { format, subDays } from 'date-fns';
-import { TaskCompletion } from '../../app/types';
-import { calculateTaskStats, StreakScheduleInfo } from '../../app/utils/streaks';
+import { Task, TaskCompletion } from '../../app/types';
+import { calculateTaskStats, getCompletionCount, isTaskCompleted, StreakScheduleInfo } from '../../app/utils/streaks';
 
 const makeCompletion = (id: string, date: Date, timesCompleted = 1): TaskCompletion => ({
   id,
@@ -16,6 +16,22 @@ const baseTask = (overrides: Partial<StreakScheduleInfo> = {}): StreakScheduleIn
   daysPerWeek: 0,
   daysPerMonth: 0,
   timesPerDay: 1,
+  ...overrides,
+});
+
+const makeFullTask = (overrides: Partial<Task> = {}): Task => ({
+  id: 't1',
+  name: 'Test Task',
+  icon: 'fire',
+  color: '#000000',
+  frequency: 'daily',
+  daysOfWeek: [],
+  daysPerWeek: 0,
+  daysPerMonth: 0,
+  timesPerDay: 1,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  completions: [],
   ...overrides,
 });
 
@@ -297,5 +313,50 @@ describe('calculateTaskStats', () => {
         jest.useRealTimers();
       }
     });
+  });
+});
+
+describe('getCompletionCount / isTaskCompleted', () => {
+  it('returns 0 and false when there are no completions at all', () => {
+    const task = makeFullTask({ completions: [] });
+    expect(getCompletionCount(task)).toBe(0);
+    expect(isTaskCompleted(task)).toBe(false);
+  });
+
+  it('returns 0 for a date with no matching completion record', () => {
+    const today = new Date();
+    const task = makeFullTask({
+      completions: [makeCompletion('a', subDays(today, 5), 1)],
+    });
+    expect(getCompletionCount(task, today)).toBe(0);
+    expect(isTaskCompleted(task, today)).toBe(false);
+  });
+
+  it('reports a partial multi-rep day as not yet completed', () => {
+    const today = new Date();
+    const task = makeFullTask({
+      timesPerDay: 3,
+      completions: [makeCompletion('a', today, 2)],
+    });
+    expect(getCompletionCount(task, today)).toBe(2);
+    expect(isTaskCompleted(task, today)).toBe(false);
+  });
+
+  it('reports a fully-met multi-rep day as completed', () => {
+    const today = new Date();
+    const task = makeFullTask({
+      timesPerDay: 3,
+      completions: [makeCompletion('a', today, 3)],
+    });
+    expect(getCompletionCount(task, today)).toBe(3);
+    expect(isTaskCompleted(task, today)).toBe(true);
+  });
+
+  it('defaults to today when no date is passed', () => {
+    const task = makeFullTask({
+      completions: [makeCompletion('a', new Date(), 1)],
+    });
+    expect(getCompletionCount(task)).toBe(1);
+    expect(isTaskCompleted(task)).toBe(true);
   });
 });

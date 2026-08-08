@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   StyleSheet,
@@ -14,12 +14,13 @@ import Reanimated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OnboardingHint, TargetLayout } from '../components/OnboardingHint';
 import { CardSide, TaskCard } from '../components/TaskCard';
-import { useSettings } from '../context/SettingsContext';
-import { useTaskContext } from '../context/TaskContext';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { useSettingsStore } from '../stores/settingsStore';
+import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
 import { getStreakStats } from '../utils/data';
+import { isTaskCompleted } from '../utils/streaks';
 
 // Narrower than the full OnboardingHintKey union -- this screen only ever produces one of these
 // three (see onboardingCandidateKey below), never the other screens' single stationary-target hints.
@@ -41,7 +42,7 @@ type FilterType = 'up_to_date' | 'expiring' | null;
 
 const HomeHeader = React.memo(({ activeFilter, onFilterChange }: { activeFilter: FilterType; onFilterChange: (filter: FilterType) => void }) => {
   const router = useRouter();
-  const { tasks } = useTaskContext();
+  const tasks = useTaskStore(state => state.tasks);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -134,9 +135,12 @@ HomeHeader.displayName = "HomeHeader";
 
 export const HomeScreen: React.FC = () => {
   const router = useRouter();
-  const { tasks, completeTask, undoCompleteTask, isTaskCompleted } = useTaskContext();
+  const tasks = useTaskStore(state => state.tasks);
+  const completeTask = useTaskStore(state => state.completeTask);
+  const undoCompleteTask = useTaskStore(state => state.undoCompleteTask);
   const { showToast } = useToast();
-  const { onboardingHintsSeen, setOnboardingHintSeen } = useSettings();
+  const onboardingHintsSeen = useSettingsStore(state => state.onboardingHintsSeen);
+  const setOnboardingHintSeen = useSettingsStore(state => state.setOnboardingHintSeen);
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<FilterType>(null);
@@ -178,6 +182,15 @@ export const HomeScreen: React.FC = () => {
   const allOnboardingHintsSeen = HOME_HINT_KEYS.every(key => onboardingHintsSeen[key]);
   const onboardingTargetTask = allOnboardingHintsSeen ? undefined : filteredTasks[0];
   const onboardingTargetTaskId = onboardingTargetTask?.id;
+
+  // Read inside the stable per-card callbacks below (each created once via useCallback, so
+  // TaskCard's own React.memo isn't defeated by a fresh closure per card per render) instead of
+  // being captured in their closures directly -- both of these can change on every render, but
+  // the callbacks themselves must not, so they read the *current* value via ref at call time.
+  const onboardingTargetTaskIdRef = useRef(onboardingTargetTaskId);
+  onboardingTargetTaskIdRef.current = onboardingTargetTaskId;
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
 
   // Which condition matches right now, purely a function of the target card's live state: its
   // due-today completion status, and which face it's currently showing. Only shown if that
@@ -275,22 +288,65 @@ export const HomeScreen: React.FC = () => {
     setOnboardingTargetFace('task');
   }, [onboardingTargetTaskId]);
 
-  const markOnboardingHintSeen = (key: HomeHintKey) => setOnboardingHintSeen(key, true);
+  // Stable (`useCallback`'d) so `TaskCard`'s own `React.memo` isn't defeated by a fresh closure
+  // handed to every visible card on every `HomeScreen` render -- `setOnboardingHintSeen` is
+  // itself a stable Zustand action reference, so this never actually needs to change identity.
+  const markOnboardingHintSeen = useCallback((key: HomeHintKey) => {
+    setOnboardingHintSeen(key, true);
+  }, [setOnboardingHintSeen]);
 
-  const handleTaskLongPress = (task: Task) => {
+  // One stable handler per gesture, shared by every card (not one fresh closure per card per
+  // render) -- each takes the task's id and looks up whatever it needs via the refs above, so
+  // identity never has to change just because a *different* task became the onboarding target or
+  // the task list itself changed.
+  const handleLongPressCalendar = useCallback((taskId: string) => {
+    if (taskId === onboardingTargetTaskIdRef.current) markOnboardingHintSeen('hold-to-expand');
+    router.push({ pathname: '/task-detail', params: { taskId, tab: 'calendar' } });
+  }, [router, markOnboardingHintSeen]);
+
+  const handleLongPressStats = useCallback((taskId: string) => {
+    if (taskId === onboardingTargetTaskIdRef.current) markOnboardingHintSeen('hold-to-expand');
+    router.push({ pathname: '/task-detail', params: { taskId, tab: 'stats' } });
+  }, [router, markOnboardingHintSeen]);
+
+  const handleLongPressTask = useCallback((taskId: string) => {
+    const task = tasksRef.current.find(t => t.id === taskId);
+    if (!task) return;
     if (isTaskCompleted(task)) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       router.push({ pathname: '/add-task', params: { taskId: task.id } });
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       completeTask(task.id);
-      if (task.id === onboardingTargetTaskId) markOnboardingHintSeen('hold-to-complete');
+      if (task.id === onboardingTargetTaskIdRef.current) markOnboardingHintSeen('hold-to-complete');
       showToast({
         message: `"${task.name}" completed`,
         action: { label: 'Undo', onPress: () => undoCompleteTask(task.id) },
       });
     }
-  };
+  }, [router, completeTask, undoCompleteTask, showToast, markOnboardingHintSeen]);
+
+  const handleFlip = useCallback((taskId: string, side: CardSide) => {
+    if (taskId !== onboardingTargetTaskIdRef.current) return;
+    setOnboardingTargetFace(side);
+    if (side !== 'task') markOnboardingHintSeen('tap-to-cycle');
+  }, [markOnboardingHintSeen]);
+
+  const renderItem = useCallback(({ item }: { item: Task }) => {
+    const isOnboardingTarget = item.id === onboardingTargetTaskIdRef.current;
+    return (
+      <TaskCard
+        ref={isOnboardingTarget ? onboardingTargetRef : undefined}
+        onLayout={isOnboardingTarget ? measureOnboardingTarget : undefined}
+        task={item}
+        size={cardSize}
+        onLongPressCalendar={handleLongPressCalendar}
+        onLongPressStats={handleLongPressStats}
+        onLongPressTask={handleLongPressTask}
+        onFlip={handleFlip}
+      />
+    );
+  }, [cardSize, handleLongPressCalendar, handleLongPressStats, handleLongPressTask, handleFlip]);
 
   return (
     <View style={styles.container} ref={onboardingContainerRef}>
@@ -308,30 +364,7 @@ export const HomeScreen: React.FC = () => {
         })}
         onScroll={onboardingTargetTaskId ? measureOnboardingTarget : undefined}
         scrollEventThrottle={100}
-        renderItem={({ item }) => {
-          const isOnboardingTarget = item.id === onboardingTargetTaskId;
-          return (
-            <TaskCard
-              ref={isOnboardingTarget ? onboardingTargetRef : undefined}
-              onLayout={isOnboardingTarget ? measureOnboardingTarget : undefined}
-              task={item}
-              size={cardSize}
-              onLongPressCalendar={() => {
-                if (isOnboardingTarget) markOnboardingHintSeen('hold-to-expand');
-                router.push({ pathname: '/task-detail', params: { taskId: item.id, tab: 'calendar' } });
-              }}
-              onLongPressStats={() => {
-                if (isOnboardingTarget) markOnboardingHintSeen('hold-to-expand');
-                router.push({ pathname: '/task-detail', params: { taskId: item.id, tab: 'stats' } });
-              }}
-              onLongPressTask={() => handleTaskLongPress(item)}
-              onFlip={isOnboardingTarget ? (side) => {
-                setOnboardingTargetFace(side);
-                if (side !== 'task') markOnboardingHintSeen('tap-to-cycle');
-              } : undefined}
-            />
-          );
-        }}
+        renderItem={renderItem}
         contentContainerStyle={[
           styles.listContent,
           { paddingBottom: FAB_OFFSET + FAB_SIZE + GRID_SPACING + insets.bottom },
