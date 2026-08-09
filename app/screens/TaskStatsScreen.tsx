@@ -9,6 +9,9 @@ import { Task } from '../types';
 import { TimeFrame, dayOfWeekLabels, getBarPercentage, getChartData, getCompletionPatterns, getDateRange, hourOfDayLabels } from '../utils/data';
 
 const CARD_HORIZONTAL_PADDING = 16;
+const CHART_TYPE_SEGMENT_SIZE = 30;
+const CHART_TYPE_SEGMENT_GAP = 3;
+const CHART_TYPE_SEGMENT_STEP = CHART_TYPE_SEGMENT_SIZE + CHART_TYPE_SEGMENT_GAP;
 
 interface TimeRangeButtonProps {
   range: TimeFrame;
@@ -40,7 +43,7 @@ const TimeRangeButton: React.FC<TimeRangeButtonProps> = ({ range, label, isSelec
 // rather than a full navigation that re-transitions the header too.
 export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
   const [timeRange, setTimeRange] = useState<TimeFrame>('month');
-  const [isCumulative, setIsCumulative] = useState(false);
+  const [isCumulative, setIsCumulative] = useState(true);
   // Measured from the actual rendered container rather than guessed from Dimensions.get('window')
   // minus a hardcoded constant -- that guess didn't account precisely for the content padding,
   // which is what left charts clipping on the right edge on some devices. The fallback here (used
@@ -214,8 +217,39 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
             </View>
           </View>
           <View style={styles.chartCard}>
-            <Text style={styles.chartTitle}>Completions Over Time</Text>
-            <View style={styles.chartContainer}>
+            <View style={styles.chartHeaderRow}>
+              <Text style={[styles.chartTitle, styles.chartHeaderTitle]}>Completions Over Time</Text>
+              <TouchableOpacity
+                style={styles.chartTypeToggle}
+                onPress={() => setIsCumulative(!isCumulative)}
+                accessibilityRole="switch"
+                accessibilityLabel="Chart type"
+                accessibilityHint="Toggles between cumulative total and per-period bars"
+                accessibilityState={{ checked: isCumulative }}
+              >
+                <View
+                  style={[
+                    styles.chartTypeIndicator,
+                    { backgroundColor: task.color, transform: [{ translateX: isCumulative ? 0 : CHART_TYPE_SEGMENT_STEP }] },
+                  ]}
+                />
+                <View style={styles.chartTypeSegment}>
+                  <MaterialCommunityIcons
+                    name="chart-line-variant"
+                    size={16}
+                    color={isCumulative ? '#fff' : colors.textSecondary}
+                  />
+                </View>
+                <View style={styles.chartTypeSegment}>
+                  <MaterialCommunityIcons
+                    name="chart-bar"
+                    size={16}
+                    color={!isCumulative ? '#fff' : colors.textSecondary}
+                  />
+                </View>
+              </TouchableOpacity>
+            </View>
+            {isCumulative ? (
               <LineChart
                 data={chartData}
                 width={chartWidth}
@@ -243,20 +277,28 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
                 withShadow={true}
                 style={styles.chart}
               />
-              <TouchableOpacity
-                style={[styles.cumulativeToggle, isCumulative && { backgroundColor: task.color }]}
-                onPress={() => setIsCumulative(!isCumulative)}
-                accessibilityRole="button"
-                accessibilityLabel="Cumulative view"
-                accessibilityState={{ selected: isCumulative }}
-              >
-                <MaterialCommunityIcons
-                  name="chart-line-variant"
-                  size={20}
-                  color={isCumulative ? '#fff' : colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
+            ) : (
+              <BarChart
+                data={chartData}
+                width={chartWidth}
+                height={180}
+                yAxisLabel=""
+                yAxisSuffix=""
+                chartConfig={{
+                  ...baseChartConfig,
+                  color: (opacity = 1) => task.color,
+                  barPercentage: getBarPercentage(chartWidth, labels.length),
+                  fillShadowGradientOpacity: 1,
+                  propsForBackgroundLines: {
+                    strokeDasharray: '',
+                    stroke: colors.border,
+                    strokeWidth: 1,
+                  },
+                }}
+                style={styles.chart}
+                fromZero
+              />
+            )}
           </View>
 
           <View style={styles.chartCard}>
@@ -486,23 +528,35 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginVertical: 8,
     borderRadius: 16,
   },
-  chartContainer: {
+  chartHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  chartHeaderTitle: {
+    marginBottom: 0,
+  },
+  chartTypeToggle: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 18,
+    padding: 3,
+    gap: 3,
+    overflow: 'hidden',
     position: 'relative',
   },
-  cumulativeToggle: {
+  chartTypeIndicator: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.isDark ? colors.surfaceSecondary : 'rgba(240, 240, 240, 0.9)',
+    left: 3,
+    top: 3,
+    width: CHART_TYPE_SEGMENT_SIZE,
+    height: CHART_TYPE_SEGMENT_SIZE,
+    borderRadius: CHART_TYPE_SEGMENT_SIZE / 2,
+  },
+  chartTypeSegment: {
+    width: CHART_TYPE_SEGMENT_SIZE,
+    height: CHART_TYPE_SEGMENT_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
 });
