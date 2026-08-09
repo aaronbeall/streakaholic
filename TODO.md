@@ -18,6 +18,8 @@
 - [x] Calendar year map (`TaskCalendarView`'s Year mode — grid-of-months with per-day dots; plus `DashboardCalendarView`'s aggregate infinite calendar grid across tasks)
 - [ ] Sharing
 - [ ] Reminders/notifications
+  - [ ] Nag level: 0=none, 1=dismissable notification, 2=repeated dismissable notifications, 3=ongoing notification, 4=alarm and ongoing notification
+  - [ ] Set time
 
 ## UX / UI Improvements
 

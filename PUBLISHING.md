@@ -158,6 +158,98 @@ nothing here to prepare for beyond knowing you're not hiding anything mature.
 
 ---
 
+## 0. Test on a real device before publishing
+
+**Don't rely on Expo Go for this pass.** Two concrete reasons specific to this app:
+- Expo Go is one pre-built shell app shared by everyone — it can't compile this project's
+  own `AndroidManifest.xml`, so native-level `app.json` config doesn't apply inside it.
+  `android.edgeToEdgeEnabled: true` is exactly this kind of setting, and a fair amount of
+  the safe-area/status-bar work documented in `CLAUDE.md` depends on it actually taking
+  effect — Expo Go can't confirm any of that.
+- IAP (the planned tip jar, section 3 below) already requires a custom dev client and
+  can't run in Expo Go at all — `expo-dev-client` is already installed for this reason, so
+  there's no cost to switching to this workflow now rather than later.
+
+Build a real client instead:
+```bash
+eas build --platform android --profile development   # keeps Metro/fast-refresh, for day-to-day iteration
+eas build --platform android --profile preview        # standalone APK/AAB, no dev menu -- closest to what ships
+```
+Install the `development`-profile build once, then keep using `npx expo start --dev-client`
+for the normal fast-refresh loop. Do at least one full pass through the checklist below on
+a `preview`-profile build specifically, since that's the artifact structure (no Metro, no
+dev menu) that actually matches what Play Store users will run.
+
+### Manual QA checklist
+
+Everything below either can't be verified via `tsc`/`eslint`/`jest` (no component/render
+tests in this repo — see `CLAUDE.md`'s Testing section) or was explicitly noted as
+"verified via tooling only, not yet confirmed on-device" at the point it was built. Work
+through this once on a `preview` build before the first Play Console upload, and again
+after any change that touches these areas.
+
+**Confirmations & Undo** (`Alert.alert` is a no-op on web — this is the first time these
+paths run for real)
+- [ ] Edit Task → Archive Task: confirm modal appears, Cancel and Archive both behave,
+      Undo toast restores the task.
+- [ ] Edit Task → Delete Task: same, and Undo restores the task *with* its completion
+      history intact.
+
+**Import / Export**
+- [ ] Settings → Export Data → share sheet appears, produces a valid file.
+- [ ] Settings → Import Data (merge) → toast reports the right count, Undo restores the
+      prior state.
+- [ ] Re-import the same file → toast includes "already imported before."
+- [ ] Settings → Import & Replace All Data → confirms replace behavior + Undo.
+- [ ] If your export file lives in a cloud provider (Dropbox, Drive, etc.), confirm the
+      file picker actually lets you select it (a real Dropbox-specific MIME-type bug was
+      fixed here — worth reconfirming after any picker-related change).
+
+**Gestures & haptics**
+- [ ] Toast swipe-to-dismiss (either direction) actually dismisses it.
+- [ ] Haptic feedback fires at each documented point (see `CLAUDE.md`'s Haptics section):
+      long-press acknowledgment, completion success, destructive-action confirm, calendar
+      day-toggle, Undo tap.
+- [ ] Press-and-hold to complete a task: ring fill, icon pop/overshoot/settle, and the
+      streak badge's celebration pop all read as intended — this animation went through
+      many rounds of on-device-only tuning (spring damping/stiffness, hold duration).
+- [ ] A new best streak's particle celebration (swirl, staggered spawn, glow, color shift)
+      renders smoothly with no dropped frames, and actually replays on a second streak in
+      the same session (a real recurrence bug here was fixed by a `celebrationKey`).
+
+**Layout & theming**
+- [ ] Every screen's content clears the status bar and gesture nav bar (edge-to-edge) —
+      Home, Dashboard, Settings, Archived Tasks, task-detail, About.
+- [ ] Dark mode: no white flash when navigating (Dashboard ↔ Home, task-detail ↔ Home).
+- [ ] Toggling light/dark in Settings updates every screen immediately.
+- [ ] Home's task grid: an incomplete last row of cards is centered, not stretched to fill
+      the row.
+- [ ] The "Completions Over Time" chart toggle (Dashboard Stats and per-task Stats) renders
+      as a clean, fully-rounded pill in both states — a real Android-only border-radius
+      rendering bug was found and fixed here, worth a specific look.
+
+**Onboarding**
+- [ ] All 5 hints appear/dismiss correctly on a fresh install (or after Settings → Replay
+      Onboarding Hints): hold-to-complete, tap-to-cycle, hold-to-expand, Dashboard's
+      task-filter hint, task-detail Calendar's tap-a-day hint.
+- [ ] Each hint's pointer/ring targets the correct element with no visual offset (this
+      class of bug — status-bar-relative measurement being wrong — was real and fixed).
+
+**Free-tier task cap**
+- [ ] Creating a 7th active task is blocked with a clear inline message + disabled Save;
+      archiving one re-enables Save.
+- [ ] Restoring an archived task while already at 6 active tasks is blocked with a toast.
+- [ ] Tapping the FAB while at the cap shows a toast instead of opening a dead-end form.
+
+**Cold start**
+- [ ] Force-quit and relaunch — a brief loading screen, then real data appears with no
+      flash of empty/default state first.
+
+**Store listing screenshots** (see "Prepped" #5 above) — capture the shot list on this
+same device/build while you're already in a realistic, populated state.
+
+---
+
 ## 1. Publishing to Google Play
 
 1. **Create a Google Play Console developer account** ($25 one-time fee) if you don't
@@ -206,6 +298,22 @@ So future releases are just `eas submit --platform android` instead of a manual 
    Keep that key file **out of git** (add it to `.gitignore`) — it's a real credential.
 5. From then on: `eas build --platform android --profile production` then
    `eas submit --platform android --profile production`.
+
+### Using the app yourself, day-to-day
+
+Add yourself as an **internal tester** in Play Console (Setup → your app → Testing →
+Internal testing → Testers, add your own Google account's email). That track gives you an
+opt-in link — open it once on your phone and accept, and from then on the app installs and
+updates through the real Play Store app on your device, same as any published app gets,
+including auto-updates whenever you push a new internal-track release. This works before
+the app is ever public, and keeps working identically once it is — no separate personal
+build to maintain.
+
+The alternative — sideloading a `preview`-profile build directly (skip Play Console
+entirely) — still works if you want it, but you lose Play's auto-update: every new version
+means re-running `eas build` and manually reinstalling. Reach for that only for quick
+pre-release iteration before you've bothered setting up Internal testing at all; once
+Internal testing exists, there's no reason to keep doing it that way.
 
 ---
 
