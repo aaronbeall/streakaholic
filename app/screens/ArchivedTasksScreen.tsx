@@ -3,18 +3,29 @@ import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useTaskStore } from '../stores/taskStore';
+import { ACTIVE_TASK_LIMIT_MESSAGE, hasReachedActiveTaskLimit } from '../utils/taskLimits';
 
 export const ArchivedTasksScreen: React.FC = () => {
   const router = useRouter();
   const tasks = useTaskStore(state => state.tasks);
   const restoreTask = useTaskStore(state => state.restoreTask);
+  const { showToast } = useToast();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const archivedTasks = useMemo(() => tasks.filter(task => task.archived), [tasks]);
+
+  const handleRestore = (taskId: string) => {
+    if (hasReachedActiveTaskLimit(tasks)) {
+      showToast({ message: ACTIVE_TASK_LIMIT_MESSAGE });
+      return;
+    }
+    restoreTask(taskId);
+  };
 
   return (
     <View style={styles.container}>
@@ -50,7 +61,7 @@ export const ArchivedTasksScreen: React.FC = () => {
               <Text style={styles.rowLabel} numberOfLines={1}>{item.name}</Text>
               <TouchableOpacity
                 style={styles.restoreButton}
-                onPress={() => restoreTask(item.id)}
+                onPress={() => handleRestore(item.id)}
                 accessibilityRole="button"
                 accessibilityLabel={`Restore ${item.name}`}
               >

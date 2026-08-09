@@ -32,6 +32,11 @@ Everything that makes the app actually work stays free, permanently:
   making export easy is a *retention* feature, not a monetization lever.
 
 A **soft cap on active (non-archived) tasks** is the one free-tier limit — see below.
+**Implemented 2026-08-08**, capped at 6, ahead of the Pro unlock itself (see `CLAUDE.md`'s
+"Free-tier task cap" section for the enforcement details) — deliberately shipped before
+there's anything to buy, so the limit is never something existing free users lose, only
+ever something they've always had. Data export/import stay uncapped, per the "your data is
+yours" principle above — see CLAUDE.md for why.
 
 ## Pro tier (one-time unlock, not a subscription)
 
@@ -39,7 +44,7 @@ A single non-consumable IAP that removes the task cap and unlocks the smaller
 customization/polish features. Candidates, roughly in order of how compelling each is as
 a reason to actually pay:
 
-1. **Unlimited active tasks** — free tier capped at 5–7. This is the main lever: casual
+1. **Unlimited active tasks** — free tier capped at 6 (implemented). This is the main lever: casual
    users tracking one or two habits never hit it and never need to pay; people who've
    actually built the habit of using the app for a bunch of things are exactly the users
    who've gotten the most value from it already.

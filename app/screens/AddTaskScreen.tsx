@@ -20,6 +20,7 @@ import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useTaskStore } from '../stores/taskStore';
 import { FrequencyType, MaterialCommunityIconName } from '../types';
+import { ACTIVE_TASK_LIMIT_MESSAGE, hasReachedActiveTaskLimit } from '../utils/taskLimits';
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -73,7 +74,15 @@ export const AddTaskScreen: React.FC = () => {
     return !tasks.some(task => task.id !== editingTask?.id && task.name.toLowerCase() === trimmedName.toLowerCase());
   }, [name, tasks, editingTask]);
 
+  // Only relevant when creating -- editing an existing task never changes the active count.
+  const atTaskLimit = useMemo(() => !isEditing && hasReachedActiveTaskLimit(tasks), [isEditing, tasks]);
+
   const handleSave = async () => {
+    if (atTaskLimit) {
+      showToast({ message: ACTIVE_TASK_LIMIT_MESSAGE });
+      return;
+    }
+
     if (!isNameValid) {
       showToast({ message: 'Please enter a unique task name' });
       return;
@@ -369,13 +378,17 @@ export const AddTaskScreen: React.FC = () => {
         </View>
       </View>
 
+      {atTaskLimit && (
+        <Text style={styles.taskLimitText}>{ACTIVE_TASK_LIMIT_MESSAGE}</Text>
+      )}
+
       <TouchableOpacity
-        style={[styles.saveButton, !isNameValid && styles.saveButtonDisabled]}
+        style={[styles.saveButton, (!isNameValid || atTaskLimit) && styles.saveButtonDisabled]}
         onPress={handleSave}
-        disabled={!isNameValid}
+        disabled={!isNameValid || atTaskLimit}
         accessibilityRole="button"
       >
-        <Text style={[styles.saveButtonText, !isNameValid && styles.saveButtonTextDisabled]}>
+        <Text style={[styles.saveButtonText, (!isNameValid || atTaskLimit) && styles.saveButtonTextDisabled]}>
           {isEditing ? 'Save Changes' : 'Save Task'}
         </Text>
       </TouchableOpacity>
@@ -460,6 +473,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: '#FF3B30',
     fontSize: 14,
     marginTop: 4,
+  },
+  taskLimitText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 16,
   },
   frequencyTypeButton: {
     paddingHorizontal: 16,

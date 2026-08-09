@@ -21,6 +21,7 @@ import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
 import { getStreakStats } from '../utils/data';
 import { isTaskCompleted } from '../utils/streaks';
+import { ACTIVE_TASK_LIMIT_MESSAGE, hasReachedActiveTaskLimit } from '../utils/taskLimits';
 
 // Narrower than the full OnboardingHintKey union -- this screen only ever produces one of these
 // three (see onboardingCandidateKey below), never the other screens' single stationary-target hints.
@@ -164,6 +165,15 @@ export const HomeScreen: React.FC = () => {
   }), [tasks, filter]);
 
   const hasAnyTasks = useMemo(() => tasks.some(task => !task.archived), [tasks]);
+  const atTaskLimit = useMemo(() => hasReachedActiveTaskLimit(tasks), [tasks]);
+
+  const handleAddTask = useCallback(() => {
+    if (atTaskLimit) {
+      showToast({ message: ACTIVE_TASK_LIMIT_MESSAGE });
+      return;
+    }
+    router.push('/add-task');
+  }, [atTaskLimit, showToast, router]);
 
   const getColumnCount = () => {
     if (width >= 1200) return 4;
@@ -406,7 +416,7 @@ export const HomeScreen: React.FC = () => {
                   <Text style={styles.emptyStateButtonSecondaryText}>Clear Filter</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity style={styles.emptyStateButton} onPress={() => router.push('/add-task')} accessibilityRole="button">
+                <TouchableOpacity style={styles.emptyStateButton} onPress={handleAddTask} accessibilityRole="button">
                   <MaterialCommunityIcons name="plus" size={18} color="#fff" />
                   <Text style={styles.emptyStateButtonText}>Add a Habit</Text>
                 </TouchableOpacity>
@@ -417,7 +427,7 @@ export const HomeScreen: React.FC = () => {
       />
       <TouchableOpacity
         style={[styles.addButton, { bottom: FAB_OFFSET + insets.bottom }]}
-        onPress={() => router.push('/add-task')}
+        onPress={handleAddTask}
         accessibilityRole="button"
         accessibilityLabel="Add a habit"
       >
