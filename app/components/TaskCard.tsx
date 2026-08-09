@@ -697,12 +697,18 @@ const CardStats = React.memo(({ task }: { task: Task }) => {
 
   const weeklyStats = getWeeklyStats();
   const monthlyStats = getMonthlyStats();
-  const isBestStreak = task.stats?.currentStreak === task.stats?.bestStreak && (task.stats?.bestStreak || 0) > 0;
+  const currentStreak = task.stats?.currentStreak || 0;
+  const bestStreak = task.stats?.bestStreak || 0;
+  const isBestStreak = currentStreak === bestStreak && bestStreak > 0;
   // Same status -> icon/color mapping the front face's own badge uses, so the two faces of the
   // same card agree on what a streak's current state looks like instead of the stats face using
   // a flat neutral tint regardless of whether the streak is live, expiring, or dormant.
   const streakBadgeStyle = getStreakBadgeStyle(task);
   const currentStreakColor = streakBadgeStyle?.color ?? colors.textSecondary;
+  // Scaled against this task's own best streak (not a flat constant) so the bar means the same
+  // thing -- "how close to your personal record" -- for a task whose best is 4 days as for one
+  // whose best is 40. Hits 100% exactly when isBestStreak does.
+  const streakBarFraction = bestStreak > 0 ? Math.min(currentStreak / bestStreak, 1) : 0;
 
   return (
     <View style={styles.statsContainer}>
@@ -710,14 +716,14 @@ const CardStats = React.memo(({ task }: { task: Task }) => {
         <View style={styles.statRow}>
           <View style={styles.statValueRow}>
             <MaterialCommunityIcons name={streakBadgeStyle?.icon ?? 'fire'} size={16} color={currentStreakColor} />
-            <Text style={styles.statValue} numberOfLines={1}>{task.stats?.currentStreak || 0}</Text>
+            <Text style={styles.statValue} numberOfLines={1}>{currentStreak}</Text>
           </View>
           <View style={styles.statValueRow}>
             <MaterialCommunityIcons name="trophy" size={16} color={isBestStreak ? '#FFD700' : colors.textSecondary} />
             {isBestStreak ? (
               <Text style={styles.bestStreakText} numberOfLines={1}>BEST!</Text>
             ) : (
-              <Text style={styles.statValue} numberOfLines={1}>{task.stats?.bestStreak || 0}</Text>
+              <Text style={styles.statValue} numberOfLines={1}>{bestStreak}</Text>
             )}
           </View>
         </View>
@@ -725,10 +731,7 @@ const CardStats = React.memo(({ task }: { task: Task }) => {
           <View
             style={[
               styles.progressFill,
-              {
-                backgroundColor: task.color,
-                width: `${Math.min((task.stats?.currentStreak || 0) / 10 * 100, 100)}%` as const
-              }
+              { backgroundColor: task.color, width: `${streakBarFraction * 100}%` as const }
             ]}
           />
         </View>
