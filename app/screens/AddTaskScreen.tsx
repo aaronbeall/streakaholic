@@ -15,14 +15,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { ColorPicker } from '../components/ColorPicker';
 import { IconPicker } from '../components/IconPicker';
-import { DEFAULT_COLORS, DEFAULT_ICONS } from '../constants/task';
+import { DAY_ABBREVIATIONS, DEFAULT_COLORS, DEFAULT_ICONS } from '../constants/task';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useTaskStore } from '../stores/taskStore';
 import { FrequencyType, MaterialCommunityIconName } from '../types';
 import { ACTIVE_TASK_LIMIT_MESSAGE, hasReachedActiveTaskLimit } from '../utils/taskLimits';
-
-const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export const AddTaskScreen: React.FC = () => {
   const router = useRouter();
@@ -278,7 +276,7 @@ export const AddTaskScreen: React.FC = () => {
               <View style={styles.optionCard}>
                 <Text style={styles.optionLabel}>Select Days</Text>
                 <View style={styles.daysContainer}>
-                  {weekDays.map((day, index) => (
+                  {DAY_ABBREVIATIONS.map((day, index) => (
                     <TouchableOpacity
                       key={day}
                       style={[

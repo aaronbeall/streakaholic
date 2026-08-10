@@ -63,6 +63,14 @@ export const EXTENDED_COLOR_BATCHES: string[][] = [
   ],
 ];
 
+// 3-letter day-of-week abbreviations, index 0 = Sunday -- matches both `Date.getDay()` and
+// `Task.daysOfWeek`'s own indexing (see app/utils/streaks.ts's isDueOnDate), so any index from
+// either can be used directly against this array with no remapping. Used by AddTaskScreen's
+// day-of-week picker. app/utils/formatFrequency.ts keeps its own identical local copy rather
+// than importing this one -- this module pulls in @expo/vector-icons (for ALL_ICONS), which
+// would drag a native font-loading dependency into that otherwise pure, jest-testable file.
+export const DAY_ABBREVIATIONS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 // Get all available icons from MaterialCommunityIcons
 export const ALL_ICONS = Object.keys(MaterialCommunityIcons.glyphMap) as MaterialCommunityIconName[];
 

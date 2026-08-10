@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { addDays, endOfWeek, format, getDay, getDaysInMonth, parseISO, startOfMonth, startOfWeek } from 'date-fns';
+import { addDays, endOfWeek, format, getDay, getDaysInMonth, parseISO, startOfMonth, startOfWeek, subDays } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -12,42 +12,25 @@ import {
 import Reanimated, {
   Easing,
   SharedValue,
-  useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
-  withSequence,
   withSpring,
   withTiming
 } from 'react-native-reanimated';
-import Svg, { Circle, Path } from 'react-native-svg';
+import { useFireCelebration } from '../hooks/useFireCelebration';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useSettingsStore } from '../stores/settingsStore';
 import { Task } from '../types';
 import { MissedDayMark } from './MissedDayMark';
+import { SkippedDayMark } from './SkippedDayMark';
 import { ParticleSystem } from './ParticleSystem';
 import { PartialDayPie } from './PartialDayPie';
+import { TaskProgressIcon } from './TaskProgressIcon';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { getExpectedPeriodTotal } from '../utils/periodStats';
+import { getDayStreakState, getTaskStreakChains, isConnectedDay } from '../utils/reports';
 import { buildCompletionCountsByDate, getCompletionCount, getStreakBadgeStyle, isTaskCompleted } from '../utils/streaks';
 
-const AnimatedPath = Reanimated.createAnimatedComponent(Path);
-
-// The icon's press-and-hold depress, its completion-pop peak (explicit and guaranteed, not
-// physics-estimated -- see the comment in the completion effect for why), and how long the
-// checkmark stays up before committing the completion. That hold is a plain fixed timeout, not
-// the elastic spring's own "finished" callback, since that callback proved unreliable on Android
-// for driving real control flow (measured 3-4s there instead of the physics-predicted few
-// hundred ms).
-const DEPRESS_SCALE = 0.9;
-const POP_PEAK_SCALE = 1.2;
-const COMPLETION_HOLD_DURATION = 750;
-// The gap (in degrees) left between each arc segment of a >1x/day task's split progress ring --
-// see `ringSegments` in `CardTask` below.
-const RING_SEGMENT_GAP_DEGREES = 14;
-// The incomplete-state ring/track's opacity -- deliberately more faded than the 0.35 used by the
-// today's-progress wedge below, so the track reads as an empty/base state that the press-and-hold
-// sweep (full solid `task.color`, no opacity) then visibly "fills in" over.
-const INCOMPLETE_RING_OPACITY = 0.25;
 // A rough estimate of the streak *bubble*'s own rendered bounds (icon + streak count text,
 // padding -- deliberately not including the optional trophy icon, which sits outside the bubble
 // itself and shouldn't be covered by the spawn area), used as `ParticleSystem`'s `spawnArea` --
@@ -113,25 +96,7 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
   const showCardBackground = useSettingsStore(state => state.showCardBackground);
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const checkmarkOpacity = useSharedValue(0);
-  const iconOpacity = useSharedValue(1);
-  const scale = useSharedValue(1);
-  const badgeScale = useSharedValue(1);
-  const [showParticles, setShowParticles] = useState(false);
-  // Bumped every time the celebration effect below actually fires, and used as `ParticleSystem`'s
-  // `key` -- forces a fresh mount (fresh internal particle state) on every genuine "became a fire
-  // streak" transition, even if `currentStreak` repeats a value it already hit before (e.g.
-  // complete -> undo -> complete again cycles 5->6->5->6) or if the previous instance never got a
-  // chance to unmount in between. Without this, a second celebration reusing the still-mounted
-  // instance from the first one silently produced no new particles, since `ParticleSystem`'s own
-  // particle state only ever initializes once per mount.
-  const [celebrationKey, setCelebrationKey] = useState(0);
-  // Stable so `ParticleSystem`'s own `React.memo` isn't defeated by a fresh closure every time
-  // `CardTask` re-renders while particles are showing (e.g. isPressed/isCompleting toggling
-  // during the same completion animation) -- a fresh `onComplete` each time meant ParticleSystem
-  // re-rendered too, re-running its particles' random `life` duration calculation on every one of
-  // those renders and restarting each particle's fade/drift animation mid-flight.
-  const handleParticlesComplete = useCallback(() => setShowParticles(false), []);
+  const { streakBadgeStyle, badgeAnimatedStyle, showParticles, celebrationKey, handleParticlesComplete } = useFireCelebration(task);
 
   // Scale the icon with the actual card size instead of a fixed 128px -- on a small grid
   // (3+ columns, narrow phones) a fixed-size icon left no room for the name/counter text
@@ -143,300 +108,22 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
   const iconFontSize = iconSize / 2;
   const iconMarginBottom = Math.max(2, Math.min(size * 0.03, 8));
 
-  const streakBadgeStyle = getStreakBadgeStyle(task);
-
-  const CIRCLE_STROKE_WIDTH = 8;
-  const CIRCLE_RADIUS = 60;
-  const CIRCLE_CENTER = 64;
-  const INNER_CIRCLE_RADIUS = CIRCLE_RADIUS - CIRCLE_STROKE_WIDTH;
-
-  // The press-and-hold confirmation, driven by the same `progress.value * 360` sweep, renders as
-  // two coordinated pieces: a stroke arc along the ring/track itself (below), so holding reads as
-  // filling up the muted track like a circular progress bar -- plus (per explicit user direction,
-  // brought back after initially being replaced) the original filled pie slice growing from the
-  // center too, so both the ring and the icon's interior fill together rather than just the ring.
-  const holdProgressAnimatedProps = useAnimatedProps(() => {
-    const angle = progress.value * 360;
-    if (angle <= 0) {
-      return { d: '' };
-    }
-    const radians = (angle - 90) * (Math.PI / 180);
-    const x = CIRCLE_CENTER + CIRCLE_RADIUS * Math.cos(radians);
-    const y = CIRCLE_CENTER + CIRCLE_RADIUS * Math.sin(radians);
-    const largeArcFlag = angle > 180 ? 1 : 0;
-    const path = [
-      `M ${CIRCLE_CENTER} ${CIRCLE_CENTER - CIRCLE_RADIUS}`,
-      `A ${CIRCLE_RADIUS} ${CIRCLE_RADIUS} 0 ${largeArcFlag} 1 ${x} ${y}`
-    ].join(' ');
-
-    return {
-      d: path
-    };
-  });
-
-  const holdProgressPieAnimatedProps = useAnimatedProps(() => {
-    const angle = progress.value * 360;
-    if (angle <= 0) {
-      return { d: '' };
-    }
-    const radians = (angle - 90) * (Math.PI / 180);
-    const x = CIRCLE_CENTER + INNER_CIRCLE_RADIUS * Math.cos(radians);
-    const y = CIRCLE_CENTER + INNER_CIRCLE_RADIUS * Math.sin(radians);
-    const largeArcFlag = angle > 180 ? 1 : 0;
-    const path = [
-      `M ${CIRCLE_CENTER} ${CIRCLE_CENTER}`,
-      `L ${CIRCLE_CENTER} ${CIRCLE_CENTER - INNER_CIRCLE_RADIUS}`,
-      `A ${INNER_CIRCLE_RADIUS} ${INNER_CIRCLE_RADIUS} 0 ${largeArcFlag} 1 ${x} ${y}`,
-      'Z'
-    ].join(' ');
-
-    return {
-      d: path
-    };
-  });
-
   const timesPerDayCount = task.timesPerDay || 1;
   const completionCount = getCompletionCount(task);
-  const dayProgressFraction = Math.min(completionCount / timesPerDayCount, 1);
-
-  // For a >1x/day task, the outer ring splits into `timesPerDayCount` equal arc segments with a
-  // small gap between each, instead of one continuous circle -- a static visual cue for "this
-  // many reps needed today", independent of `dayProgressAnimatedProps`'s own fill-based progress
-  // wedge below. Only depends on `timesPerDayCount` (not any shared value), so it's a plain
-  // `useMemo`, not an animated prop -- no need to recompute on every frame/render like the actual
-  // progress sweeps do.
-  const ringSegments = useMemo(() => {
-    if (timesPerDayCount <= 1) {
-      return null;
-    }
-    const getRingPoint = (angleDegrees: number) => {
-      const radians = (angleDegrees - 90) * (Math.PI / 180);
-      return {
-        x: CIRCLE_CENTER + CIRCLE_RADIUS * Math.cos(radians),
-        y: CIRCLE_CENTER + CIRCLE_RADIUS * Math.sin(radians)
-      };
-    };
-    const segmentAngle = 360 / timesPerDayCount;
-    return Array.from({ length: timesPerDayCount }, (_, i) => {
-      const startAngle = i * segmentAngle + RING_SEGMENT_GAP_DEGREES / 2;
-      const endAngle = (i + 1) * segmentAngle - RING_SEGMENT_GAP_DEGREES / 2;
-      const start = getRingPoint(startAngle);
-      const end = getRingPoint(endAngle);
-      const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
-      return `M ${start.x} ${start.y} A ${CIRCLE_RADIUS} ${CIRCLE_RADIUS} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`;
-    });
-  }, [timesPerDayCount]);
-
-  // Animated pie slice showing how many of today's timesPerDay reps are logged so far --
-  // eases toward the new fraction whenever a rep is logged, echoing the same sweep-in
-  // motion as `holdProgressAnimatedProps` above (the transient press-and-hold confirmation).
-  const dayProgress = useSharedValue(dayProgressFraction);
-
-  useEffect(() => {
-    dayProgress.value = withTiming(dayProgressFraction, { duration: 500 });
-  }, [dayProgressFraction]);
-
-  const dayProgressAnimatedProps = useAnimatedProps(() => {
-    const angle = dayProgress.value * 360;
-    if (angle <= 0) {
-      return { d: '' };
-    }
-    const radians = (angle - 90) * (Math.PI / 180);
-    const x = CIRCLE_CENTER + INNER_CIRCLE_RADIUS * Math.cos(radians);
-    const y = CIRCLE_CENTER + INNER_CIRCLE_RADIUS * Math.sin(radians);
-    const largeArcFlag = angle > 180 ? 1 : 0;
-    const path = [
-      `M ${CIRCLE_CENTER} ${CIRCLE_CENTER}`,
-      `L ${CIRCLE_CENTER} ${CIRCLE_CENTER - INNER_CIRCLE_RADIUS}`,
-      `A ${INNER_CIRCLE_RADIUS} ${INNER_CIRCLE_RADIUS} 0 ${largeArcFlag} 1 ${x} ${y}`,
-      'Z'
-    ].join(' ');
-    return { d: path };
-  });
-
-  const checkmarkStyle = useAnimatedStyle(() => ({
-    opacity: checkmarkOpacity.value,
-    transform: [{ scale: checkmarkOpacity.value }]
-  }));
-
-  const iconStyle = useAnimatedStyle(() => ({
-    opacity: iconOpacity.value * (1 - progress.value)
-  }));
-
-  const containerStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }]
-  }));
-
-  // Derived from the same `completionCount` already fetched above, rather than a second
-  // `isTaskCompleted(task)` call -- that would re-run its own internal `getCompletionCount` scan
-  // over `task.completions` a second time for the exact same (task, today) lookup.
-  const completed = completionCount >= timesPerDayCount || isCompleting;
-
-  const badgeStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: badgeScale.value }]
-  }));
-
-  useEffect(() => {
-    if (streakBadgeStyle?.icon === 'fire') {
-      // Same pop shape as the icon's own completion animation below (explicit snap to a
-      // guaranteed peak, then a fast multi-bounce spring settle) -- just triggered off the streak
-      // badge flipping to `fire` instead of the completion press itself.
-      badgeScale.value = withSequence(
-        withTiming(POP_PEAK_SCALE, { duration: 100, easing: Easing.out(Easing.cubic) }),
-        withSpring(1, {
-          damping: 23,
-          stiffness: 1000,
-          energyThreshold: 0.0001,
-        })
-      );
-      setCelebrationKey(k => k + 1);
-      setShowParticles(true);
-    }
-  }, [task.stats?.currentStreak, streakBadgeStyle?.icon]);
-
-  useEffect(() => {
-    if (isCompleting) {
-      // Fade out icon and show checkmark immediately -- it stays up for the entire pop.
-      iconOpacity.value = withTiming(0, { duration: 120 });
-      checkmarkOpacity.value = withTiming(1, { duration: 120 });
-
-      // A spring's overshoot from a small starting displacement (0.9→1.0, only 0.1 of travel) is
-      // physics-*estimated*, not guaranteed -- pushing `velocity` higher and higher never
-      // produced a reliably dramatic result, because how much it actually overshoots by depends
-      // on Reanimated's internal spring math, not just the numbers plugged in. So this no longer
-      // asks a spring to produce the overshoot at all: it snaps to an explicit, guaranteed peak
-      // (`POP_PEAK_SCALE`, a fixed target, not an estimate) with a fast `withTiming`, *then* a
-      // separate spring eases it back down from there. Two chained animations, but no pause
-      // between them -- the second starts the instant the first ends.
-      //
-      // For that return spring: `stiffness` sets how fast each oscillation cycle is (higher =
-      // snappier bounces), `damping` sets how quickly those oscillations decay away (higher =
-      // shorter overall settle time) -- they're independent knobs. Since the real-time-to-settle
-      // depends on `damping` alone (not `stiffness`, given mass:1), raising `stiffness` further
-      // fits *more* oscillation cycles into that same real-time envelope for free -- more visible
-      // bounces, not a longer wait. Raising `damping` a little on top makes that envelope itself
-      // decay a bit faster, as requested, without needing to sacrifice stiffness/bounce count to
-      // get there.
-      //
-      // Reanimated's default `energyThreshold` (the combined kinetic+potential energy below which
-      // it calls the spring "at rest" and snaps it to the target) was also cutting this over
-      // before the decay had visibly finished -- read as an abrupt stop rather than a natural
-      // fade-out. Tightened here so it keeps animating further into the tail of the decay first.
-      scale.value = withSequence(
-        withTiming(POP_PEAK_SCALE, { duration: 100, easing: Easing.out(Easing.cubic) }),
-        withSpring(1, {
-          damping: 23,
-          stiffness: 1000,
-          energyThreshold: 0.0001,
-        })
-      );
-
-      // A plain fixed timeout, not the spring's own "finished" callback -- a previous version
-      // relied on that callback to drive the checkmark reversal + onCompleted, but it measured
-      // 3-4s on Android instead of the physics-predicted few hundred ms, so it can't drive real
-      // control flow.
-      const timer = setTimeout(() => {
-        checkmarkOpacity.value = withTiming(0, { duration: 120 });
-        iconOpacity.value = withTiming(1, { duration: 120 });
-        onCompleted();
-      }, COMPLETION_HOLD_DURATION);
-      return () => clearTimeout(timer);
-    }
-
-    // Not completing -- just track the press depress (quick down on press, quick back up on
-    // release). Skipped entirely while completing, above, so a release that happens to land
-    // mid-pop can't fight the elastic settle.
-    scale.value = withTiming(isPressed ? DEPRESS_SCALE : 1, { duration: isPressed ? 100 : 150 });
-  }, [isPressed, isCompleting]);
 
   return (
     <View style={styles.contentContainer}>
-      <Reanimated.View style={[styles.iconContainer, { width: iconSize, height: iconSize, borderRadius: iconSize / 2, marginBottom: iconMarginBottom, backgroundColor: 'transparent' }, containerStyle]}>
-        <Svg width={iconSize} height={iconSize} viewBox="0 0 128 128">
-          {/* Outer circle (border) -- solid fill once completed, regardless of timesPerDay.
-              While incomplete it's a faded/muted track instead (either one continuous ring for
-              1x/day, or split into equal arc segments with gaps for >1x/day, see `ringSegments`)
-              that the press-and-hold sweep below then fills in with solid color. */}
-          {completed ? (
-            <Circle
-              cx={CIRCLE_CENTER}
-              cy={CIRCLE_CENTER}
-              r={CIRCLE_RADIUS}
-              stroke={task.color}
-              strokeWidth={CIRCLE_STROKE_WIDTH}
-              fill={task.color}
-            />
-          ) : ringSegments ? (
-            // Segments for reps already logged today render solid (full opacity) even though the
-            // overall task isn't complete yet -- only the remaining, not-yet-done segments stay
-            // muted. Segment order matches rep order (index 0 first), not tied to which particular
-            // press logged which rep, since reps themselves are interchangeable increments.
-            ringSegments.map((d, i) => (
-              <Path
-                key={i}
-                d={d}
-                stroke={task.color}
-                strokeWidth={CIRCLE_STROKE_WIDTH}
-                strokeLinecap="round"
-                fill="none"
-                opacity={i < completionCount ? 1 : INCOMPLETE_RING_OPACITY}
-              />
-            ))
-          ) : (
-            <Circle
-              cx={CIRCLE_CENTER}
-              cy={CIRCLE_CENTER}
-              r={CIRCLE_RADIUS}
-              stroke={task.color}
-              strokeWidth={CIRCLE_STROKE_WIDTH}
-              fill="none"
-              opacity={INCOMPLETE_RING_OPACITY}
-            />
-          )}
-          {/* Today's times-per-day progress, when this task requires more than one rep a day */}
-          {!completed && timesPerDayCount > 1 && (
-            <AnimatedPath fill={task.color} opacity={0.35} animatedProps={dayProgressAnimatedProps} />
-          )}
-          {/* Press-and-hold confirmation -- both fill the ring/track itself like a progress bar
-              AND grow a solid pie slice from the center, together */}
-          {!completed && (
-            <>
-              <AnimatedPath fill={task.color} animatedProps={holdProgressPieAnimatedProps} />
-              <AnimatedPath
-                stroke={task.color}
-                strokeWidth={CIRCLE_STROKE_WIDTH}
-                strokeLinecap="round"
-                fill="none"
-                animatedProps={holdProgressAnimatedProps}
-              />
-            </>
-          )}
-        </Svg>
-        <Reanimated.View style={[StyleSheet.absoluteFill, iconStyle]}>
-          <MaterialCommunityIcons
-            name={task.icon}
-            size={iconFontSize}
-            color={completed ? '#fff' : task.color}
-            style={{
-              textAlign: 'center',
-              textAlignVertical: 'center',
-              lineHeight: iconSize
-            }}
-          />
-        </Reanimated.View>
-        <Reanimated.View style={[StyleSheet.absoluteFill, checkmarkStyle, { justifyContent: 'center', alignItems: 'center' }]}>
-          <MaterialCommunityIcons
-            name="check"
-            size={iconFontSize}
-            color="#fff"
-            style={{
-              textAlign: 'center',
-              textAlignVertical: 'center',
-              lineHeight: iconSize
-            }}
-          />
-        </Reanimated.View>
-      </Reanimated.View>
+      <View style={{ marginBottom: iconMarginBottom }}>
+        <TaskProgressIcon
+          task={task}
+          iconSize={iconSize}
+          iconFontSize={iconFontSize}
+          progress={progress}
+          isPressed={isPressed}
+          isCompleting={isCompleting}
+          onCompleted={onCompleted}
+        />
+      </View>
       {(showTaskName || (timesPerDayCount > 1 && showTaskCounter)) && (
         <View style={styles.titleRow}>
           {showTaskName && (
@@ -450,17 +137,17 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
         </View>
       )}
       {streakBadgeStyle && (
-        <Reanimated.View style={[styles.streakBadge, badgeStyle]}>
+        <Reanimated.View style={[styles.streakBadge, badgeAnimatedStyle]}>
           <View style={[styles.streakBubble, { backgroundColor: streakBadgeStyle.color }]}>
             <MaterialCommunityIcons name={streakBadgeStyle.icon} size={14} color="#fff" />
             <Text style={styles.streakText}>{streakBadgeStyle.value}</Text>
           </View>
           {streakBadgeStyle.showTrophy && (
-            <MaterialCommunityIcons 
-              name="trophy" 
-              size={20} 
-              color="#FFD700" 
-              style={styles.trophyIcon} 
+            <MaterialCommunityIcons
+              name="trophy"
+              size={20}
+              color="#FFD700"
+              style={styles.trophyIcon}
             />
           )}
           {showParticles && (
@@ -548,6 +235,9 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
   // count instead of also calling isTaskCompleted (which would repeat the same lookup again).
   const completionCounts = useMemo(() => buildCompletionCountsByDate(task.completions || []), [task.completions]);
   const requiredTimes = task.timesPerDay || 1;
+  // Memoized once per task rather than recomputed per empty cell -- getTaskStreakChains walks
+  // the task's full history, so this turns a per-cell cost back into a per-render one.
+  const streakChains = useMemo(() => getTaskStreakChains(task), [task]);
 
   const days = Array.from({ length: daysInMonth }, (_, i) => {
     const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i + 1);
@@ -557,7 +247,15 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
     const isPartial = completionCount > 0 && !isCompleted;
     const isToday = dateString === today;
     const isPast = dateString < today;
-    const isMissed = isPast && !isCompleted && !isPartial;
+    const isEmpty = isPast && !isCompleted && !isPartial;
+    const streakState = isEmpty ? getDayStreakState(task, date, streakChains, completionCounts) : null;
+    const isMissed = streakState === 'hardMiss';
+    const isSkipped = streakState === 'connected';
+    const isSoftMissed = streakState === 'softMiss';
+    // Only completed days need an explicit connector stub -- a skipped day's own line already
+    // spans its full cell width unconditionally (see SkippedDayMark), so it never needs one.
+    const hasLeftConnector = isCompleted && isConnectedDay(task, subDays(date, 1), streakChains, completionCounts);
+    const hasRightConnector = isCompleted && isConnectedDay(task, addDays(date, 1), streakChains, completionCounts);
     return {
       date,
       isCompleted,
@@ -565,6 +263,10 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
       completionCount,
       isToday,
       isMissed,
+      isSkipped,
+      isSoftMissed,
+      hasLeftConnector,
+      hasRightConnector,
       dayNumber: i + 1
     };
   });
@@ -603,7 +305,15 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
                 {day ? (
                   <View style={styles.calendarDayInner}>
                     {day.isCompleted ? (
-                      <View style={[styles.calendarDot, { backgroundColor: task.color }]} />
+                      <>
+                        {day.hasLeftConnector && (
+                          <View style={styles.leftConnector}><SkippedDayMark color={task.color} /></View>
+                        )}
+                        {day.hasRightConnector && (
+                          <View style={styles.rightConnector}><SkippedDayMark color={task.color} /></View>
+                        )}
+                        <View style={[styles.calendarDot, { backgroundColor: task.color }]} />
+                      </>
                     ) : day.isPartial ? (
                       <View style={[styles.calendarDot, day.isToday && { borderWidth: 2, borderColor: task.color }]}>
                         <PartialDayPie fraction={day.completionCount / (task.timesPerDay || 1)} color={task.color} />
@@ -612,7 +322,14 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
                       <View style={[styles.calendarDot, { borderWidth: 2, borderColor: task.color, backgroundColor: 'transparent' }]} />
                     ) : day.isMissed ? (
                       <MissedDayMark color={colors.textTertiary} size={11} />
+                    ) : day.isSkipped ? (
+                      <View style={styles.calendarSkippedLineWrap}>
+                        <SkippedDayMark color={task.color} thickness={4} />
+                      </View>
                     ) : (
+                      // Covers both an actual future day and a "soft miss" (isSoftMissed) --
+                      // an empty day with no streak currently at stake, neither a hard miss nor
+                      // a connecting skip. Both read identically: a plain faded, empty dot.
                       <View style={[styles.calendarDot, styles.calendarDotFuture]} />
                     )}
                   </View>
@@ -1064,6 +781,38 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   calendarDotFuture: {
     opacity: 0.3,
+  },
+  // A completed day's connector stub -- half the cell's width, anchored to that side, rendered
+  // behind the solid dot (which covers its inner half) so only the outer stub reaching toward
+  // the cell edge shows. Matches SkippedDayMark's own opacity so the connecting thread reads
+  // consistently whether it's passing behind a dot or standing alone across a skipped day.
+  leftConnector: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: '50%',
+    justifyContent: 'center',
+    opacity: 0.3,
+  },
+  rightConnector: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: '50%',
+    justifyContent: 'center',
+    opacity: 0.3,
+  },
+  // A soft-skip day on this particular face reads as a short, thick, semi-transparent tick
+  // rather than the full-width edge-to-edge connector the other calendars use -- at this small
+  // a cell size (this is the densest calendar grid in the app), a thin line spanning the whole
+  // cell read as too faint/busy; a short bold tick is more legible without needing to actually
+  // touch neighboring cells the way the larger calendars' connecting line does.
+  calendarSkippedLineWrap: {
+    width: '55%',
+    alignSelf: 'center',
+    opacity: 0.5,
   },
   calendarX: {
     fontSize: 24,

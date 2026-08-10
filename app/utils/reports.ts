@@ -151,6 +151,117 @@ export const getTaskStreakChains = (task: Task): StreakChain[] => {
   }
 };
 
+export type DayStreakState = 'connected' | 'hardMiss' | 'softMiss';
+
+// Finds the most recent chain that has already fully closed before `day` (chains are
+// chronological, oldest-first, so this is just "the last one whose endDate precedes day").
+const lastChainBefore = (chains: StreakChain[], day: Date): StreakChain | undefined => {
+  let result: StreakChain | undefined;
+  for (const chain of chains) {
+    if (chain.endDate < day) result = chain;
+  }
+  return result;
+};
+
+// A day's relationship to the task's own streak history -- three states, not two:
+//  - 'connected': part of a real streak run right now -- either an already-closed historical
+//    chain (getTaskStreakChains), the current not-yet-decided period of a days_per_week/
+//    days_per_month task, or (daily/specific_days_of_week) a non-due day a real chain reaches
+//    through. Renders as the connecting dash/line.
+//  - 'hardMiss': a day that was genuinely *required* and wasn't completed -- a missed due day
+//    (daily/specific_days_of_week), or any empty day in a days_per_week/days_per_month period
+//    that has already elapsed without meeting quota. This applies unconditionally, no matter how
+//    long ago it happened or whether the streak is already expired (per explicit user direction:
+//    a required day doesn't stop having been required just because time has passed since).
+//    Renders as an X.
+//  - 'softMiss': the only two cases left once 'hardMiss' isn't unconditional-by-requirement --
+//    a non-due day (daily/specific_days_of_week) that isn't covered by any real chain, and a due
+//    day when the task has never had *any* real chain yet (nothing has ever been "continuing").
+//    Renders as a plain, less-alarming empty day.
+//
+// Takes `chains` (the caller's own already-memoized getTaskStreakChains(task) result) and
+// `completionCounts` (the caller's own already-memoized buildCompletionCountsByDate(task.
+// completions) result) rather than recomputing either internally -- calendar grids call this
+// once per empty cell, and both of those walk/scan the task's full history, so recomputing them
+// from scratch per cell would turn a per-render cost into a per-cell one across a whole grid.
+export const getDayStreakState = (
+  task: Task,
+  date: Date,
+  chains: StreakChain[],
+  completionCounts: Map<string, number>
+): DayStreakState => {
+  const day = startOfDay(date);
+
+  if (task.frequency !== 'days_per_week' && task.frequency !== 'days_per_month') {
+    if (!isDueOnDate(task, day)) {
+      // A non-due day only reads as connected if it's actually *within* a real chain's span (a
+      // due-day chain's date range already includes its own non-due bonus days -- see
+      // getDueDayStreakChains). Bug fixed 2026-08-09: this used to return 'connected'
+      // unconditionally for every non-due day, so one sitting right after a real hard miss
+      // (nothing currently connected at all) still drew a connecting dash.
+      return chains.some(chain => day >= chain.startDate && day <= chain.endDate) ? 'connected' : 'softMiss';
+    }
+    // A missed due day was genuinely required, full stop -- per explicit user direction, this
+    // holds even long after the streak that would have used it has already expired; there's no
+    // fading it back to a soft miss over time. The one exception: a task that has never had any
+    // real chain at all has nothing for this day to have been "continuing" in the first place.
+    return lastChainBefore(chains, day) ? 'hardMiss' : 'softMiss';
+  }
+
+  // days_per_week / days_per_month: whether this day's own period, on its own, met quota --
+  // not whether it happens to fall within some larger chain's overall date span (a chain's own
+  // endDate can reach *into* a period that itself failed, via the "IncludingClose" bonus-day
+  // credit calculateQuotaStats/getQuotaStreakChains both use for computing streak *length* --
+  // that's a different question from what this specific period, in isolation, actually needed).
+  const unit: QuotaUnit = task.frequency === 'days_per_month' ? 'month' : 'week';
+  const requiredTimes = Math.max(1, task.timesPerDay || 1);
+  const quota = Math.max(1, (task.frequency === 'days_per_month' ? task.daysPerMonth : task.daysPerWeek) || 1);
+  const { start, end } = getPeriodBounds(day, unit);
+
+  let qualifyingCount = 0;
+  for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
+    if ((completionCounts.get(format(cursor, 'yyyy-MM-dd')) ?? 0) >= requiredTimes) qualifyingCount++;
+  }
+  if (qualifyingCount >= quota) return 'connected';
+
+  // Quota not met by this period's own days -- if the period hasn't elapsed yet, it's still
+  // undecided (a pending tail), not a miss. Once it has elapsed short of quota, every empty day
+  // in it reads as a hard miss -- we can't know which specific subset would have been "the"
+  // required ones, so per explicit user direction, all of them are treated as required.
+  const today = startOfDay(new Date());
+  const isCurrentPeriod = start.getTime() === getPeriodBounds(today, unit).start.getTime();
+  return isCurrentPeriod ? 'connected' : 'hardMiss';
+};
+
+// Whether this date reads as part of a connected streak thread at all -- completed, or a soft
+// skip (see getDayStreakState). Used to decide whether two adjacent day cells should show a
+// connector line between them: a day gets a left/right connector stub exactly when its neighbor
+// on that side is *also* connected, which naturally reproduces "no left connector on a streak's
+// first day, no right connector on its last day" without needing to special-case either --
+// a day with a broken/missing neighbor has nothing connected to draw a line into. Today itself is
+// never marked completed or skipped on its own (calendars never judge "today" as a miss/skip --
+// see each screen's `isPast` gating), so it's handled separately here: it reads as connected
+// exactly when there's a live streak reaching into it right now, which is what lets a completed
+// yesterday grow a right-connector stub pointing at an as-yet-undecided today.
+export const isConnectedDay = (
+  task: Task,
+  date: Date,
+  chains: StreakChain[],
+  completionCounts: Map<string, number>
+): boolean => {
+  const today = startOfDay(new Date());
+  const day = startOfDay(date);
+  if (day > today) return false;
+
+  const requiredTimes = Math.max(1, task.timesPerDay || 1);
+  const count = completionCounts.get(format(day, 'yyyy-MM-dd')) ?? 0;
+  if (count >= requiredTimes) return true;
+
+  if (day.getTime() === today.getTime()) return (task.stats?.currentStreak ?? 0) > 0;
+
+  return getDayStreakState(task, day, chains, completionCounts) === 'connected';
+};
+
 // The most recent streak runs across a set of tasks, newest first. A single completed day isn't
 // really a "streak" (nothing was ever strung together), so those are left out here -- callers
 // that want the raw, unfiltered history (e.g. for a per-task view) should use

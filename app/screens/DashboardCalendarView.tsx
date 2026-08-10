@@ -6,10 +6,12 @@ import { FlatList, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpa
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MissedDayMark } from '../components/MissedDayMark';
 import { PartialDayPie } from '../components/PartialDayPie';
+import { SkippedDayMark } from '../components/SkippedDayMark';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
-import { buildCompletionCountsByDate, isDueOnDate } from '../utils/streaks';
+import { getDayStreakState, getTaskStreakChains } from '../utils/reports';
+import { buildCompletionCountsByDate } from '../utils/streaks';
 
 const GRID_LABEL_WIDTH = 36;
 const GRID_CELL_SIZE = 32;
@@ -79,6 +81,13 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
   // instead of a separate isTaskCompleted call repeating the same lookup.
   const completionCountsByTask = useMemo(
     () => new Map(tasks.map(task => [task.id, buildCompletionCountsByDate(task.completions || [])])),
+    [tasks]
+  );
+
+  // Same reasoning as completionCountsByTask above -- getTaskStreakChains walks a task's full
+  // history, so this is computed once per task rather than once per empty cell in the grid below.
+  const streakChainsByTask = useMemo(
+    () => new Map(tasks.map(task => [task.id, getTaskStreakChains(task)])),
     [tasks]
   );
 
@@ -279,20 +288,26 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                   {dateHeader}
                   {tasks.map(task => {
                     const dateString = format(day, 'yyyy-MM-dd');
-                    const completionCount = completionCountsByTask.get(task.id)?.get(dateString) ?? 0;
+                    const taskCompletionCounts = completionCountsByTask.get(task.id);
+                    const completionCount = taskCompletionCounts?.get(dateString) ?? 0;
                     const isCompleted = completionCount >= (task.timesPerDay || 1);
                     const isPartial = completionCount > 0 && !isCompleted;
                     const isFuture = dateString > todayStr;
-                    const isDue = isDueOnDate(task, day);
-                    const isMissed = !isFuture && !isCompleted && !isPartial && isDue;
+                    const isEmpty = !isFuture && !isCompleted && !isPartial;
+                    const streakState = isEmpty
+                      ? getDayStreakState(task, day, streakChainsByTask.get(task.id) ?? [], taskCompletionCounts ?? new Map())
+                      : null;
+                    const isMissed = streakState === 'hardMiss';
+                    const isSkipped = streakState === 'connected';
+                    const isSoftMissed = streakState === 'softMiss';
                     return (
                       <View key={task.id} style={styles.gridCell}>
                         <View
                           style={[
                             styles.gridDot,
                             isCompleted && { backgroundColor: task.color },
-                            !isDue && !isCompleted && !isPartial && styles.gridDotNotDue,
-                            isMissed && styles.gridDotMissed,
+                            (isMissed || isSkipped) && styles.gridDotEmpty,
+                            isSoftMissed && styles.gridDotSoftMiss,
                           ]}
                         >
                           {isPartial && (
@@ -304,6 +319,11 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                             </View>
                           )}
                         </View>
+                        {isSkipped && (
+                          <View style={styles.skippedLineOverlay}>
+                            <SkippedDayMark color={task.color} />
+                          </View>
+                        )}
                       </View>
                     );
                   })}
@@ -480,15 +500,33 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  gridDotNotDue: {
-    opacity: 0.3,
-  },
-  gridDotMissed: {
+  // Shared by both empty-day states (hard miss and soft skip) -- the base grey circle gives way
+  // to a transparent background so only the mark itself (X or dash) shows through.
+  gridDotEmpty: {
     backgroundColor: 'transparent',
   },
+  // A "soft miss" -- an empty day with no streak currently at stake -- keeps gridDot's own
+  // default grey fill (unlike gridDotEmpty's transparent one, since there's no mark drawn inside
+  // it to show through) just faded, reading as a plain empty day rather than a meaningful X/dash.
+  gridDotSoftMiss: {
+    opacity: 0.3,
+  },
   missedMark: {
-    // Matches gridDotNotDue's opacity -- the X should read as equally muted as the dimmed
-    // not-due circle, not more prominent than it.
+    // The X should read as muted, not alarming -- equally quiet as the dash below.
+    opacity: 0.3,
+  },
+  // Full-bleed over the whole gridCell (not just gridDot's smaller, overflow:hidden circle) so a
+  // run of consecutive skipped days' lines actually touch edge-to-edge across cells instead of
+  // each being clipped down to the width of its own dot.
+  skippedLineOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    // Matches missedMark's opacity -- a soft skip shouldn't visually outrank a hard miss just
+    // because it's drawn in the task's own (potentially brighter) color.
     opacity: 0.3,
   },
   // Fixed height (tasks.length * BAR_UNIT_HEIGHT, set inline) so every day column shares the same

@@ -1,11 +1,12 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { addMonths, addYears, format, getDay, getDaysInMonth, startOfMonth, subMonths, subYears } from 'date-fns';
+import { addDays, addMonths, addYears, format, getDay, getDaysInMonth, startOfMonth, subDays, subMonths, subYears } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import React, { useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { MissedDayMark } from '../components/MissedDayMark';
+import { SkippedDayMark } from '../components/SkippedDayMark';
 import { OnboardingHint } from '../components/OnboardingHint';
 import { PartialDayPie } from '../components/PartialDayPie';
 import { useToast } from '../context/ToastContext';
@@ -15,6 +16,7 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
+import { getDayStreakState, getTaskStreakChains, isConnectedDay } from '../utils/reports';
 import { buildCompletionCountsByDate } from '../utils/streaks';
 
 const TAP_DAY_HINT_TEXT = 'Tap a day to mark a day complete, tap again to clear it';
@@ -92,6 +94,9 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
   // per cell -- the Month grid does up to ~31 lookups and the Year grid up to 365, all against
   // the same array, so this turns each into one O(completions) pass plus O(1) lookups per cell.
   const completionCounts = useMemo(() => buildCompletionCountsByDate(task.completions || []), [task.completions]);
+  // Memoized once per task rather than recomputed per empty cell -- getTaskStreakChains walks
+  // the task's full history, so this turns a per-cell cost back into a per-render one.
+  const streakChains = useMemo(() => getTaskStreakChains(task), [task]);
 
   const days = useMemo(() => Array.from({ length: daysInMonth }, (_, i) => {
     const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i + 1);
@@ -356,8 +361,16 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                   const { date, isCompleted, isPartial, completionCount, isToday, dayNumber } = item;
                   const dateString = format(date, 'yyyy-MM-dd');
                   const isPast = dateString < today;
-                  const isMissed = isPast && !isCompleted && !isPartial;
+                  const isEmpty = isPast && !isCompleted && !isPartial;
+                  const streakState = isEmpty ? getDayStreakState(task, date, streakChains, completionCounts) : null;
+                  const isMissed = streakState === 'hardMiss';
+                  const isSkipped = streakState === 'connected';
+                  const isSoftMissed = streakState === 'softMiss';
                   const isFuture = dateString > today;
+                  // Only completed days need an explicit connector stub -- a skipped day's own
+                  // line already spans its full cell width unconditionally.
+                  const hasLeftConnector = isCompleted && isConnectedDay(task, subDays(date, 1), streakChains, completionCounts);
+                  const hasRightConnector = isCompleted && isConnectedDay(task, addDays(date, 1), streakChains, completionCounts);
 
                   const stateLabel = isCompleted
                     ? 'Completed'
@@ -365,6 +378,8 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                     ? `${completionCount} of ${task.timesPerDay || 1} completed`
                     : isMissed
                     ? 'Missed'
+                    : isSkipped
+                    ? 'Skipped'
                     : '';
 
                   return (
@@ -378,6 +393,19 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                       accessibilityHint={isFuture ? undefined : 'Double tap to toggle completion'}
                       accessibilityState={{ disabled: isFuture }}
                     >
+                      {hasLeftConnector && (
+                        // Full-bleed over the whole outer `day` cell -- rendered before
+                        // dayContent below so the solid completed-day circle paints on top and
+                        // covers the stub's inner half, matching the isSkipped overlay's reasoning.
+                        <View style={styles.leftConnectorOverlay} pointerEvents="none">
+                          <SkippedDayMark color={task.color} />
+                        </View>
+                      )}
+                      {hasRightConnector && (
+                        <View style={styles.rightConnectorOverlay} pointerEvents="none">
+                          <SkippedDayMark color={task.color} />
+                        </View>
+                      )}
                       <View
                         key={ `${task.id}-${isCompleted}-${isPartial}` }
                         ref={dayNumber === 1 ? calendarGridRef : undefined}
@@ -388,6 +416,13 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                         ]}>
                         {isMissed ? (
                           <MissedDayMark color={colors.textTertiary} size={16} />
+                        ) : isSkipped ? (
+                          <Text style={[styles.dayNumber, styles.fadedDayNumber]}>{dayNumber}</Text>
+                        ) : isSoftMissed ? (
+                          // No streak currently at stake here -- just a faded day number, no
+                          // mark or connecting line at all, deliberately less notable than either
+                          // a hard miss or a skip.
+                          <Text style={[styles.dayNumber, styles.fadedDayNumber]}>{dayNumber}</Text>
                         ) : isPartial ? (
                           <>
                             <View style={StyleSheet.absoluteFill}>
@@ -406,6 +441,15 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                           </Text>
                         )}
                       </View>
+                      {isSkipped && (
+                        // Full-bleed over the whole outer `day` cell (not just dayContent, which
+                        // is a smaller overflow:hidden circle) so consecutive skipped days' lines
+                        // actually touch edge-to-edge, and painted after dayContent so it sits on
+                        // top of the faded day number rather than behind it.
+                        <View style={styles.skippedLineOverlay} pointerEvents="none">
+                          <SkippedDayMark color={task.color} />
+                        </View>
+                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -514,6 +558,39 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   futureDay: {
     opacity: 0.4,
+  },
+  fadedDayNumber: {
+    opacity: 0.4,
+  },
+  // Full-bleed over the whole outer `day` cell -- see the render-site comment for why this
+  // deliberately isn't nested inside dayContent (a smaller, overflow:hidden circle).
+  skippedLineOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // A completed day's connector stub -- half the cell's width, anchored to that side, rendered
+  // *before* dayContent in JSX so the solid completed-day circle paints on top and covers the
+  // stub's inner half, leaving only the outer half reaching toward the cell edge visible.
+  leftConnectorOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: '50%',
+    justifyContent: 'center',
+  },
+  rightConnectorOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: '50%',
+    justifyContent: 'center',
   },
   yearScroll: {
     flex: 1,
