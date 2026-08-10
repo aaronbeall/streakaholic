@@ -26,10 +26,6 @@ const GRID_WEEKDAY_HEIGHT = 14;
 const GRID_DAY_HEADER_HEIGHT = 20;
 const GRID_AXIS_HEIGHT = GRID_WEEKDAY_HEIGHT + GRID_DAY_HEADER_HEIGHT;
 const DAYS_PAGE_SIZE = 30;
-// Half of MissedDayMark's own `size` below (16) -- per explicit user direction, thinner than that
-// full-glyph match so it reads more as a connecting thread than a thick track; a connected dot
-// still visibly pokes out well above/below it.
-const CONNECTOR_LINE_THICKNESS = 8;
 
 // Bars mode's per-task segment unit height -- same as a single Grid-mode dot row, so a day where
 // every task is fully done reaches exactly the same total height Grid mode's task rows already
@@ -549,38 +545,17 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                     const isExpiringToday = dateString === todayStr && !isCompleted && task.stats?.streakStatus === 'expiring';
                     return (
                       <View key={task.id} style={styles.gridCell}>
-                        {connection?.isConnectedSelf && !(connection.isRunStart && connection.isRunEnd) && (
-                          // This grid renders newest-first left-to-right (today at index 0), the
-                          // reverse of normal calendar order -- so the run's chronological start
-                          // (isRunStart) is the *older* edge, rendered on the right, and its end
-                          // (isRunEnd, the more recent edge) is rendered on the left. Centered via
-                          // plain flex on the wrapper (not a percentage `top`, which didn't
-                          // reliably center against gridCell). Rounding only matters where there's
-                          // no dot to hide the track's own terminus -- a *completed* boundary
-                          // day's track just stops cleanly at the cell's center (flat cut, tucked
-                          // behind the dot); a *pass* (connected but not completed) boundary day
-                          // has no dot to hide behind, so it keeps the full track length instead,
-                          // rounded on the boundary side. An isolated single-day "run" gets no
-                          // track at all.
-                          <View style={styles.connectorBandWrap} pointerEvents="none">
-                            <View
-                              style={[
-                                styles.connectorBand,
-                                { backgroundColor: task.color },
-                                isCompleted && connection.isRunEnd && styles.connectorHalfRight,
-                                isCompleted && connection.isRunStart && styles.connectorHalfLeft,
-                                !isCompleted && connection.isRunEnd && styles.connectorRoundLeft,
-                                !isCompleted && connection.isRunStart && styles.connectorRoundRight,
-                              ]}
-                            />
-                          </View>
-                        )}
                         <View
                           style={[
                             styles.gridDot,
                             isCompleted && { backgroundColor: task.color },
-                            (isMissed || isSkipped || isExpiringToday) && styles.gridDotEmpty,
-                            isSoftMissed && styles.gridDotSoftMiss,
+                            (isMissed || isExpiringToday) && styles.gridDotEmpty,
+                            // A pass-through day's dot now matches a plain soft-miss day's own
+                            // grey/faded look exactly -- per explicit user direction ("a gray
+                            // circle, same as skipped day with no streak") -- the colored thread
+                            // below is what distinguishes "connected" from "genuinely nothing
+                            // going on," not the dot itself anymore.
+                            (isSoftMissed || isSkipped) && styles.gridDotSoftMiss,
                           ]}
                         >
                           {isExpiringToday ? (
@@ -605,6 +580,15 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                             </>
                           )}
                         </View>
+                        {/* A pass-through day's own thread -- a thin, full-cell-width, semi-
+                            transparent line in the task's own color, rendered *on top of* the dot
+                            (last in paint order, per explicit user direction) rather than behind
+                            it. Only pass-through days get this -- completed days are unaffected,
+                            and a plain soft-miss day (no streak at stake) has no thread since
+                            there's no streak to thread. */}
+                        {isSkipped && (
+                          <View style={[styles.skipLine, { backgroundColor: task.color }]} pointerEvents="none" />
+                        )}
                         {connection?.showStreakBadge && (
                           <StreakCountBadge
                             value={connection.badgeValue!}
@@ -861,48 +845,22 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     opacity: 0.3,
   },
   missedMark: {
-    // The X should read as muted, not alarming -- equally quiet as the dash below.
+    // The X should read as muted, not alarming -- equally quiet as the thread below.
     opacity: 0.3,
   },
-  // A thick-but-not-full-height, semi-transparent connecting track -- vertically centered behind
-  // the whole gridCell (not just gridDot's smaller, overflow:hidden circle) so a run of
-  // consecutive connected days' tracks actually touch edge-to-edge across cells and read as one
-  // continuous thread -- centers its one child (the actual track) via plain flex rather than a
-  // percentage `top`, which didn't reliably center against gridCell.
-  connectorBandWrap: {
+  // A pass-through day's own thread -- full gridCell width (not just gridDot's own smaller
+  // diameter), thin, and semi-transparent, in the task's own color. `top: '50%'` + a negative
+  // marginTop is safe here (unlike this file's own earlier centering bugs elsewhere) since
+  // gridCell has an explicit fixed height (GRID_CELL_SIZE), not an aspectRatio-derived one --
+  // percentage positioning only misbehaved against the latter.
+  skipLine: {
     position: 'absolute',
-    top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-  },
-  connectorBand: {
-    height: CONNECTOR_LINE_THICKNESS,
+    top: '50%',
+    height: 2,
+    marginTop: -1,
     opacity: 0.4,
-  },
-  // A *completed* boundary day's track stops cleanly at the cell's center -- overrides
-  // connectorBandWrap's default `alignItems: 'stretch'` (full width) to occupy only the named
-  // half (see the render-site comment for why left/right map to end/start here). No rounding:
-  // the flat cut is tucked behind the completed day's own dot, invisible either way.
-  connectorHalfLeft: {
-    width: '50%',
-    alignSelf: 'flex-start',
-  },
-  connectorHalfRight: {
-    width: '50%',
-    alignSelf: 'flex-end',
-  },
-  // A *pass* (connected but not completed) boundary day's track keeps its full length -- there's
-  // no dot to hide a cut behind, so it's rounded on the boundary side instead for a clean
-  // terminus right at the cell's true edge.
-  connectorRoundLeft: {
-    borderTopLeftRadius: 999,
-    borderBottomLeftRadius: 999,
-  },
-  connectorRoundRight: {
-    borderTopRightRadius: 999,
-    borderBottomRightRadius: 999,
   },
   streakBadgePosition: {
     position: 'absolute',
