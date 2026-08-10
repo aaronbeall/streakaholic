@@ -405,20 +405,27 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                       accessibilityHint={isFuture ? undefined : 'Double tap to toggle completion'}
                       accessibilityState={{ disabled: isFuture }}
                     >
-                      {connection?.isConnectedSelf && (
-                        // Full-sized wrapper, vertically centering the actual track via plain
-                        // flex (not a percentage `top` + negative `marginTop`, which doesn't
-                        // reliably center against a padded, aspectRatio-derived parent) -- rounded
-                        // only on the side(s) that are this run's actual start/end, flat (square)
-                        // wherever it continues into a connected neighbor, so adjacent cells'
-                        // tracks merge into one continuous thread across a whole streak.
+                      {connection?.isConnectedSelf && !(connection.isRunStart && connection.isRunEnd) && (
+                        // Vertically centered via plain flex (not a percentage `top` + negative
+                        // `marginTop`, which doesn't reliably center against a padded,
+                        // aspectRatio-derived parent). Rounding only matters where there's no dot
+                        // to hide the track's own terminus -- a *completed* boundary day's track
+                        // just stops cleanly at the cell's center (flat cut, tucked behind the
+                        // dot, no rounding needed since it's invisible either way); a *pass*
+                        // (connected but not completed) boundary day has no dot to hide behind,
+                        // so it keeps the full track length instead, rounded on the boundary side
+                        // for a clean terminus. A day connected on both sides gets the plain
+                        // full-width track (no boundary at all); an isolated single-day "run"
+                        // gets no track.
                         <View style={styles.connectorBandWrap} pointerEvents="none">
                           <View
                             style={[
                               styles.connectorBand,
                               { backgroundColor: task.color },
-                              connection.isRunStart && styles.connectorRoundLeft,
-                              connection.isRunEnd && styles.connectorRoundRight,
+                              isCompleted && connection.isRunStart && styles.connectorHalfRight,
+                              isCompleted && connection.isRunEnd && styles.connectorHalfLeft,
+                              !isCompleted && connection.isRunStart && styles.connectorRoundLeft,
+                              !isCompleted && connection.isRunEnd && styles.connectorRoundRight,
                             ]}
                           />
                         </View>
@@ -595,9 +602,21 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     height: CONNECTOR_LINE_THICKNESS,
     opacity: 0.4,
   },
-  // Large enough to always resolve to a true half-circle regardless of the cell's actual
-  // (screen-width-dependent) rendered size -- only applied on the side(s) that are a run's real
-  // start/end; every other connected cell stays flat/square on both sides.
+  // A *completed* boundary day's track stops cleanly at the cell's center -- overrides
+  // connectorBandWrap's default `alignItems: 'stretch'` (full width) to occupy only the named
+  // half. No rounding: the flat cut is tucked behind the completed day's own dot, invisible
+  // either way, so there's nothing to gain from rounding it.
+  connectorHalfLeft: {
+    width: '50%',
+    alignSelf: 'flex-start',
+  },
+  connectorHalfRight: {
+    width: '50%',
+    alignSelf: 'flex-end',
+  },
+  // A *pass* (connected but not completed) boundary day's track keeps its full length -- there's
+  // no dot to hide a cut behind, so it's rounded on the boundary side instead for a clean
+  // terminus right at the cell's true edge.
   connectorRoundLeft: {
     borderTopLeftRadius: 999,
     borderBottomLeftRadius: 999,

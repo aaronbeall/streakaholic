@@ -319,20 +319,28 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                     const connection = dayConnectionInfoByTask.get(task.id)?.get(dateString);
                     return (
                       <View key={task.id} style={styles.gridCell}>
-                        {connection?.isConnectedSelf && (
+                        {connection?.isConnectedSelf && !(connection.isRunStart && connection.isRunEnd) && (
                           // This grid renders newest-first left-to-right (today at index 0), the
                           // reverse of normal calendar order -- so the run's chronological start
                           // (isRunStart) is the *older* edge, rendered on the right, and its end
                           // (isRunEnd, the more recent edge) is rendered on the left. Centered via
                           // plain flex on the wrapper (not a percentage `top`, which didn't
-                          // reliably center against gridCell).
+                          // reliably center against gridCell). Rounding only matters where there's
+                          // no dot to hide the track's own terminus -- a *completed* boundary
+                          // day's track just stops cleanly at the cell's center (flat cut, tucked
+                          // behind the dot); a *pass* (connected but not completed) boundary day
+                          // has no dot to hide behind, so it keeps the full track length instead,
+                          // rounded on the boundary side. An isolated single-day "run" gets no
+                          // track at all.
                           <View style={styles.connectorBandWrap} pointerEvents="none">
                             <View
                               style={[
                                 styles.connectorBand,
                                 { backgroundColor: task.color },
-                                connection.isRunEnd && styles.connectorRoundLeft,
-                                connection.isRunStart && styles.connectorRoundRight,
+                                isCompleted && connection.isRunEnd && styles.connectorHalfRight,
+                                isCompleted && connection.isRunStart && styles.connectorHalfLeft,
+                                !isCompleted && connection.isRunEnd && styles.connectorRoundLeft,
+                                !isCompleted && connection.isRunStart && styles.connectorRoundRight,
                               ]}
                             />
                           </View>
@@ -555,8 +563,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   // A thick-but-not-full-height, semi-transparent connecting track -- vertically centered behind
   // the whole gridCell (not just gridDot's smaller, overflow:hidden circle) so a run of
   // consecutive connected days' tracks actually touch edge-to-edge across cells and read as one
-  // continuous thread, rounded only at the run's true start/end (see the render-site comment for
-  // why left/right map to end/start here).
+  // continuous thread -- centers its one child (the actual track) via plain flex rather than a
+  // percentage `top`, which didn't reliably center against gridCell.
   connectorBandWrap: {
     position: 'absolute',
     top: 0,
@@ -569,6 +577,21 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     height: CONNECTOR_LINE_THICKNESS,
     opacity: 0.4,
   },
+  // A *completed* boundary day's track stops cleanly at the cell's center -- overrides
+  // connectorBandWrap's default `alignItems: 'stretch'` (full width) to occupy only the named
+  // half (see the render-site comment for why left/right map to end/start here). No rounding:
+  // the flat cut is tucked behind the completed day's own dot, invisible either way.
+  connectorHalfLeft: {
+    width: '50%',
+    alignSelf: 'flex-start',
+  },
+  connectorHalfRight: {
+    width: '50%',
+    alignSelf: 'flex-end',
+  },
+  // A *pass* (connected but not completed) boundary day's track keeps its full length -- there's
+  // no dot to hide a cut behind, so it's rounded on the boundary side instead for a clean
+  // terminus right at the cell's true edge.
   connectorRoundLeft: {
     borderTopLeftRadius: 999,
     borderBottomLeftRadius: 999,
