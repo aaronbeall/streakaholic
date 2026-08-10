@@ -35,12 +35,13 @@
 - [ ] Re-order tasks on home screen
 - [x] Double-wide task card is not okay (`TaskCard`'s `container` had `flex: 1`, whose implied `flexBasis: 0%` overrode the explicit `width` in `HomeScreen`'s row, stretching a lone last-row card to fill the row; fixed by dropping `flex: 1` and centering a partial last row via `justifyContent: 'center'`)
 - [x] Archive/Delete task should take you back to homepage (`AddTaskScreen`'s Archive/Delete confirm now calls `router.dismissTo('/')` instead of `router.back()` — fixes a real crash: reached via task-detail's pencil icon, `back()` only popped to task-detail, which still held the just-deleted `taskId` and threw "Missing task" on render)
-- [ ] New best streak congratulations
-- [ ] Perfect day congratulations
-- [ ] First streak congratulations
-- [ ] Milestone completions (10, 100, 1000)
+- [ ] Congratulations stringers
+  - [ ] New best streak congratulations
+  - [ ] Perfect day congratulations
+  - [ ] First streak congratulations
+  - [ ] Milestone completions (10, 100, 1000)
 - [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
-- [ ] Performance optimizations
+- [x] Performance optimizations
   - [x] Performance pass (audited Context re-render fan-out, memoization/referential-stability gaps, and common RN FlatList traps — see CLAUDE.md's "State management" section)
   - [x] Migrate to Zustand? (`TaskContext`/`SettingsContext` → `app/stores/*` — selector-based selective subscription, fixes `TaskCard` re-rendering on unrelated task changes and every screen re-rendering on any settings change)
   - [x] Reduce unnecessary task stat re-recalculations (see CLAUDE.md's "State management" section for the full audit — the two real finds: `getCompletionCount`+`isTaskCompleted` were called back-to-back on the same (task, date) in 6 places, the second call redundantly repeating the first's lookup; and the calendar grids called those per-cell against the same task's `completions` array via O(n) `.find()`, up to `cells × completions` scans per render. Fixed via a new `buildCompletionCountsByDate` map, memoized per task, giving O(1) lookups. Also found and fixed a genuinely missing `useMemo` in `TaskStatsScreen.tsx` (its sibling `DashboardStatsView.tsx` had the equivalent call memoized, this one didn't). One duplication considered and _not_ pursued: `streaks.ts`'s aggregate stats and `reports.ts`'s streak-chain history independently re-walk very similar day/period segmentation to derive overlapping numbers — left alone since unifying two independently-tested nontrivial algorithms for a computational-efficiency gain that's already mitigated by caching (`task.stats` precomputed at mutation time, chain history memoized) wasn't a good risk/reward trade)
@@ -48,6 +49,9 @@
 - [x] Layout/navigation improvement with proper screen transitions (`RootStack`'s `slide_from_right` animation)
 - [x] Already completed task on home screen should not have press-and-hold triggering completion animation (`TaskCard`'s `handleLongPress` now checks `isTaskCompleted` before deciding whether to run the completion pop at all — an already-completed task skips it entirely and opens `task-detail` directly via a new `onLongPressCompletedTask` prop, on whichever tab was last viewed)
 - [x] Split up task card icon ring based on per-day count (`TaskCard`'s outer ring, while incomplete: one continuous circle for 1x/day tasks, `timesPerDayCount` equal arc segments with a small gap between each for >1x/day tasks — see `ringSegments`/`RING_SEGMENT_GAP_DEGREES`; unchanged once completed, which still fills solid)
+- [ ] Swipe next/prev on task detail header (task) and calendar (month/year)
+- [ ] Min streak history width to fit icon + 2 digits
+- [x] Streamgraph
 
 ## MMP
 
@@ -65,11 +69,14 @@
 
 - [x] Timeline view (`DashboardCalendarView`'s "Timeline" section — infinite horizontal scroll, Grid | Bars toggle)
 - [x] Heatmap view (`DashboardCalendarView`'s Timeline section — partial-day fills across every task calendar now scale opacity by completion fraction, plus a Grid | Bars toggle with a per-day segmented completion bar chart)
-- [ ] Points/ranks/achievements
+- [ ] Points/ranks/achievements/upgrades
 - [ ] Daily summary
 - [ ] Personal leaderboard
-- [ ] Login with google
-- [ ] Social features (friends, friend streaks, competitions, leaderboards)
+- [ ] Social features
+  - [ ] Friends, friend streaks, friend comparisons
+  - [ ] Competitions
+  - [ ] Leaderboards
 - [ ] Task groups (swipe left/right on home, etc)
 - [ ] Home screen customization (default=icons, calendar, timeline, list)
 - [ ] Duration based tasks
+- [ ] Ironman mode (can't change past day completions)

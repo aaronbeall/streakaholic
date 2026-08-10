@@ -368,7 +368,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                 same plain-row pattern used for the other bounded calendar grids elsewhere. */}
             {calendarWeeks.map((week, weekIndex) => (
               <View key={weekIndex} style={styles.weekRow}>
-                {week.map((item) => {
+                {week.map((item, colIndex) => {
                   if (item.type === 'empty') {
                     return <View key={`empty-${item.index}`} style={styles.day} />;
                   }
@@ -383,6 +383,23 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                   const isSoftMissed = streakState === 'softMiss';
                   const isFuture = dateString > today;
                   const connection = dayConnectionInfo.get(dateString);
+                  // A horizontal track can only ever visually bridge two cells sitting side by
+                  // side in the *same* row -- a streak that data-wise continues past a week's
+                  // Saturday into the next row's Sunday (or past the month's own first/last day)
+                  // has nowhere to visually go from here, even though isRunStart/isRunEnd (see
+                  // buildDayConnectionInfo) correctly say the streak itself doesn't end there.
+                  // These flags fold that in: true wherever *either* the data says the run
+                  // stops, *or* there's simply no rendered day cell to connect to on that side of
+                  // the grid -- so the track always rounds off cleanly at a week/month wrap
+                  // instead of showing a flat, dangling cut with nothing visually continuing it.
+                  const hasLeftGridNeighbor = colIndex > 0 && week[colIndex - 1]?.type === 'day';
+                  const hasRightGridNeighbor = colIndex < 6 && week[colIndex + 1]?.type === 'day';
+                  const visualRunStart = !!connection && (connection.isRunStart || !hasLeftGridNeighbor);
+                  const visualRunEnd = !!connection && (connection.isRunEnd || !hasRightGridNeighbor);
+                  // A *completed* day with no visual neighbor on either side has nothing to poke
+                  // a half-track stub toward -- render neither half rather than let one
+                  // arbitrarily win via style-array merge order.
+                  const isolatedBothSides = visualRunStart && visualRunEnd;
                   // Today, not yet (fully) completed, with the streak's own status saying today
                   // is the make-or-break day -- matches exactly the days isConnectedDay now
                   // withholds a connector from (see reports.ts). Drives a small expiring-colored
@@ -423,18 +440,20 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                         // dot, no rounding needed since it's invisible either way); a *pass*
                         // (connected but not completed) boundary day has no dot to hide behind,
                         // so it keeps the full track length instead, rounded on the boundary side
-                        // for a clean terminus. A day connected on both sides gets the plain
-                        // full-width track (no boundary at all); an isolated single-day "run"
-                        // gets no track.
+                        // for a clean terminus -- using visualRunStart/visualRunEnd (data *or*
+                        // grid-wrap boundary) rather than the raw connection flags, so a track
+                        // rounds off at a week/month wrap too, not just a true streak boundary.
+                        // A day connected on both sides gets the plain full-width track (no
+                        // boundary at all); an isolated single-day "run" gets no track.
                         <View style={styles.connectorBandWrap} pointerEvents="none">
                           <View
                             style={[
                               styles.connectorBand,
                               { backgroundColor: task.color },
-                              isCompleted && connection.isRunStart && styles.connectorHalfRight,
-                              isCompleted && connection.isRunEnd && styles.connectorHalfLeft,
-                              !isCompleted && connection.isRunStart && styles.connectorRoundLeft,
-                              !isCompleted && connection.isRunEnd && styles.connectorRoundRight,
+                              isCompleted && visualRunStart && !isolatedBothSides && styles.connectorHalfRight,
+                              isCompleted && visualRunEnd && !isolatedBothSides && styles.connectorHalfLeft,
+                              !isCompleted && visualRunStart && styles.connectorRoundLeft,
+                              !isCompleted && visualRunEnd && styles.connectorRoundRight,
                             ]}
                           />
                         </View>
