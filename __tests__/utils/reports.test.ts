@@ -1,6 +1,6 @@
 import { format, startOfDay, subDays } from 'date-fns';
 import { Task, TaskCompletion } from '../../app/types';
-import { eachDayOfRange, getDayStreakState, getRecentStreaks, getTaskStreakChains, isConnectedDay } from '../../app/utils/reports';
+import { buildDayConnectionInfo, eachDayOfRange, getDayStreakState, getRecentStreaks, getTaskStreakChains, isConnectedDay } from '../../app/utils/reports';
 import { calculateTaskStats } from '../../app/utils/streaks';
 
 const makeCompletion = (id: string, date: Date): TaskCompletion => ({
@@ -370,6 +370,221 @@ describe('isConnectedDay', () => {
 
       const deadTask = withStats(baseTask({ completions: [] }));
       expect(isConnectedDay(deadTask, new Date(2026, 0, 6), [], new Map())).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe('buildDayConnectionInfo', () => {
+  const countsFrom = (completions: TaskCompletion[]): Map<string, number> => {
+    const map = new Map<string, number>();
+    for (const c of completions) map.set(c.date, (map.get(c.date) ?? 0) + c.timesCompleted);
+    return map;
+  };
+  const key = (d: Date) => format(d, 'yyyy-MM-dd');
+
+  it('daily: a closed 3-day streak connects start-to-end and badges the last day with its full length', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 0, 10));
+    try {
+      const completions = [
+        makeCompletion('a', new Date(2026, 0, 5)),
+        makeCompletion('b', new Date(2026, 0, 6)),
+        makeCompletion('c', new Date(2026, 0, 7)),
+      ];
+      const task = withStats(baseTask({ frequency: 'daily', completions }));
+      const chains = getTaskStreakChains(task);
+      const counts = countsFrom(completions);
+      const dates = eachDayOfRange(new Date(2026, 0, 1), new Date(2026, 0, 10));
+      const info = buildDayConnectionInfo(task, dates, chains, counts);
+
+      expect(info.get(key(new Date(2026, 0, 5)))).toMatchObject({ isConnectedSelf: true, isRunStart: true, isRunEnd: false });
+      expect(info.get(key(new Date(2026, 0, 6)))).toMatchObject({ isRunStart: false, isRunEnd: false, showStreakBadge: false });
+      expect(info.get(key(new Date(2026, 0, 7)))).toMatchObject({ isRunEnd: true, showStreakBadge: true, badgeValue: 3 });
+      // Jan 8 is a missed due day (the streak's real break) -- not connected at all.
+      expect(info.get(key(new Date(2026, 0, 8)))?.isConnectedSelf).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('daily: an isolated single-day completion gets rounded caps on both sides but no badge', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 0, 10));
+    try {
+      const completions = [makeCompletion('a', new Date(2026, 0, 5))];
+      const task = withStats(baseTask({ frequency: 'daily', completions }));
+      const chains = getTaskStreakChains(task);
+      const counts = countsFrom(completions);
+      const dates = eachDayOfRange(new Date(2026, 0, 1), new Date(2026, 0, 10));
+      const info = buildDayConnectionInfo(task, dates, chains, counts);
+
+      expect(info.get(key(new Date(2026, 0, 5)))).toMatchObject({
+        isConnectedSelf: true, isRunStart: true, isRunEnd: true, showStreakBadge: false,
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('daily: a still-live streak badges the most recent real completion, not today itself', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 0, 7)); // today, not yet completed
+    try {
+      const completions = [makeCompletion('a', new Date(2026, 0, 5)), makeCompletion('b', new Date(2026, 0, 6))];
+      const task = withStats(baseTask({ frequency: 'daily', completions }));
+      const chains = getTaskStreakChains(task);
+      const counts = countsFrom(completions);
+      const dates = eachDayOfRange(new Date(2026, 0, 1), new Date(2026, 0, 7));
+      const info = buildDayConnectionInfo(task, dates, chains, counts);
+
+      // Today is connected (a live streak reaches into it) and is the run's chronological end,
+      // but the badge stays on Jan 6 -- the actual last completed day -- not on today.
+      expect(info.get(key(new Date(2026, 0, 7)))).toMatchObject({
+        isConnectedSelf: true, isRunEnd: true, showStreakBadge: false,
+      });
+      expect(info.get(key(new Date(2026, 0, 6)))).toMatchObject({
+        isRunEnd: false, showStreakBadge: true, badgeValue: 2,
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('days_per_week: the capsule bridges an interior hard-miss day to reach the chain\'s real endDate, where the badge is placed', () => {
+    // Reuses the same fixture as getDayStreakState's own days_per_week describe block above, so
+    // the two stay consistent: week1 (Jul 19-25) met 2/2, week2 (Jul 26-Aug 1) failed at 1/2 (but
+    // wasn't empty -- Jul 27 was completed), week3 (Aug 2-8, current) already met 2/2 early.
+    //
+    // getQuotaStreakChains' "IncludingClose" rule means week2's own lone completion still gets
+    // credited to the chain that's ending, extending it all the way to Jul 27 with length 3
+    // (2 from week1 + 1 from week2). Per explicit user direction, the *capsule* now reaches all
+    // the way to Jul 27 too -- the same place the badge is placed -- bridging over Jul 26 (still
+    // its own hard miss via getDayStreakState, untouched by this) rather than treating Jul 27 as
+    // a disconnected island. The whole Jul 19-27 span is one continuous run: no run boundary
+    // (and so no rounded capsule cap) anywhere in the middle of it, including at Jul 25/26's
+    // boundary, where the run used to incorrectly end before this fix.
+    jest.useFakeTimers().setSystemTime(new Date(2026, 7, 5)); // Wednesday Aug 5 2026
+    try {
+      const completions = [
+        makeCompletion('pp1', new Date(2026, 6, 20)),
+        makeCompletion('pp2', new Date(2026, 6, 21)),
+        makeCompletion('p1', new Date(2026, 6, 27)),
+        makeCompletion('c1', new Date(2026, 7, 3)),
+        makeCompletion('c2', new Date(2026, 7, 4)),
+      ];
+      const task = withStats(baseTask({ frequency: 'days_per_week', daysPerWeek: 2, completions }));
+      const chains = getTaskStreakChains(task);
+      const counts = countsFrom(completions);
+      const dates = eachDayOfRange(new Date(2026, 6, 15), new Date(2026, 7, 8));
+      const info = buildDayConnectionInfo(task, dates, chains, counts);
+
+      expect(info.get(key(new Date(2026, 6, 19)))).toMatchObject({ isConnectedSelf: true, isRunStart: true });
+      // Jul 21 (week1's own last completion) no longer reads as a run end -- the run now
+      // continues straight through to Jul 27 -- and still carries no badge (it isn't the
+      // chain's own endDate).
+      expect(info.get(key(new Date(2026, 6, 21)))).toMatchObject({ isRunEnd: false, showStreakBadge: false, badgeValue: null });
+      // Jul 25 (week1's last day) no longer ends the run either -- it now bridges forward.
+      expect(info.get(key(new Date(2026, 6, 25)))).toMatchObject({ isConnectedSelf: true, isRunEnd: false, showStreakBadge: false });
+      // Jul 26: empty, and week2 failed its own quota -- still its own hard miss via
+      // getDayStreakState (unaffected by this fix) -- but now bridged/connected for capsule
+      // purposes, since it falls within the chain's own [Jul 20, Jul 27] span.
+      expect(info.get(key(new Date(2026, 6, 26)))).toMatchObject({ isConnectedSelf: true, isRunStart: false, isRunEnd: false });
+      expect(getDayStreakState(task, new Date(2026, 6, 26), chains, counts)).toBe('hardMiss');
+      // Jul 27 is now the run's true, continuous end (not an isolated island) -- and still gets
+      // the "3" badge, so the capsule's own visual end and the badge now coincide.
+      expect(info.get(key(new Date(2026, 6, 27)))).toMatchObject({
+        isConnectedSelf: true, isRunStart: false, isRunEnd: true, showStreakBadge: true, badgeValue: 3,
+      });
+      // The bridge doesn't overreach past the chain's own endDate -- Jul 28 (still within the
+      // failed week2, after its one real completion) stays disconnected, and week3's separate,
+      // later streak isn't bridged to week2's failure either.
+      expect(info.get(key(new Date(2026, 6, 28)))?.isConnectedSelf).toBe(false);
+      // Week3's badge lands on Aug 4 (its chain's own endDate = the actual last completion), not
+      // on today (Aug 5), even though today is also connected (quota already met early).
+      expect(info.get(key(new Date(2026, 7, 4)))).toMatchObject({ showStreakBadge: true, badgeValue: 2 });
+      expect(info.get(key(new Date(2026, 7, 5)))).toMatchObject({ isConnectedSelf: true, isRunEnd: true, showStreakBadge: false });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('days_per_week: two genuinely separate chains landing on chronologically adjacent calendar days (no gap between them) still get their own distinct run boundaries, not one merged capsule', () => {
+    // A real bug the demo dataset caught: naive day-to-day adjacency treated two *different*
+    // chains as one continuous run whenever the first chain's own last credited completion
+    // happened to fall the calendar day right before the next chain's own first completion --
+    // both days are individually "connected" (each is its own real completion), so there was no
+    // gap for a hard-miss/disconnected day to occupy and force a visible break.
+    jest.useFakeTimers().setSystemTime(new Date(2026, 1, 1)); // Feb 1 2026, well after both chains
+    try {
+      const completions = [
+        makeCompletion('a1', new Date(2026, 0, 4)),  // week A (Jan 4-10): met (3/3)
+        makeCompletion('a2', new Date(2026, 0, 5)),
+        makeCompletion('a3', new Date(2026, 0, 6)),
+        makeCompletion('b1', new Date(2026, 0, 12)), // week B (Jan 11-17): failed (2/3) --
+        makeCompletion('b2', new Date(2026, 0, 17)), // last completion Jan 17, the week's last day
+        makeCompletion('c1', new Date(2026, 0, 18)), // week C (Jan 18-24): met (3/3) -- first
+        makeCompletion('c2', new Date(2026, 0, 19)), // completion Jan 18, the very next day
+        makeCompletion('c3', new Date(2026, 0, 20)),
+      ];
+      const task = withStats(baseTask({ frequency: 'days_per_week', daysPerWeek: 3, completions }));
+      const chains = getTaskStreakChains(task);
+      expect(chains).toHaveLength(2);
+      expect(chains[0].length).toBe(5); // week A (3) + week B's own bonus days (2), IncludingClose
+      expect(chains[1].length).toBe(3); // week C, its own separate chain
+
+      const counts = countsFrom(completions);
+      const dates = eachDayOfRange(new Date(2026, 0, 1), new Date(2026, 0, 25));
+      const info = buildDayConnectionInfo(task, dates, chains, counts);
+
+      // Jan 17 -- chain1's real end and its badge's own location -- must be a genuine run end,
+      // even though Jan 18 (chain2's own start) is individually connected too with zero gap.
+      expect(info.get(key(new Date(2026, 0, 17)))).toMatchObject({ isRunEnd: true, showStreakBadge: true, badgeValue: 5 });
+      expect(info.get(key(new Date(2026, 0, 18)))).toMatchObject({ isRunStart: true, showStreakBadge: false });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('every badge\'s value exactly equals its chain\'s own length, for every chain a task has -- across all three frequency shapes', () => {
+    const assertBadgesMatchChains = (task: Task) => {
+      const chains = getTaskStreakChains(task);
+      const counts = countsFrom(task.completions || []);
+      const dates = eachDayOfRange(new Date(2026, 0, 1), new Date(2026, 11, 31));
+      const info = buildDayConnectionInfo(task, dates, chains, counts);
+
+      const badgedChains = chains.filter(c => c.length > 1);
+      const badges = Array.from(info.entries()).filter(([, e]) => e.showStreakBadge);
+      expect(badges.length).toBe(badgedChains.length);
+      for (const chain of badgedChains) {
+        const entry = info.get(key(chain.endDate));
+        expect(entry?.showStreakBadge).toBe(true);
+        expect(entry?.badgeValue).toBe(chain.length);
+      }
+    };
+
+    jest.useFakeTimers().setSystemTime(new Date(2026, 11, 20));
+    try {
+      assertBadgesMatchChains(withStats(baseTask({
+        frequency: 'daily',
+        completions: [
+          makeCompletion('a', new Date(2026, 2, 1)),
+          makeCompletion('b', new Date(2026, 2, 2)),
+          makeCompletion('c', new Date(2026, 2, 3)),
+          // gap (a hard miss) -- new chain starts after it
+          makeCompletion('d', new Date(2026, 5, 10)),
+        ],
+      })));
+
+      assertBadgesMatchChains(withStats(baseTask({
+        frequency: 'days_per_month',
+        daysPerMonth: 2,
+        completions: [
+          makeCompletion('a', new Date(2026, 3, 3)),  // April: met (2)
+          makeCompletion('b', new Date(2026, 3, 25)),
+          makeCompletion('c', new Date(2026, 4, 15)),  // May: failed (1) -- still credited via IncludingClose
+          makeCompletion('d', new Date(2026, 8, 5)),  // September: met (2) -- a new, separate chain
+          makeCompletion('e', new Date(2026, 8, 6)),
+        ],
+      })));
     } finally {
       jest.useRealTimers();
     }

@@ -176,6 +176,46 @@ export const getPeriodBounds = (date: Date, unit: QuotaUnit) =>
 export const nextPeriodStart = (start: Date, unit: QuotaUnit) =>
   unit === 'month' ? startOfMonth(addMonths(start, 1)) : addDays(start, 7);
 
+export interface QuotaPeriodInfo {
+  start: Date;
+  end: Date;
+  count: number;
+  met: boolean;
+  firstCompleted: Date | null;
+  lastCompleted: Date | null;
+}
+
+// The single "did this quota period meet its own quota" primitive -- the one piece of the quota
+// engine that genuinely needs sharing, since it was previously reimplemented independently three
+// times (calculateQuotaStats's own per-period loop below, getQuotaStreakChains's identical loop
+// in reports.ts, and getDayStreakState's single-period check, also in reports.ts) even though all
+// three walk the exact same period bounds against the exact same qualifying-completion data.
+// Callers that already have a pre-filtered "only qualifying dates" completionCounts map (the two
+// full-history walkers below and in reports.ts) can pass requiredTimes=1, since every entry in
+// that map is already known to qualify; callers working from a task's raw, unfiltered completions
+// (getDayStreakState) pass the task's real timesPerDay instead.
+export const getQuotaPeriodInfo = (
+  date: Date,
+  unit: QuotaUnit,
+  quota: number,
+  completionCounts: Map<string, number>,
+  requiredTimes: number
+): QuotaPeriodInfo => {
+  const safeQuota = Math.max(1, quota || 1);
+  const { start, end } = getPeriodBounds(date, unit);
+  let count = 0;
+  let firstCompleted: Date | null = null;
+  let lastCompleted: Date | null = null;
+  for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
+    if ((completionCounts.get(format(cursor, 'yyyy-MM-dd')) ?? 0) >= requiredTimes) {
+      count++;
+      if (!firstCompleted) firstCompleted = cursor;
+      lastCompleted = cursor;
+    }
+  }
+  return { start, end, count, met: count >= safeQuota, firstCompleted, lastCompleted };
+};
+
 // For 'days_per_week' / 'days_per_month': frequency only decides whether days *link* across
 // a period boundary into the next period -- it never decides whether a day counts at all.
 // A met period's days link forward, extending the streak into the next period. An unmet
@@ -188,18 +228,18 @@ const calculateQuotaStats = (task: StreakScheduleInfo, completions: TaskCompleti
   const distinctDates = Array.from(new Set(completions.map(c => c.date))).sort();
   const firstDate = parseISO(distinctDates[0]);
   const today = startOfDay(new Date());
+  // `completions` here are already the caller's pre-filtered qualifying set (see
+  // calculateTaskStats below), so any date present in this map already qualifies --
+  // requiredTimes=1 against it is equivalent to re-checking the real timesPerDay threshold.
+  const completionCounts = buildCompletionCountsByDate(completions);
 
   const periods: { count: number; met: boolean }[] = [];
   let cursor = getPeriodBounds(firstDate, unit).start;
   const lastStart = getPeriodBounds(today, unit).start;
   while (cursor <= lastStart) {
-    const { start, end } = getPeriodBounds(cursor, unit);
-    const count = distinctDates.filter(d => {
-      const dt = parseISO(d);
-      return dt >= start && dt <= end;
-    }).length;
-    periods.push({ count, met: count >= safeQuota });
-    cursor = nextPeriodStart(start, unit);
+    const info = getQuotaPeriodInfo(cursor, unit, safeQuota, completionCounts, 1);
+    periods.push({ count: info.count, met: info.met });
+    cursor = nextPeriodStart(info.start, unit);
   }
 
   const flags = periods.map(p => p.met);

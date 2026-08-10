@@ -6,11 +6,11 @@ import { FlatList, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpa
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MissedDayMark } from '../components/MissedDayMark';
 import { PartialDayPie } from '../components/PartialDayPie';
-import { SkippedDayMark } from '../components/SkippedDayMark';
+import { StreakCountBadge } from '../components/StreakCountBadge';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
-import { getDayStreakState, getTaskStreakChains } from '../utils/reports';
+import { buildDayConnectionInfo, getDayStreakState, getTaskStreakChains } from '../utils/reports';
 import { buildCompletionCountsByDate } from '../utils/streaks';
 
 const GRID_LABEL_WIDTH = 36;
@@ -19,6 +19,10 @@ const GRID_MONTH_HEADER_HEIGHT = 16;
 const GRID_DAY_HEADER_HEIGHT = 20;
 const GRID_DATE_HEADER_HEIGHT = GRID_MONTH_HEADER_HEIGHT + GRID_DAY_HEADER_HEIGHT;
 const DAYS_PAGE_SIZE = 30;
+// Matches the `size` MissedDayMark is rendered at below (16) -- thick enough to read as a real
+// track (not a hairline) without being as tall as the completed-day dot itself, so a connected
+// dot still visibly pokes out above/below it rather than looking enveloped.
+const CONNECTOR_LINE_THICKNESS = 16;
 
 // Bars mode's per-task segment unit height -- same as a single Grid-mode dot row, so a day where
 // every task is fully done reaches exactly the same total height Grid mode's task rows already
@@ -157,6 +161,18 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
   const days = useMemo(
     () => Array.from({ length: loadedDays }, (_, i) => subDays(today, i)),
     [loadedDays, today]
+  );
+
+  // Run-boundary/badge info per task, built once here rather than per cell -- see reports.ts's
+  // buildDayConnectionInfo. Recomputed for every task whenever `days` grows (pagination further
+  // into the past), matching the same full-recompute-on-change pattern the two maps above already
+  // use in this file rather than an incremental cache.
+  const dayConnectionInfoByTask = useMemo(
+    () => new Map(tasks.map(task => [
+      task.id,
+      buildDayConnectionInfo(task, days, streakChainsByTask.get(task.id) ?? [], completionCountsByTask.get(task.id) ?? new Map()),
+    ])),
+    [tasks, days, streakChainsByTask, completionCountsByTask]
   );
 
   // Don't paginate forever into empty pre-history -- stop growing once we've reached back to
@@ -300,8 +316,27 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                     const isMissed = streakState === 'hardMiss';
                     const isSkipped = streakState === 'connected';
                     const isSoftMissed = streakState === 'softMiss';
+                    const connection = dayConnectionInfoByTask.get(task.id)?.get(dateString);
                     return (
                       <View key={task.id} style={styles.gridCell}>
+                        {connection?.isConnectedSelf && (
+                          // This grid renders newest-first left-to-right (today at index 0), the
+                          // reverse of normal calendar order -- so the run's chronological start
+                          // (isRunStart) is the *older* edge, rendered on the right, and its end
+                          // (isRunEnd, the more recent edge) is rendered on the left. Centered via
+                          // plain flex on the wrapper (not a percentage `top`, which didn't
+                          // reliably center against gridCell).
+                          <View style={styles.connectorBandWrap} pointerEvents="none">
+                            <View
+                              style={[
+                                styles.connectorBand,
+                                { backgroundColor: task.color },
+                                connection.isRunEnd && styles.connectorRoundLeft,
+                                connection.isRunStart && styles.connectorRoundRight,
+                              ]}
+                            />
+                          </View>
+                        )}
                         <View
                           style={[
                             styles.gridDot,
@@ -319,10 +354,12 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                             </View>
                           )}
                         </View>
-                        {isSkipped && (
-                          <View style={styles.skippedLineOverlay}>
-                            <SkippedDayMark color={task.color} />
-                          </View>
+                        {connection?.showStreakBadge && (
+                          <StreakCountBadge
+                            value={connection.badgeValue!}
+                            iconSize={8}
+                            style={styles.streakBadgePosition}
+                          />
                         )}
                       </View>
                     );
@@ -515,19 +552,35 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     // The X should read as muted, not alarming -- equally quiet as the dash below.
     opacity: 0.3,
   },
-  // Full-bleed over the whole gridCell (not just gridDot's smaller, overflow:hidden circle) so a
-  // run of consecutive skipped days' lines actually touch edge-to-edge across cells instead of
-  // each being clipped down to the width of its own dot.
-  skippedLineOverlay: {
+  // A thick-but-not-full-height, semi-transparent connecting track -- vertically centered behind
+  // the whole gridCell (not just gridDot's smaller, overflow:hidden circle) so a run of
+  // consecutive connected days' tracks actually touch edge-to-edge across cells and read as one
+  // continuous thread, rounded only at the run's true start/end (see the render-site comment for
+  // why left/right map to end/start here).
+  connectorBandWrap: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     justifyContent: 'center',
-    // Matches missedMark's opacity -- a soft skip shouldn't visually outrank a hard miss just
-    // because it's drawn in the task's own (potentially brighter) color.
-    opacity: 0.3,
+  },
+  connectorBand: {
+    height: CONNECTOR_LINE_THICKNESS,
+    opacity: 0.4,
+  },
+  connectorRoundLeft: {
+    borderTopLeftRadius: 999,
+    borderBottomLeftRadius: 999,
+  },
+  connectorRoundRight: {
+    borderTopRightRadius: 999,
+    borderBottomRightRadius: 999,
+  },
+  streakBadgePosition: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
   },
   // Fixed height (tasks.length * BAR_UNIT_HEIGHT, set inline) so every day column shares the same
   // vertical scale regardless of that day's own total -- `justifyContent: 'flex-end'` anchors the

@@ -1,6 +1,6 @@
-import { addDays, format, parseISO, startOfDay } from 'date-fns';
+import { addDays, format, parseISO, startOfDay, subDays } from 'date-fns';
 import { MaterialCommunityIconName, Task } from '../types';
-import { getPeriodBounds, isDueOnDate, nextPeriodStart, QuotaUnit, StreakScheduleInfo } from './streaks';
+import { buildCompletionCountsByDate, getPeriodBounds, getQuotaPeriodInfo, isDueOnDate, nextPeriodStart, QuotaUnit, StreakScheduleInfo } from './streaks';
 
 export interface StreakChain {
   startDate: Date;
@@ -102,30 +102,26 @@ const getDueDayStreakChains = (schedule: StreakScheduleInfo, completedDates: Set
 };
 
 // Same idea as getDueDayStreakChains, but for quota frequencies (days_per_week/days_per_month):
-// periods (weeks/months) stand in for due-day segments, chained the same way.
-const getQuotaStreakChains = (completedDates: Set<string>, unit: QuotaUnit, quota: number): StreakChain[] => {
-  const sortedDates = Array.from(completedDates).sort();
-  if (sortedDates.length === 0) return [];
+// periods (weeks/months) stand in for due-day segments, chained the same way. The per-period
+// "did it meet quota, how many qualifying days" fact itself comes from streaks.ts's shared
+// getQuotaPeriodInfo -- the same primitive getDayStreakState below and calculateQuotaStats
+// (streaks.ts) both use, rather than each independently re-walking the same period bounds.
+// requiredTimes=1 here since `completionCounts` is already built from pre-filtered qualifying
+// completions (every entry already met the task's own timesPerDay).
+const getQuotaStreakChains = (completionCounts: Map<string, number>, unit: QuotaUnit, quota: number): StreakChain[] => {
+  const dates = Array.from(completionCounts.keys()).sort();
+  if (dates.length === 0) return [];
 
-  const safeQuota = Math.max(1, quota || 1);
-  const firstDate = parseISO(sortedDates[0]);
+  const firstDate = parseISO(dates[0]);
   const today = startOfDay(new Date());
 
   const segments: Segment[] = [];
   let cursor = getPeriodBounds(firstDate, unit).start;
   const lastStart = getPeriodBounds(today, unit).start;
   while (cursor <= lastStart) {
-    const { start, end } = getPeriodBounds(cursor, unit);
-    const completedInPeriod = sortedDates
-      .map(d => parseISO(d))
-      .filter(dt => dt >= start && dt <= end);
-    segments.push({
-      met: completedInPeriod.length >= safeQuota,
-      count: completedInPeriod.length,
-      firstCompleted: completedInPeriod[0] ?? null,
-      lastCompleted: completedInPeriod[completedInPeriod.length - 1] ?? null,
-    });
-    cursor = nextPeriodStart(start, unit);
+    const info = getQuotaPeriodInfo(cursor, unit, quota, completionCounts, 1);
+    segments.push({ met: info.met, count: info.count, firstCompleted: info.firstCompleted, lastCompleted: info.lastCompleted });
+    cursor = nextPeriodStart(info.start, unit);
   }
 
   return chainMetSegments(segments);
@@ -134,20 +130,18 @@ const getQuotaStreakChains = (completedDates: Set<string>, unit: QuotaUnit, quot
 // Every historical streak run for one task, oldest first.
 export const getTaskStreakChains = (task: Task): StreakChain[] => {
   const requiredTimes = Math.max(1, task.timesPerDay || 1);
-  const completedDates = new Set(
-    (task.completions || []).filter(c => c.timesCompleted >= requiredTimes).map(c => c.date)
-  );
-  if (completedDates.size === 0) return [];
+  const qualifyingCompletions = (task.completions || []).filter(c => c.timesCompleted >= requiredTimes);
+  if (qualifyingCompletions.length === 0) return [];
 
   switch (task.frequency) {
     case 'days_per_week':
-      return getQuotaStreakChains(completedDates, 'week', task.daysPerWeek);
+      return getQuotaStreakChains(buildCompletionCountsByDate(qualifyingCompletions), 'week', task.daysPerWeek);
     case 'days_per_month':
-      return getQuotaStreakChains(completedDates, 'month', task.daysPerMonth);
+      return getQuotaStreakChains(buildCompletionCountsByDate(qualifyingCompletions), 'month', task.daysPerMonth);
     case 'daily':
     case 'specific_days_of_week':
     default:
-      return getDueDayStreakChains(task, completedDates);
+      return getDueDayStreakChains(task, new Set(qualifyingCompletions.map(c => c.date)));
   }
 };
 
@@ -213,16 +207,13 @@ export const getDayStreakState = (
   // endDate can reach *into* a period that itself failed, via the "IncludingClose" bonus-day
   // credit calculateQuotaStats/getQuotaStreakChains both use for computing streak *length* --
   // that's a different question from what this specific period, in isolation, actually needed).
+  // The "did it meet quota" fact itself comes from streaks.ts's shared getQuotaPeriodInfo, the
+  // same primitive getQuotaStreakChains/calculateQuotaStats use for their own period walks.
   const unit: QuotaUnit = task.frequency === 'days_per_month' ? 'month' : 'week';
   const requiredTimes = Math.max(1, task.timesPerDay || 1);
   const quota = Math.max(1, (task.frequency === 'days_per_month' ? task.daysPerMonth : task.daysPerWeek) || 1);
-  const { start, end } = getPeriodBounds(day, unit);
-
-  let qualifyingCount = 0;
-  for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
-    if ((completionCounts.get(format(cursor, 'yyyy-MM-dd')) ?? 0) >= requiredTimes) qualifyingCount++;
-  }
-  if (qualifyingCount >= quota) return 'connected';
+  const { start, met } = getQuotaPeriodInfo(day, unit, quota, completionCounts, requiredTimes);
+  if (met) return 'connected';
 
   // Quota not met by this period's own days -- if the period hasn't elapsed yet, it's still
   // undecided (a pending tail), not a miss. Once it has elapsed short of quota, every empty day
@@ -260,6 +251,146 @@ export const isConnectedDay = (
   if (day.getTime() === today.getTime()) return (task.stats?.currentStreak ?? 0) > 0;
 
   return getDayStreakState(task, day, chains, completionCounts) === 'connected';
+};
+
+// A broader notion of "connected" than isConnectedDay above, used *only* for the capsule/badge
+// rendering in buildDayConnectionInfo below -- not by TaskCard's own (deliberately simpler, still
+// per-day-strict) connector stubs on the Home screen, which keep calling isConnectedDay directly
+// and are unaffected by this function existing.
+//
+// Per explicit user direction: the capsule should visually reach all the way to a streak's actual
+// last completed day -- the same day the streak-count badge is placed on (a chain's own endDate)
+// -- even when that reach crosses a days_per_week/days_per_month period that failed its own quota
+// but wasn't empty. getDayStreakState's per-day classification is deliberately strict there (an
+// empty day in a failed period is a hard miss, full stop -- see this file's own "Final design"
+// history) and that per-day *mark* is untouched by this function; but getQuotaStreakChains' own
+// "IncludingClose" rule already credits that period's real completions to the chain that's
+// ending, so the chain's span is the authoritative answer for how far the *capsule* should reach.
+// This is a strict superset of isConnectedDay/getDayStreakState's own "connected" result: it adds
+// one more case (chain-span membership) on top, never removes one, so nothing that already read
+// as connected there stops being so here.
+const isChainConnectedDay = (
+  task: Task,
+  date: Date,
+  chains: StreakChain[],
+  completionCounts: Map<string, number>
+): boolean => {
+  const today = startOfDay(new Date());
+  const day = startOfDay(date);
+  if (day > today) return false;
+
+  const requiredTimes = Math.max(1, task.timesPerDay || 1);
+  const count = completionCounts.get(format(day, 'yyyy-MM-dd')) ?? 0;
+  if (count >= requiredTimes) return true;
+
+  if (day.getTime() === today.getTime()) return (task.stats?.currentStreak ?? 0) > 0;
+
+  if (chains.some(chain => day >= chain.startDate && day <= chain.endDate)) return true;
+
+  return getDayStreakState(task, day, chains, completionCounts) === 'connected';
+};
+
+// Which chain (if any) a day's own IncludingClose span belongs to -- used only to tell two
+// genuinely distinct, chronologically-*adjacent* chains apart (see isBridgedNeighbor below). Not
+// every connected day belongs to an explicit chain this way (e.g. a quota period's pending tail
+// before its own first completion connects via getDayStreakState, not via any chain span) -- that
+// falls through to `null` here, which is deliberately treated as "no competing chain identity" by
+// the caller, rather than as its own distinct chain.
+const chainOf = (chains: StreakChain[], day: Date): StreakChain | null =>
+  chains.find(chain => day >= chain.startDate && day <= chain.endDate) ?? null;
+
+// Whether `neighbor` should be treated as continuing the same visual run as `day`. Ordinarily
+// this is just "is the neighbor connected too" -- but two *different* chains can sit on
+// chronologically adjacent calendar days with no gap between them at all (e.g. a failed-quota
+// week's own last credited completion falling the day before the very next week's first
+// completion, if that next week goes on to meet its own quota) -- both days individually read as
+// connected, but they belong to two distinct streaks, and per explicit user direction each
+// streak's own capsule should still end at its own chain's real endDate rather than visually
+// bleeding into the next one. So: connected neighbors only bridge into the same run when they
+// *aren't* known to belong to two different chains; a day with no explicit chain of its own
+// (null, e.g. a pending tail) never forces a break on its own.
+const isBridgedNeighbor = (
+  task: Task,
+  day: Date,
+  neighbor: Date,
+  chains: StreakChain[],
+  completionCounts: Map<string, number>
+): boolean => {
+  if (!isChainConnectedDay(task, neighbor, chains, completionCounts)) return false;
+  const dayChain = chainOf(chains, day);
+  const neighborChain = chainOf(chains, neighbor);
+  if (dayChain && neighborChain && dayChain !== neighborChain) return false;
+  return true;
+};
+
+export interface DayConnectionInfo {
+  // Whether this day itself is part of a connected streak thread -- completed, a soft-skip day
+  // inside a real chain's span, or (today specifically) reaching into a still-live streak. Same
+  // definition isConnectedDay already uses; exposed per-day here for rendering a continuous
+  // capsule instead of a per-cell mark.
+  isConnectedSelf: boolean;
+  // No connected day immediately before/after this one, chronologically, that also belongs to
+  // the *same* streak -- i.e. this is the actual start/end of its own run, not just where the
+  // caller's own date list happens to stop, and not a false bridge into a chronologically
+  // adjacent but genuinely different chain (see isBridgedNeighbor). Checked against the true
+  // neighboring calendar date (not limited to whatever range this map was built for), so a run
+  // that continues into an adjacent, unrendered month/page correctly reads as *not* ending here.
+  isRunStart: boolean;
+  isRunEnd: boolean;
+  // Whether a streak-count badge belongs on this day, and what number it shows.
+  showStreakBadge: boolean;
+  badgeValue: number | null;
+}
+
+// Per-day connectivity + run-boundary info for rendering a streak as one continuous capsule
+// (rounded only at its true start/end, flat everywhere it continues into a neighbor) instead of
+// a per-cell mark. Deliberately separate from getDayStreakState/isConnectedDay above -- callers
+// still call getDayStreakState directly for their own hard-miss/soft-miss cell rendering, exactly
+// as before; this only adds run-boundary detection, via the broader isChainConnectedDay (not
+// isConnectedDay), so the capsule can reach all the way to a streak's real last completed day --
+// see isChainConnectedDay's own doc comment for why that's a deliberately different question than
+// what any single day's own mark should show.
+export const buildDayConnectionInfo = (
+  task: Task,
+  dates: Date[],
+  chains: StreakChain[],
+  completionCounts: Map<string, number>
+): Map<string, DayConnectionInfo> => {
+  const sortedDates = Array.from(new Set(dates.map(d => format(startOfDay(d), 'yyyy-MM-dd'))))
+    .sort()
+    .map(s => parseISO(s));
+
+  const entries = new Map<string, DayConnectionInfo>();
+  for (const date of sortedDates) {
+    const key = format(date, 'yyyy-MM-dd');
+    const isConnectedSelf = isChainConnectedDay(task, date, chains, completionCounts);
+    const isRunStart = isConnectedSelf && !isBridgedNeighbor(task, date, subDays(date, 1), chains, completionCounts);
+    const isRunEnd = isConnectedSelf && !isBridgedNeighbor(task, date, addDays(date, 1), chains, completionCounts);
+    entries.set(key, { isConnectedSelf, isRunStart, isRunEnd, showStreakBadge: false, badgeValue: null });
+  }
+
+  // The badge is a *streak-history* fact, not a per-day visual one -- placed directly from
+  // `chains` (the exact same StreakChain objects getRecentStreaks/the Streaks screen already
+  // read), one badge per chain at its own endDate with its own length, rather than derived by
+  // counting within the connected run detected above. This is deliberate, not an oversight: a
+  // days_per_week/days_per_month period that fails its own quota but wasn't empty still gets its
+  // own completed days credited to the chain that's ending (getQuotaStreakChains' "IncludingClose"
+  // rule), even though that same period reads as a disconnected hard-miss wall in this file's own
+  // stricter per-day classification (see getDayStreakState) -- so the chain can span further than
+  // what this function marks "connected". Reading the badge straight from the chain keeps the
+  // number in exact agreement with every other place the app shows a streak's length, at the cost
+  // of it occasionally landing on (or naming a length past) a day this same function otherwise
+  // renders as its own small, disconnected island -- an accepted tradeoff, not a bug.
+  for (const chain of chains) {
+    if (chain.length <= 1) continue; // matches getRecentStreaks' own "not really a streak" filter
+    const entry = entries.get(format(chain.endDate, 'yyyy-MM-dd'));
+    if (entry) {
+      entry.showStreakBadge = true;
+      entry.badgeValue = chain.length;
+    }
+  }
+
+  return entries;
 };
 
 // The most recent streak runs across a set of tasks, newest first. A single completed day isn't
