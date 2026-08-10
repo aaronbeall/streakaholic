@@ -50,7 +50,7 @@
 - [x] Already completed task on home screen should not have press-and-hold triggering completion animation (`TaskCard`'s `handleLongPress` now checks `isTaskCompleted` before deciding whether to run the completion pop at all — an already-completed task skips it entirely and opens `task-detail` directly via a new `onLongPressCompletedTask` prop, on whichever tab was last viewed)
 - [x] Split up task card icon ring based on per-day count (`TaskCard`'s outer ring, while incomplete: one continuous circle for 1x/day tasks, `timesPerDayCount` equal arc segments with a small gap between each for >1x/day tasks — see `ringSegments`/`RING_SEGMENT_GAP_DEGREES`; unchanged once completed, which still fills solid)
 - [ ] Swipe next/prev on task detail header (task) and calendar (month/year)
-- [ ] Min streak history width to fit icon + 2 digits
+- [x] Min streak history width to fit icon + 2 digits
 - [x] Streamgraph
 
 ## MMP

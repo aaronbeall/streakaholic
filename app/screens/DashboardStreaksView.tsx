@@ -16,6 +16,15 @@ const ALL_STREAKS_LIMIT = 5000;
 type SortMode = 'recent' | 'best';
 const STREAK_DATE_LABEL_WIDTH = 48;
 const STREAK_LABEL_GAP = 8;
+// The narrowest a streakBar can get while still comfortably fitting its own icon + a 2-digit
+// count, squeezed as tight as that content allows -- streakBar's own paddingHorizontal (6, both
+// sides) and gap (3, both tightened alongside this from their original wider values), the icon
+// (size 12), plus an eyeballed ~14px for two digits of streakBarText (fontSize 12, weight 700) --
+// no live text measurement, matching how e.g. TaskCard's ESTIMATED_BADGE_SIZE estimates a known,
+// fixed-shape bit of content rather than measuring it. Longer counts (3+ digits) are realistically
+// rare for a personal habit tracker and just get a bit snugger, not clipped (the bar's own flex
+// row still grows to fit its content either way).
+const STREAK_BAR_MIN_WIDTH = 6 * 2 + 12 + 3 + 14;
 // streakBar's own height (24) plus streakRow's marginBottom (12) -- every row is this exact
 // height regardless of streak length (only the bar's *width* varies), so this can be a real
 // getItemLayout instead of leaving FlatList to measure each row on the fly.
@@ -64,8 +73,23 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
     setVisibleCount(PAGE_SIZE);
   }, [tasks, sortMode]);
   const visibleStreaks = sortedStreaks.slice(0, visibleCount);
-  const maxStreakLength = Math.max(1, ...visibleStreaks.map(s => s.length));
-  const maxBarWidth = Math.max(24, rowWidth - (STREAK_DATE_LABEL_WIDTH + STREAK_LABEL_GAP) * 2);
+  const streakLengths = visibleStreaks.map(s => s.length);
+  const maxStreakLength = Math.max(1, ...streakLengths);
+  const minStreakLength = Math.min(maxStreakLength, ...streakLengths);
+  // Never narrower than the min bar itself needs, even on a very cramped row -- the date labels
+  // would just have to give up some of their own space rather than the bar clipping its content.
+  const maxBarWidth = Math.max(STREAK_BAR_MIN_WIDTH, rowWidth - (STREAK_DATE_LABEL_WIDTH + STREAK_LABEL_GAP) * 2);
+  // Scaled between STREAK_BAR_MIN_WIDTH (the shortest streak currently shown) and maxBarWidth
+  // (the longest), rather than a flat 0-to-max scale with an arbitrary floor slapped on after --
+  // that flooring meant several short streaks with genuinely different lengths could all collapse
+  // to the exact same (too-narrow-to-fit-its-own-content) width. When every visible streak is the
+  // same length there's nothing to differentiate, so they all just render at the full max width.
+  const streakLengthRange = maxStreakLength - minStreakLength;
+  const getStreakBarWidth = (length: number) => (
+    streakLengthRange > 0
+      ? STREAK_BAR_MIN_WIDTH + ((length - minStreakLength) / streakLengthRange) * (maxBarWidth - STREAK_BAR_MIN_WIDTH)
+      : maxBarWidth
+  );
 
   const handleEndReached = () => {
     setVisibleCount(prev => Math.min(prev + PAGE_SIZE, sortedStreaks.length));
@@ -174,7 +198,7 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
           <View
             style={[
               styles.streakBar,
-              { width: Math.max(20, (item.length / maxStreakLength) * maxBarWidth), backgroundColor: item.taskColor },
+              { width: getStreakBarWidth(item.length), backgroundColor: item.taskColor },
             ]}
           >
             <MaterialCommunityIcons name={item.taskIcon} size={12} color="#fff" />
@@ -337,8 +361,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
+    gap: 3,
+    paddingHorizontal: 6,
   },
   streakBarText: {
     fontSize: 12,
