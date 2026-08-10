@@ -231,9 +231,13 @@ export const getDayStreakState = (
 // first day, no right connector on its last day" without needing to special-case either --
 // a day with a broken/missing neighbor has nothing connected to draw a line into. Today itself is
 // never marked completed or skipped on its own (calendars never judge "today" as a miss/skip --
-// see each screen's `isPast` gating), so it's handled separately here: it reads as connected
-// exactly when there's a live streak reaching into it right now, which is what lets a completed
-// yesterday grow a right-connector stub pointing at an as-yet-undecided today.
+// see each screen's `isPast` gating), so it's handled separately here: connected exactly when
+// today's own status is `'up_to_date'` -- comfortably safe, nothing riding on today specifically
+// -- not merely whenever `currentStreak > 0`. That distinction matters: `'expiring'` *also* has
+// `currentStreak > 0` (a real streak exists), but it specifically means today (or, for a quota
+// task, every remaining day in the period) is the make-or-break day -- skip it and the streak
+// breaks. Per explicit user direction, an expiring today gets no "free pass" connector; only a
+// genuinely safe today (not due, or already covered with slack) does.
 export const isConnectedDay = (
   task: Task,
   date: Date,
@@ -248,7 +252,7 @@ export const isConnectedDay = (
   const count = completionCounts.get(format(day, 'yyyy-MM-dd')) ?? 0;
   if (count >= requiredTimes) return true;
 
-  if (day.getTime() === today.getTime()) return (task.stats?.currentStreak ?? 0) > 0;
+  if (day.getTime() === today.getTime()) return task.stats?.streakStatus === 'up_to_date';
 
   return getDayStreakState(task, day, chains, completionCounts) === 'connected';
 };
@@ -268,26 +272,20 @@ export const isConnectedDay = (
 // ending, so the chain's span is the authoritative answer for how far the *capsule* should reach.
 // This is a strict superset of isConnectedDay/getDayStreakState's own "connected" result: it adds
 // one more case (chain-span membership) on top, never removes one, so nothing that already read
-// as connected there stops being so here.
+// as connected there stops being so here. Built directly on top of isConnectedDay (rather than
+// duplicating its future/completed/today/getDayStreakState logic a second time) so both share the
+// exact same "today" rule with nothing to keep in sync by hand.
 const isChainConnectedDay = (
   task: Task,
   date: Date,
   chains: StreakChain[],
   completionCounts: Map<string, number>
 ): boolean => {
-  const today = startOfDay(new Date());
   const day = startOfDay(date);
-  if (day > today) return false;
+  if (day > startOfDay(new Date())) return false;
+  if (isConnectedDay(task, date, chains, completionCounts)) return true;
 
-  const requiredTimes = Math.max(1, task.timesPerDay || 1);
-  const count = completionCounts.get(format(day, 'yyyy-MM-dd')) ?? 0;
-  if (count >= requiredTimes) return true;
-
-  if (day.getTime() === today.getTime()) return (task.stats?.currentStreak ?? 0) > 0;
-
-  if (chains.some(chain => day >= chain.startDate && day <= chain.endDate)) return true;
-
-  return getDayStreakState(task, day, chains, completionCounts) === 'connected';
+  return chains.some(chain => day >= chain.startDate && day <= chain.endDate);
 };
 
 // Which chain (if any) a day's own IncludingClose span belongs to -- used only to tell two

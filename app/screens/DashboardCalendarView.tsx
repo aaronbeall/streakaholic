@@ -317,6 +317,14 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                     const isSkipped = streakState === 'connected';
                     const isSoftMissed = streakState === 'softMiss';
                     const connection = dayConnectionInfoByTask.get(task.id)?.get(dateString);
+                    // Today, not yet (fully) completed, with the streak's own status saying today
+                    // is the make-or-break day -- matches the days isConnectedDay withholds a
+                    // connector from (see reports.ts). This grid has no day numbers to badge like
+                    // TaskCalendarScreen does, so it gets a gray clock icon replacing whatever
+                    // would otherwise show in the dot instead (mutually exclusive with the
+                    // partial-progress pie and the hard-miss X, same as those already are with
+                    // each other).
+                    const isExpiringToday = dateString === todayStr && !isCompleted && task.stats?.streakStatus === 'expiring';
                     return (
                       <View key={task.id} style={styles.gridCell}>
                         {connection?.isConnectedSelf && !(connection.isRunStart && connection.isRunEnd) && (
@@ -349,17 +357,30 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                           style={[
                             styles.gridDot,
                             isCompleted && { backgroundColor: task.color },
-                            (isMissed || isSkipped) && styles.gridDotEmpty,
+                            (isMissed || isSkipped || isExpiringToday) && styles.gridDotEmpty,
                             isSoftMissed && styles.gridDotSoftMiss,
                           ]}
                         >
-                          {isPartial && (
-                            <PartialDayPie fraction={completionCount / (task.timesPerDay || 1)} color={task.color} />
-                          )}
-                          {isMissed && (
+                          {isExpiringToday ? (
+                            // Sized close to gridDot's own diameter (GRID_CELL_SIZE - 8 = 24) --
+                            // larger than MissedDayMark's `size={16}` elsewhere in this same dot,
+                            // since an icon-font glyph carries real internal padding within its
+                            // own box that a hand-drawn stroke mark doesn't, so matching the
+                            // numeric size alone read visibly smaller/lighter than the X.
                             <View style={styles.missedMark}>
-                              <MissedDayMark color={colors.textTertiary} size={16} />
+                              <MaterialCommunityIcons name="clock-outline" size={22} color={colors.textTertiary} />
                             </View>
+                          ) : (
+                            <>
+                              {isPartial && (
+                                <PartialDayPie fraction={completionCount / (task.timesPerDay || 1)} color={task.color} />
+                              )}
+                              {isMissed && (
+                                <View style={styles.missedMark}>
+                                  <MissedDayMark color={colors.textTertiary} size={16} />
+                                </View>
+                              )}
+                            </>
                           )}
                         </View>
                         {connection?.showStreakBadge && (

@@ -362,11 +362,23 @@ describe('isConnectedDay', () => {
     expect(isConnectedDay(task, new Date(2025, 11, 29), chains, counts)).toBe(false);
   });
 
-  it('today is connected exactly when there is a live streak reaching into it', () => {
-    jest.useFakeTimers().setSystemTime(new Date(2026, 0, 6));
+  it('today is connected only when today\'s own status is \'up_to_date\' -- not merely whenever a streak is live', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 0, 6)); // Tuesday
     try {
-      const liveTask = withStats(baseTask({ completions: [makeCompletion('a', new Date(2026, 0, 5))] }));
-      expect(isConnectedDay(liveTask, new Date(2026, 0, 6), [], new Map())).toBe(true);
+      // specific_days_of_week, Monday only: Jan 5 (Monday) completed, today (Tuesday) isn't due --
+      // nothing riding on today, so streakStatus is 'up_to_date'.
+      const safeTask = withStats(baseTask({
+        frequency: 'specific_days_of_week', daysOfWeek: [1],
+        completions: [makeCompletion('a', new Date(2026, 0, 5))],
+      }));
+      expect(safeTask.stats?.streakStatus).toBe('up_to_date');
+      expect(isConnectedDay(safeTask, new Date(2026, 0, 6), [], new Map([['2026-01-05', 1]]))).toBe(true);
+
+      // daily: today is due and not yet completed, with a real (length-1) streak riding on it --
+      // streakStatus is 'expiring', not 'up_to_date', so no free pass even though currentStreak > 0.
+      const expiringTask = withStats(baseTask({ completions: [makeCompletion('a', new Date(2026, 0, 5))] }));
+      expect(expiringTask.stats?.streakStatus).toBe('expiring');
+      expect(isConnectedDay(expiringTask, new Date(2026, 0, 6), [], new Map([['2026-01-05', 1]]))).toBe(false);
 
       const deadTask = withStats(baseTask({ completions: [] }));
       expect(isConnectedDay(deadTask, new Date(2026, 0, 6), [], new Map())).toBe(false);
@@ -426,22 +438,52 @@ describe('buildDayConnectionInfo', () => {
     }
   });
 
-  it('daily: a still-live streak badges the most recent real completion, not today itself', () => {
-    jest.useFakeTimers().setSystemTime(new Date(2026, 0, 7)); // today, not yet completed
+  it('daily: an expiring today (due, not yet completed, with a real streak riding on it) is not connected -- no free pass just because a streak exists', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 0, 7)); // today, due, not yet completed
     try {
       const completions = [makeCompletion('a', new Date(2026, 0, 5)), makeCompletion('b', new Date(2026, 0, 6))];
       const task = withStats(baseTask({ frequency: 'daily', completions }));
+      expect(task.stats?.streakStatus).toBe('expiring');
       const chains = getTaskStreakChains(task);
       const counts = countsFrom(completions);
       const dates = eachDayOfRange(new Date(2026, 0, 1), new Date(2026, 0, 7));
       const info = buildDayConnectionInfo(task, dates, chains, counts);
 
-      // Today is connected (a live streak reaches into it) and is the run's chronological end,
-      // but the badge stays on Jan 6 -- the actual last completed day -- not on today.
+      // Today is due and not yet completed, and the 2-day streak is riding on it -- streakStatus
+      // is 'expiring', not 'up_to_date', so today gets no connector at all, even though
+      // currentStreak > 0. Jan 6 becomes the run's own true end instead, and keeps the badge.
       expect(info.get(key(new Date(2026, 0, 7)))).toMatchObject({
-        isConnectedSelf: true, isRunEnd: true, showStreakBadge: false,
+        isConnectedSelf: false, isRunEnd: false, showStreakBadge: false,
       });
       expect(info.get(key(new Date(2026, 0, 6)))).toMatchObject({
+        isRunEnd: true, showStreakBadge: true, badgeValue: 2,
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('specific_days_of_week: a genuinely safe (up_to_date, non-due) today still doesn\'t steal the badge from the actual last completion', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 0, 6)); // Tuesday, not due
+    try {
+      const completions = [
+        makeCompletion('a', new Date(2026, 0, 4)), // Sunday, due
+        makeCompletion('b', new Date(2026, 0, 5)), // Monday, due
+      ];
+      const task = withStats(baseTask({ frequency: 'specific_days_of_week', daysOfWeek: [0, 1], completions }));
+      expect(task.stats?.streakStatus).toBe('up_to_date');
+      const chains = getTaskStreakChains(task);
+      const counts = countsFrom(completions);
+      const dates = eachDayOfRange(new Date(2026, 0, 1), new Date(2026, 0, 6));
+      const info = buildDayConnectionInfo(task, dates, chains, counts);
+
+      // Today (Tuesday) isn't due, and nothing is riding on it -- it's genuinely connected, and is
+      // the run's chronological end, but the badge still stays on Jan 5, the actual last
+      // completion, not on today.
+      expect(info.get(key(new Date(2026, 0, 6)))).toMatchObject({
+        isConnectedSelf: true, isRunEnd: true, showStreakBadge: false,
+      });
+      expect(info.get(key(new Date(2026, 0, 5)))).toMatchObject({
         isRunEnd: false, showStreakBadge: true, badgeValue: 2,
       });
     } finally {

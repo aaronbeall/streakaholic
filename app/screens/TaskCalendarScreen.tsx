@@ -383,9 +383,18 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                   const isSoftMissed = streakState === 'softMiss';
                   const isFuture = dateString > today;
                   const connection = dayConnectionInfo.get(dateString);
+                  // Today, not yet (fully) completed, with the streak's own status saying today
+                  // is the make-or-break day -- matches exactly the days isConnectedDay now
+                  // withholds a connector from (see reports.ts). Drives a small expiring-colored
+                  // badge alongside the day number (see the render site below) so this calendar's
+                  // own visual cue lines up with the same "no free pass today" signal the
+                  // missing connector already gives.
+                  const isExpiringToday = isToday && !isCompleted && task.stats?.streakStatus === 'expiring';
 
                   const stateLabel = isCompleted
                     ? 'Completed'
+                    : isExpiringToday
+                    ? (isPartial ? `${completionCount} of ${task.timesPerDay || 1} completed, action needed today` : 'Action needed today')
                     : isPartial
                     ? `${completionCount} of ${task.timesPerDay || 1} completed`
                     : isMissed
@@ -471,6 +480,17 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                           iconSize={11}
                           style={styles.streakBadgePosition}
                         />
+                      )}
+                      {/* Mutually exclusive with the streak-count badge above -- that one only
+                          ever lands on a completed day, this one only ever on an incomplete
+                          today -- so they never compete for the same corner. Keeps the day
+                          number visible (unlike the earlier version of this feature) and adds a
+                          small expiring-colored badge instead, matching the same orange
+                          getStreakBadgeStyle already uses for 'expiring' elsewhere in the app. */}
+                      {isExpiringToday && (
+                        <View style={[styles.expiringBadge, styles.streakBadgePosition]}>
+                          <MaterialCommunityIcons name="clock-outline" size={10} color="#fff" />
+                        </View>
                       )}
                     </TouchableOpacity>
                   );
@@ -629,6 +649,22 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     position: 'absolute',
     top: 2,
     right: 2,
+  },
+  // Same small-badge shape/shadow language as StreakCountBadge, just a plain icon (no numeric
+  // value) colored with getStreakBadgeStyle's own 'expiring' orange (#FFA726) rather than the
+  // task's own color, so it reads as a status indicator, not a streak-length label.
+  expiringBadge: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FFA726',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   yearScroll: {
     flex: 1,
