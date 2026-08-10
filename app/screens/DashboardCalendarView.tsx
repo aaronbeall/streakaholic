@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { differenceInCalendarDays, format, getDay, getDaysInMonth, isSameMonth, parseISO, startOfMonth, subDays } from 'date-fns';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
-import { FlatList, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View, ViewToken } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { FlatList, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View, ViewToken } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+import Reanimated, { EntryAnimationsValues, LayoutAnimation, withTiming } from 'react-native-reanimated';
+import Svg, { Line, Path } from 'react-native-svg';
 import { MissedDayMark } from '../components/MissedDayMark';
 import { PartialDayPie } from '../components/PartialDayPie';
 import { StreakCountBadge } from '../components/StreakCountBadge';
@@ -34,12 +35,36 @@ const CONNECTOR_LINE_THICKNESS = 8;
 // every task is fully done reaches exactly the same total height Grid mode's task rows already
 // occupy (tasks.length * GRID_CELL_SIZE), keeping the two modes' vertical scale consistent.
 const BAR_UNIT_HEIGHT = GRID_CELL_SIZE;
-const BAR_SEGMENT_GAP = 2;
-const BAR_SEGMENT_RADIUS = 7;
-// Narrower than the full track width, centered, so adjacent days' bars read as visually distinct
-// columns rather than one nearly-touching band.
-const BAR_SEGMENT_WIDTH = '75%';
+// A small cap on the topmost segment only, not every segment -- per explicit user direction
+// ("a stacked bar chart"), segments now sit flush against each other with no per-segment gap or
+// rounding, reading as one continuous multi-color bar rather than a stack of separate rounded
+// pills; only the very top of the whole stack gets a soft corner, the same way a typical stacked
+// bar chart's bar does, and the bottom stays square since it rests on the track's own baseline.
+const BAR_SEGMENT_RADIUS = 4;
 type MainGridMode = 'grid' | 'bars' | 'streamgraph';
+
+// The day-tooltip card's reveal motion: grows downward out of the chart above it (height 0 -> its
+// own natural height) rather than translating an already-fully-sized element in from off-screen
+// the way Reanimated's built-in SlideInDown does -- that read as "arriving," not "extending out of
+// the chart it's attached to." A custom entering worklet instead, animating `height` using
+// Reanimated's own auto-measured targetHeight (no manual onLayout measurement needed) --
+// dayTooltip's own `overflow: 'hidden'` clips its content while shorter than full height.
+// Module-level (not defined inside the component) since worklets need a stable reference and
+// don't depend on any component state -- durations are fixed constants.
+//
+// Deliberately no matching `exiting` animation -- per explicit user direction, closing (whether
+// via the X button or tapping the same day again) removes the card immediately, no transition.
+// Only the reveal is animated.
+const dayTooltipEntering = (values: EntryAnimationsValues): LayoutAnimation => {
+  'worklet';
+  return {
+    initialValues: { height: 0, opacity: 0 },
+    animations: {
+      height: withTiming(values.targetHeight, { duration: 220 }),
+      opacity: withTiming(1, { duration: 160 }),
+    },
+  };
+};
 
 // Same per-day state shape as TaskCalendarView's Year-mode mini grid -- no due/not-due distinction,
 // just completed/partial/future, matching that grid's already-established look.
@@ -74,6 +99,10 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
   // so they always reflect whatever's actually in view rather than always showing "now".
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
   const [taskMonthGridWidth, setTaskMonthGridWidth] = useState(0);
+  // Tap-to-inspect a single day's column, Bars/Streamgraph only (see the render branches below) --
+  // a `yyyy-MM-dd` string rather than a Date so it can be compared directly against the same
+  // format every other per-day lookup in this file already uses.
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const { width: windowWidth } = useWindowDimensions();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
@@ -195,15 +224,52 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
     setLoadedDays(prev => Math.min(prev + DAYS_PAGE_SIZE, maxDays));
   };
 
-  // A segment's own rendered height can't just be `fraction * BAR_UNIT_HEIGHT` -- the
-  // `BAR_SEGMENT_GAP` margins between segments add extra height on top of that, so a day with
-  // every task fully completed (worst case: tasks.length - 1 gaps, the most any day can need)
-  // would overshoot `barColumnTrack`'s fixed `tasks.length * BAR_UNIT_HEIGHT`. Shrinking each
-  // unit by that worst-case gap total, spread evenly across every task, means the full-completion
-  // case now lands exactly on the track's height instead of past it.
-  const barSegmentUnitHeight = tasks.length > 0
-    ? BAR_UNIT_HEIGHT - ((tasks.length - 1) * BAR_SEGMENT_GAP) / tasks.length
-    : BAR_UNIT_HEIGHT;
+  // A selected day tied to a task set or a mode it no longer applies to (the task filter changed
+  // out from under it, or the user switched to Grid, which has no tap interaction at all) would
+  // otherwise leave a stale line/tooltip with nothing real behind it.
+  useEffect(() => {
+    setSelectedDate(null);
+  }, [tasks, mainGridMode]);
+
+  // Per explicit user direction, tapping the already-selected column again is a no-op rather than
+  // a toggle-off -- the only way to close the card is its own X button (setSelectedDate(null)
+  // directly, see the render site below).
+  const handleColumnTap = (dateString: string) => {
+    setSelectedDate(dateString);
+  };
+
+  // The tapped day's per-task summary for the tooltip -- a task only appears here if it was
+  // actually completed that day (partial or full). Per explicit follow-up direction, pass-through
+  // days (a task merely staying streak-connected with zero completion, e.g. a non-due day or an
+  // open quota period) are excluded entirely now too, not just genuinely absent ones -- this
+  // tooltip is specifically about what got *done*, not the full streak-connectivity picture the
+  // calendars already show.
+  const selectedDayEntries = useMemo(() => {
+    if (!selectedDate) return null;
+    return tasks
+      .map(task => {
+        const completionCount = completionCountsByTask.get(task.id)?.get(selectedDate) ?? 0;
+        if (completionCount === 0) return null;
+        const requiredTimes = task.timesPerDay || 1;
+        const isCompleted = completionCount >= requiredTimes;
+        const connection = dayConnectionInfoByTask.get(task.id)?.get(selectedDate);
+        return {
+          task,
+          completionCount,
+          requiredTimes,
+          isCompleted,
+          badgeValue: connection?.showStreakBadge ? connection.badgeValue : null,
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+  }, [selectedDate, tasks, completionCountsByTask, dayConnectionInfoByTask]);
+
+  // Streamgraph's selection line needs the tapped day's x position within the one continuous SVG
+  // (unlike Bars mode, which just checks its own renderItem's own date against selectedDate).
+  const selectedDayIndex = useMemo(
+    () => (selectedDate ? days.findIndex(d => format(d, 'yyyy-MM-dd') === selectedDate) : -1),
+    [selectedDate, days]
+  );
 
   // Streamgraph mode doesn't fit the FlatList-per-day-column model Grid/Bars share -- a
   // streamgraph is one continuous flowing shape across the whole visible width, which can't be
@@ -319,24 +385,62 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                   );
                 })}
               </View>
-              <Svg width={streamWidth} height={streamHeight}>
-                {streamPaths.map(({ task, path }) => (
-                  <Path key={task.id} d={path} fill={task.color} fillOpacity={0.85} />
-                ))}
-              </Svg>
+              <View style={{ width: streamWidth, height: streamHeight }}>
+                <Svg width={streamWidth} height={streamHeight}>
+                  {streamPaths.map(({ task, path }) => (
+                    <Path key={task.id} d={path} fill={task.color} fillOpacity={0.85} />
+                  ))}
+                  {/* Rendered after the paths (on top) so it stays visible crossing through
+                      whichever layers happen to sit at that x position. */}
+                  {selectedDayIndex >= 0 && (
+                    <Line
+                      x1={selectedDayIndex * GRID_CELL_SIZE + GRID_CELL_SIZE / 2}
+                      y1={0}
+                      x2={selectedDayIndex * GRID_CELL_SIZE + GRID_CELL_SIZE / 2}
+                      y2={streamHeight}
+                      stroke={colors.text}
+                      strokeOpacity={0.5}
+                      strokeWidth={2}
+                    />
+                  )}
+                </Svg>
+                {/* One invisible tap target per day, overlaid on the whole SVG -- the flowing
+                    ribbons aren't discrete per-day elements the way Bars' segments are, so there's
+                    nothing else here to attach a per-day onPress to directly. */}
+                <View style={styles.streamTapOverlay}>
+                  {days.map(day => {
+                    const dateString = format(day, 'yyyy-MM-dd');
+                    return (
+                      <Pressable
+                        key={dateString}
+                        style={styles.streamTapCell}
+                        onPress={() => handleColumnTap(dateString)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${format(day, 'EEEE, MMMM d')} details`}
+                      />
+                    );
+                  })}
+                </View>
+              </View>
             </View>
           </ScrollView>
         </View>
       ) : (
         <View style={styles.gridWrapper}>
-          <View style={styles.gridLabelColumn}>
-            <View style={{ height: GRID_AXIS_HEIGHT }} />
-            {tasks.map(task => (
-              <View key={task.id} style={styles.gridLabelRow}>
-                <MaterialCommunityIcons name={task.icon} size={20} color={task.color} />
-              </View>
-            ))}
-          </View>
+          {/* Bars mode dropped this -- unlike Grid mode, a bar's stacked segments don't sit in a
+              fixed per-task row (only tasks with a completion that day render a segment at all,
+              in a shifting bottom-anchored stack), so this column never actually lined up 1:1
+              with anything. The minimalistic legend below the chart replaces it instead. */}
+          {mainGridMode !== 'bars' && (
+            <View style={styles.gridLabelColumn}>
+              <View style={{ height: GRID_AXIS_HEIGHT }} />
+              {tasks.map(task => (
+                <View key={task.id} style={styles.gridLabelRow}>
+                  <MaterialCommunityIcons name={task.icon} size={20} color={task.color} />
+                </View>
+              ))}
+            </View>
+          )}
           <FlatList
             data={days}
             horizontal
@@ -372,10 +476,8 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
 
               if (mainGridMode === 'bars') {
                 // Only the segments that actually contributed that day -- filtered before mapping
-                // (rather than skipping in place) so the gap between segments can be based on
-                // position among *visible* segments, not raw task index. Otherwise a skipped
-                // segment at the very top would still leave a phantom gap between it and the
-                // first segment that does render.
+                // (rather than skipping in place) so the "topmost segment" rounding below applies
+                // to whichever segment actually renders first, not a fixed task index.
                 const barDateString = format(day, 'yyyy-MM-dd');
                 const barSegments = tasks
                   .map(task => {
@@ -384,7 +486,12 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                   })
                   .filter(({ fraction }) => fraction > 0);
                 return (
-                  <View style={styles.gridColumn}>
+                  <Pressable
+                    style={styles.gridColumn}
+                    onPress={() => handleColumnTap(barDateString)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${format(day, 'EEEE, MMMM d')} details`}
+                  >
                     {separator}
                     {dateAxis}
                     <View style={[styles.barColumnTrack, { height: tasks.length * BAR_UNIT_HEIGHT }]}>
@@ -394,17 +501,22 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                             key={task.id}
                             style={[
                               styles.barSegment,
+                              index === 0 && styles.barSegmentTop,
                               {
-                                height: fraction * barSegmentUnitHeight,
+                                height: fraction * BAR_UNIT_HEIGHT,
                                 backgroundColor: task.color,
-                                marginTop: index > 0 ? BAR_SEGMENT_GAP : 0,
                               },
                             ]}
                           />
                         ))}
                       </View>
+                      {/* Rendered last (on top of the segments) so it stays visible regardless
+                          of what color/segment happens to sit underneath it. */}
+                      {selectedDate === barDateString && (
+                        <View style={styles.columnSelectionLine} pointerEvents="none" />
+                      )}
                     </View>
-                  </View>
+                  </Pressable>
                 );
               }
 
@@ -508,6 +620,53 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
             }}
           />
         </View>
+      )}
+
+      {/* Bars/Streamgraph only -- Grid mode has no tap interaction. Below the chart (per explicit
+          user direction), not floating over the tapped column: both charts scroll horizontally,
+          so the tapped column's on-screen x position would otherwise need to be re-tracked on
+          every scroll frame; a docked summary card is simpler and never mispositions or clips. */}
+      {selectedDate && (mainGridMode === 'bars' || mainGridMode === 'streamgraph') && (
+        <Reanimated.View
+          entering={dayTooltipEntering}
+          style={styles.dayTooltip}
+        >
+          <View style={styles.dayTooltipHeader}>
+            <Text style={styles.dayTooltipDate}>{format(parseISO(selectedDate), 'EEEE, MMM d')}</Text>
+            <TouchableOpacity
+              onPress={() => setSelectedDate(null)}
+              style={styles.dayTooltipCloseButton}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Close day details"
+            >
+              <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.dayTooltipHeaderDivider} />
+          {selectedDayEntries && selectedDayEntries.length > 0 ? (
+            selectedDayEntries.map(entry => (
+              <View key={entry.task.id} style={styles.dayTooltipRow}>
+                <MaterialCommunityIcons name={entry.task.icon} size={16} color={entry.task.color} />
+                <Text style={styles.dayTooltipTaskName} numberOfLines={1}>{entry.task.name}</Text>
+                {/* Streak-ending days get their final count called out separately from the plain
+                    completion dot below -- the same StreakCountBadge the calendars use elsewhere. */}
+                {entry.badgeValue && <StreakCountBadge value={entry.badgeValue} iconSize={10} />}
+                {/* Same solid-fill/partial-wedge treatment as Grid mode's own gridDot, instead of
+                    text like "Completed"/"4/4" -- a fully solid circle in the task's own color
+                    reads the same "done" signal the calendars already teach, and the wedge fills
+                    proportionally for an under-quota multi-rep day. */}
+                <View style={[styles.dayTooltipDot, entry.isCompleted && { backgroundColor: entry.task.color }]}>
+                  {!entry.isCompleted && (
+                    <PartialDayPie fraction={entry.completionCount / entry.requiredTimes} color={entry.task.color} />
+                  )}
+                </View>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.dayTooltipEmptyText}>No activity that day</Text>
+          )}
+        </Reanimated.View>
       )}
 
       {tasks.length > 0 && (
@@ -753,26 +912,145 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   // Fixed height (tasks.length * BAR_UNIT_HEIGHT, set inline) so every day column shares the same
   // vertical scale regardless of that day's own total -- `justifyContent: 'flex-end'` anchors the
   // (auto-height) stack to the bottom of that shared space. marginHorizontal gives adjacent days'
-  // bars visible separation instead of touching edge-to-edge.
+  // bars visible separation instead of touching edge-to-edge. The bottom border is an x-axis line
+  // the bars visually rest on -- per explicit user direction, not a divider placed below the whole
+  // chart section with its own margin, but touching the bars' own bottom edge directly. Applied
+  // per-column (every day's own track, at the exact same fixed height) rather than one element
+  // spanning the whole scrollable width, since there's no single element that could span across
+  // FlatList's independently-rendered/virtualized columns -- each column's own segment lines up
+  // with its neighbors' since they all share the same height, reading as one continuous line
+  // (with only the ~6px marginHorizontal gap between adjacent days as a minor, barely-visible
+  // break, not worth solving with more complex cross-column geometry for this small a visual gap).
   barColumnTrack: {
     justifyContent: 'flex-end',
     marginHorizontal: 3,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   // Normal top-to-bottom column order -- the first task in `tasks` order renders as the topmost
   // segment (matching the label column's own top-to-bottom task order), with later tasks stacking
   // downward. The stack auto-sizes to the sum of only the segments actually present that day;
   // `barColumnTrack`'s `justifyContent: 'flex-end'` then anchors this whole (shorter) block flush
   // against the fixed-height track's bottom edge, so the *last* rendered segment ends up touching
-  // bottom, not the first.
-  barStack: {
-    // Centers the (narrower-than-track) segments horizontally -- every segment shares the same
-    // BAR_SEGMENT_WIDTH, so centering the stack keeps them all aligned on the same vertical axis.
-    alignItems: 'center',
-  },
+  // bottom, not the first. Purely a structural wrapper -- no styles of its own needed now that
+  // segments are full width rather than narrower-and-centered.
+  barStack: {},
+  // Full width of the track and no gap between segments -- per explicit user direction ("a
+  // stacked bar chart"), adjacent tasks' segments touch directly to read as one continuous
+  // multi-color bar rather than a stack of separate narrower pills.
   barSegment: {
-    width: BAR_SEGMENT_WIDTH,
-    borderRadius: BAR_SEGMENT_RADIUS,
+    width: '100%',
+  },
+  // Applied only to whichever segment renders first (the topmost one) -- a soft cap at the very
+  // top of the whole stack, the same way a typical stacked bar chart's bar has, while the rest of
+  // the stack (including the bottom, which rests on the track's own baseline) stays square.
+  barSegmentTop: {
+    borderTopLeftRadius: BAR_SEGMENT_RADIUS,
+    borderTopRightRadius: BAR_SEGMENT_RADIUS,
     overflow: 'hidden',
+  },
+  // A thin vertical crosshair through the tapped column's own bar, spanning barColumnTrack's full
+  // height -- centered via percentage left + a negative margin half its own width (safe here,
+  // unlike the earlier connector-track centering bugs elsewhere in this file, since this is a
+  // plain absolute-positioned line with no aspectRatio-derived parent or corner-radius math
+  // involved, just simple centering).
+  columnSelectionLine: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '50%',
+    marginLeft: -1,
+    width: 2,
+    backgroundColor: colors.text,
+    opacity: 0.5,
+  },
+  streamTapOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+  },
+  streamTapCell: {
+    width: GRID_CELL_SIZE,
+    height: '100%',
+  },
+  // A docked summary card (see the render-site comment for why not a floating tooltip) styled
+  // like the app's other small surface cards -- a bordered `colors.surface` box with a subtle
+  // shadow, not the semi-transparent OnboardingHint/ToastBanner treatment those deliberately use
+  // to stay legible over arbitrary content, since this one always sits on the screen's own themed
+  // background.
+  dayTooltip: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+    // Clips content while dayTooltipEntering/Exiting are animating height below its natural full
+    // value -- without this, rows would visibly overflow the shrunken box mid-animation instead
+    // of being cleanly hidden. Android's elevation-based shadow isn't affected by this the way an
+    // iOS shadow prop can be; not a concern in practice for this app's primary target platform.
+    overflow: 'hidden',
+  },
+  dayTooltipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  // Sized/weighted up from the original 14/700 to read as an actual title, not just another line
+  // of body text -- matches the weight of e.g. DashboardScreen's own headerTitle.
+  dayTooltipDate: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  // Separates the title row from the task list below -- dayTooltip's own `gap: 8` already spaces
+  // it from its neighbors on both sides, so no extra margin needed here.
+  dayTooltipHeaderDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+  },
+  // Padded well beyond the icon's own bounds for a real touch target, not just the bare 20px
+  // glyph -- `hitSlop` alone only extends the *invisible* tappable area, this also grows the
+  // button's own visible footprint to look and feel bigger, not just register taps over a wider
+  // area around a still-small icon.
+  dayTooltipCloseButton: {
+    padding: 6,
+    margin: -6,
+  },
+  dayTooltipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dayTooltipTaskName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  // Same shape/pattern as gridDot -- a grey circle that goes solid task.color when complete, or
+  // stays grey with a PartialDayPie wedge inside for an under-quota multi-rep day.
+  dayTooltipDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  dayTooltipEmptyText: {
+    fontSize: 13,
+    color: colors.textTertiary,
   },
   taskMonthGrid: {
     flexDirection: 'row',
