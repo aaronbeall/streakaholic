@@ -15,9 +15,13 @@ import { buildCompletionCountsByDate } from '../utils/streaks';
 
 const GRID_LABEL_WIDTH = 36;
 const GRID_CELL_SIZE = 32;
-const GRID_MONTH_HEADER_HEIGHT = 16;
+// Weekday letter (S/M/T/W/T/F/S) + day-of-month number -- rendered at both the top and bottom of
+// the grid (see the render-site comment), so a task row far down the list is never more than a
+// glance away from knowing which day its own column is. The month/year itself no longer lives
+// here at all -- see timelineMonthLabel below for why a per-column abbreviation was dropped.
+const GRID_WEEKDAY_HEIGHT = 14;
 const GRID_DAY_HEADER_HEIGHT = 20;
-const GRID_DATE_HEADER_HEIGHT = GRID_MONTH_HEADER_HEIGHT + GRID_DAY_HEADER_HEIGHT;
+const GRID_AXIS_HEIGHT = GRID_WEEKDAY_HEIGHT + GRID_DAY_HEADER_HEIGHT;
 const DAYS_PAGE_SIZE = 30;
 // Matches the `size` MissedDayMark is rendered at below (16) -- thick enough to read as a real
 // track (not a hairline) without being as tall as the completed-day dot itself, so a connected
@@ -203,7 +207,11 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
     <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom }}>
       {tasks.length > 0 && (
         <View style={styles.timelineHeaderRow}>
-          <Text style={styles.timelineTitle}>Timeline</Text>
+          {/* Reuses visibleMonth -- already tracked reactively via onViewableItemsChanged for
+              the mini month grids below -- as a large, prominent label right above the grid
+              itself, rather than trying to cram "MMMM yyyy" into a single 32px day column (the
+              old per-column abbreviation this replaced could only ever fit "MMM yy" at 8px). */}
+          <Text style={styles.timelineMonthLabel} numberOfLines={1}>{format(visibleMonth, 'MMMM yyyy')}</Text>
           <View style={styles.mainGridModeToggle}>
             <TouchableOpacity
               style={[styles.mainGridModeButton, mainGridMode === 'grid' && styles.mainGridModeButtonActive]}
@@ -230,7 +238,7 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
       ) : (
         <View style={styles.gridWrapper}>
           <View style={styles.gridLabelColumn}>
-            <View style={{ height: GRID_DATE_HEADER_HEIGHT }} />
+            <View style={{ height: GRID_AXIS_HEIGHT }} />
             {tasks.map(task => (
               <View key={task.id} style={styles.gridLabelRow}>
                 <MaterialCommunityIcons name={task.icon} size={20} color={task.color} />
@@ -248,18 +256,26 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
             viewabilityConfig={viewabilityConfig}
             style={styles.gridScroll}
             renderItem={({ item: day }) => {
+              // Sunday: the boundary between this week and the (older) week to its right in
+              // this newest-first-left grid. The 1st of the month: same idea, one level up.
+              const isWeekStart = day.getDay() === 0;
               const isMonthStart = day.getDate() === 1;
-              const dateHeader = (
-                <View style={styles.gridDateHeaderCell}>
-                  <View style={styles.gridMonthHeaderRow}>
-                    {isMonthStart && (
-                      <Text style={styles.gridMonthLabel} numberOfLines={1}>{format(day, 'MMM yy')}</Text>
-                    )}
-                  </View>
-                  <View style={styles.gridDayHeaderRow}>
-                    <Text style={styles.gridDateLabel}>{format(day, 'd')}</Text>
-                  </View>
+              // One axis, two stacked labels -- a weekday letter and the day-of-month number --
+              // not a separate top *and* bottom copy.
+              const dateAxis = (
+                <View style={styles.gridAxisCell}>
+                  <Text style={styles.gridWeekdayLabel} numberOfLines={1}>{format(day, 'EEEEE')}</Text>
+                  <Text style={styles.gridDateLabel}>{format(day, 'd')}</Text>
                 </View>
+              );
+              // Confined to the axis's own height, not stretching down through the task rows
+              // below it (per explicit user direction). Month wins over week when a month also
+              // happens to start on a Sunday -- one line, not two stacked.
+              const separator = (isMonthStart || isWeekStart) && (
+                <View
+                  style={[styles.gridSeparator, isMonthStart ? styles.gridSeparatorMonth : styles.gridSeparatorWeek]}
+                  pointerEvents="none"
+                />
               );
 
               if (mainGridMode === 'bars') {
@@ -277,7 +293,8 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                   .filter(({ fraction }) => fraction > 0);
                 return (
                   <View style={styles.gridColumn}>
-                    {dateHeader}
+                    {separator}
+                    {dateAxis}
                     <View style={[styles.barColumnTrack, { height: tasks.length * BAR_UNIT_HEIGHT }]}>
                       <View style={styles.barStack}>
                         {barSegments.map(({ task, fraction }, index) => (
@@ -301,7 +318,8 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
 
               return (
                 <View style={styles.gridColumn}>
-                  {dateHeader}
+                  {separator}
+                  {dateAxis}
                   {tasks.map(task => {
                     const dateString = format(day, 'yyyy-MM-dd');
                     const taskCompletionCounts = completionCountsByTask.get(task.id);
@@ -401,9 +419,10 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
       )}
 
       {tasks.length > 0 && (
-        <>
-          <Text style={styles.sectionTitle}>{format(visibleMonth, 'MMMM yyyy')}</Text>
-          <View style={styles.taskMonthGrid} onLayout={handleTaskMonthGridLayout}>
+        // No section title here anymore -- the big month/year label above the Timeline grid
+        // already shows this (see timelineMonthLabel), and having the exact same text repeated
+        // immediately below it read as redundant.
+        <View style={styles.taskMonthGrid} onLayout={handleTaskMonthGridLayout}>
             {taskMonthCardWidth > 0 && tasks.map(task => (
               <TouchableOpacity
                 key={task.id}
@@ -448,7 +467,6 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
               </TouchableOpacity>
             ))}
           </View>
-        </>
       )}
     </ScrollView>
   );
@@ -458,13 +476,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 12,
-    marginTop: 8,
   },
   emptyText: {
     fontSize: 13,
@@ -477,8 +488,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 16,
   },
-  timelineTitle: {
-    fontSize: 16,
+  // Deliberately much larger than the old per-column month abbreviation it replaced (which
+  // topped out at 8px to fit a single 32px day column) -- since this now lives once, above the
+  // whole grid, it isn't constrained by any one column's width at all.
+  timelineMonthLabel: {
+    flexShrink: 1,
+    fontSize: 22,
     fontWeight: '700',
     color: colors.text,
   },
@@ -525,31 +540,56 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   gridColumn: {
     width: GRID_CELL_SIZE,
   },
-  gridDateHeaderCell: {
-    height: GRID_DATE_HEADER_HEIGHT,
-  },
-  gridMonthHeaderRow: {
-    height: GRID_MONTH_HEADER_HEIGHT,
+  // Rendered at both the top and bottom of every column -- see the render-site comment. A plain
+  // column flex with justifyContent: 'center' stacks the weekday letter above the day number as
+  // one centered unit within the fixed GRID_AXIS_HEIGHT box.
+  gridAxisCell: {
+    height: GRID_AXIS_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  gridDayHeaderRow: {
-    height: GRID_DAY_HEADER_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
+  gridWeekdayLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.textTertiary,
+    textTransform: 'uppercase',
   },
   gridDateLabel: {
     fontSize: 11,
     fontWeight: '600',
     color: colors.textSecondary,
   },
-  gridMonthLabel: {
-    // "MMM yy" (2-digit year) so the label reliably fits the 32px day column at a legible size --
-    // "MMM yyyy" doesn't and gets ellipsis-truncated by the FlatList item's clipping.
-    fontSize: 8,
-    fontWeight: '600',
-    color: colors.textTertiary,
-    textTransform: 'uppercase',
+  // Spans the whole column's own rendered height (axis through the last task row) via a
+  // plain-relative gridColumn parent -- rendered on the *left* edge of the day whose
+  // Sunday/1st-of-month it belongs to, landing exactly on the shared boundary with the (older)
+  // column to its right.
+  // Positioned on the *right* edge, not the left -- index increases going right (older) in this
+  // newest-first grid, so a Sunday's/1st's own left edge borders the more-recent day still
+  // within the *same* week/month (Monday, or the 2nd), not the boundary. The right edge borders
+  // the next index over -- the older Saturday, or the prior month's last day -- which is the
+  // actual boundary this is meant to mark. Confined to the axis's own height (not stretching
+  // down through the task rows below it) per explicit user direction.
+  gridSeparator: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    height: GRID_AXIS_HEIGHT,
+  },
+  // Dotted, not solid -- a border, not a filled background, since RN only supports dash/dot
+  // patterns on borders -- reading as a faint rhythm marking each week rather than a hard line.
+  gridSeparatorWeek: {
+    width: 0,
+    borderLeftWidth: 1.5,
+    borderStyle: 'dotted',
+    borderLeftColor: colors.textTertiary,
+    opacity: 0.6,
+  },
+  // Solid and visibly heavier than the week separator -- a real dividing line, since a month
+  // boundary is the more significant one of the two.
+  gridSeparatorMonth: {
+    width: 2,
+    backgroundColor: colors.textSecondary,
+    opacity: 0.9,
   },
   gridCell: {
     width: GRID_CELL_SIZE,
