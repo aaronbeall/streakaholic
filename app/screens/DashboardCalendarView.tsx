@@ -76,6 +76,76 @@ const getTaskMonthColumnCount = (width: number): number => {
   return 2;
 };
 
+// Half of an assumed ~12px label line height -- vertically centers each tick label on its own
+// tick point (position: 'absolute' + a computed `top`) rather than the label's own top edge
+// landing there.
+const Y_AXIS_LABEL_HALF_HEIGHT = 6;
+// Ticks generated per whole task count ("0 tasks done" through "every task done"), scaling with
+// how many are actually selected -- capped so a large task list doesn't cram the column past
+// readability; beyond the cap, thins to evenly-spaced whole numbers instead of one per task.
+const Y_AXIS_MAX_TICKS = 6;
+const getYAxisTicks = (max: number): number[] => {
+  if (max <= 0) return [];
+  if (max <= Y_AXIS_MAX_TICKS) return Array.from({ length: max + 1 }, (_, i) => i);
+  const step = Math.ceil(max / Y_AXIS_MAX_TICKS);
+  const ticks: number[] = [];
+  for (let v = 0; v <= max; v += step) ticks.push(v);
+  if (ticks[ticks.length - 1] !== max) ticks.push(max);
+  return ticks;
+};
+
+// A minimal fixed left-hand vertical axis for Bars/Streamgraph -- both charts share the exact
+// same total vertical scale (`tasks.length * BAR_UNIT_HEIGHT`, "every selected task fully done
+// that day"), so one small shared component covers both rather than duplicating the tick math and
+// layout twice. Just a thin line (colors.border) and a handful of plain number labels -- no
+// gridlines reaching across the chart, no axis title -- per explicit user direction ("minimalist
+// axis and a few numbers"). Sits *outside* the horizontal FlatList/ScrollView as a fixed sibling
+// (matching how Grid mode's own task-icon label column already stays put while its content
+// scrolls), not inside the scrollable content.
+//
+// `mirrored` (Streamgraph only) accounts for the two charts' genuinely different scales: Bars is
+// a flat-bottomed 0-to-max stack (0 at the very bottom, max at the top), but Streamgraph's own
+// silhouette baseline centers every day's stack around 0 (see computeStreamgraphLayers) -- so its
+// "0" is the vertical *middle* of the track, and a given magnitude can appear that far *either*
+// above or below center, not just once climbing from a fixed bottom. Mirrored mode reflects that:
+// every nonzero tick renders twice (once above center, once below, both showing the same
+// magnitude), with a single unmirrored "0" at the true center.
+const YAxisColumn: React.FC<{
+  ticks: number[];
+  max: number;
+  height: number;
+  mirrored?: boolean;
+  styles: ReturnType<typeof createStyles>;
+}> = ({ ticks, max, height, mirrored, styles }) => {
+  const labels: { key: string; value: number; top: number }[] = [];
+  if (max > 0) {
+    for (const tick of ticks) {
+      if (mirrored) {
+        const half = height / 2;
+        if (tick === 0) {
+          labels.push({ key: '0', value: 0, top: half - Y_AXIS_LABEL_HALF_HEIGHT });
+        } else {
+          const offset = (tick / max) * half;
+          labels.push({ key: `top-${tick}`, value: tick, top: half - offset - Y_AXIS_LABEL_HALF_HEIGHT });
+          labels.push({ key: `bottom-${tick}`, value: tick, top: half + offset - Y_AXIS_LABEL_HALF_HEIGHT });
+        }
+      } else {
+        labels.push({ key: `${tick}`, value: tick, top: height - (tick / max) * height - Y_AXIS_LABEL_HALF_HEIGHT });
+      }
+    }
+  }
+  return (
+    <View style={styles.yAxisColumn}>
+      <View style={{ height: GRID_AXIS_HEIGHT }} />
+      <View style={[styles.yAxisTrack, { height }]}>
+        {labels.map(label => (
+          <Text key={label.key} style={[styles.yAxisLabel, { top: label.top }]}>{label.value}</Text>
+        ))}
+      </View>
+    </View>
+  );
+};
+
 // The global equivalent of a single task's TaskCalendarScreen -- every selected task's calendar
 // overlaid into one grid instead of one task's month view. Always "infinite" (paginates further
 // into the past as you scroll right), with no timeframe toggle of its own -- that concept lives
@@ -276,6 +346,9 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
   // loaded), just via its own onScroll-driven "am I near the end" check instead of onEndReached.
   const streamHeight = tasks.length * BAR_UNIT_HEIGHT; // same total scale as Bars mode
   const streamWidth = days.length * GRID_CELL_SIZE;
+  // Shared Bars/Streamgraph Y-axis ticks -- one per whole task count (see getYAxisTicks).
+  const yAxisMax = tasks.length;
+  const yAxisTicks = getYAxisTicks(yAxisMax);
   // Skipped entirely outside streamgraph mode -- no reason to pay for this on every render while
   // the user's looking at Grid or Bars.
   const streamPaths = useMemo(() => {
@@ -347,7 +420,8 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
       {tasks.length === 0 ? (
         <Text style={styles.emptyText}>No tasks selected.</Text>
       ) : mainGridMode === 'streamgraph' ? (
-        <View>
+        <View style={styles.streamWrapper}>
+          <YAxisColumn ticks={yAxisTicks} max={yAxisMax} height={streamHeight} mirrored styles={styles} />
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -423,11 +497,13 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
         </View>
       ) : (
         <View style={styles.gridWrapper}>
-          {/* Bars mode dropped this -- unlike Grid mode, a bar's stacked segments don't sit in a
-              fixed per-task row (only tasks with a completion that day render a segment at all,
-              in a shifting bottom-anchored stack), so this column never actually lined up 1:1
-              with anything. The minimalistic legend below the chart replaces it instead. */}
-          {mainGridMode !== 'bars' && (
+          {/* Bars mode dropped the task-icon column -- unlike Grid mode, a bar's stacked segments
+              don't sit in a fixed per-task row (only tasks with a completion that day render a
+              segment at all, in a shifting bottom-anchored stack), so this column never actually
+              lined up 1:1 with anything. A minimal Y axis takes its place instead. */}
+          {mainGridMode === 'bars' ? (
+            <YAxisColumn ticks={yAxisTicks} max={yAxisMax} height={tasks.length * BAR_UNIT_HEIGHT} styles={styles} />
+          ) : (
             <View style={styles.gridLabelColumn}>
               <View style={{ height: GRID_AXIS_HEIGHT }} />
               {tasks.map(task => (
@@ -753,6 +829,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginHorizontal: -16,
     paddingLeft: 16,
   },
+  // Same marginBottom as gridWrapper -- per explicit user direction, Streamgraph's own gap before
+  // the mini month grid cards below should match Grid/Bars', not read as tighter just because
+  // this wrapper doesn't also need gridWrapper's edge-to-edge-scroll horizontal treatment.
+  streamWrapper: {
+    flexDirection: 'row',
+    marginBottom: 24,
+  },
   gridScroll: {
     flex: 1,
   },
@@ -763,6 +846,23 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     height: GRID_CELL_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Same width as gridLabelColumn (not its own separate value) -- per explicit user direction, so
+  // switching between Grid/Bars/Streamgraph never shifts the header/chart content horizontally
+  // just because the left column happens to be narrower or wider in one mode.
+  yAxisColumn: {
+    width: GRID_LABEL_WIDTH,
+  },
+  yAxisTrack: {
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
+  },
+  yAxisLabel: {
+    position: 'absolute',
+    right: 6,
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.textTertiary,
   },
   gridColumn: {
     width: GRID_CELL_SIZE,
