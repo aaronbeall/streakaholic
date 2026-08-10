@@ -2,8 +2,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { differenceInCalendarDays, format, getDay, getDaysInMonth, isSameMonth, parseISO, startOfMonth, subDays } from 'date-fns';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useRef, useState } from 'react';
-import { FlatList, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View, ViewToken } from 'react-native';
+import { FlatList, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View, ViewToken } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 import { MissedDayMark } from '../components/MissedDayMark';
 import { PartialDayPie } from '../components/PartialDayPie';
 import { StreakCountBadge } from '../components/StreakCountBadge';
@@ -11,6 +12,7 @@ import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { buildDayConnectionInfo, getDayStreakState, getTaskStreakChains } from '../utils/reports';
+import { buildStreamLayerPath, computeStreamgraphLayers } from '../utils/streamgraph';
 import { buildCompletionCountsByDate } from '../utils/streaks';
 
 const GRID_LABEL_WIDTH = 36;
@@ -23,10 +25,10 @@ const GRID_WEEKDAY_HEIGHT = 14;
 const GRID_DAY_HEADER_HEIGHT = 20;
 const GRID_AXIS_HEIGHT = GRID_WEEKDAY_HEIGHT + GRID_DAY_HEADER_HEIGHT;
 const DAYS_PAGE_SIZE = 30;
-// Matches the `size` MissedDayMark is rendered at below (16) -- thick enough to read as a real
-// track (not a hairline) without being as tall as the completed-day dot itself, so a connected
-// dot still visibly pokes out above/below it rather than looking enveloped.
-const CONNECTOR_LINE_THICKNESS = 16;
+// Half of MissedDayMark's own `size` below (16) -- per explicit user direction, thinner than that
+// full-glyph match so it reads more as a connecting thread than a thick track; a connected dot
+// still visibly pokes out well above/below it.
+const CONNECTOR_LINE_THICKNESS = 8;
 
 // Bars mode's per-task segment unit height -- same as a single Grid-mode dot row, so a day where
 // every task is fully done reaches exactly the same total height Grid mode's task rows already
@@ -37,7 +39,7 @@ const BAR_SEGMENT_RADIUS = 7;
 // Narrower than the full track width, centered, so adjacent days' bars read as visually distinct
 // columns rather than one nearly-touching band.
 const BAR_SEGMENT_WIDTH = '75%';
-type MainGridMode = 'grid' | 'bars';
+type MainGridMode = 'grid' | 'bars' | 'streamgraph';
 
 // Same per-day state shape as TaskCalendarView's Year-mode mini grid -- no due/not-due distinction,
 // just completed/partial/future, matching that grid's already-established look.
@@ -203,6 +205,53 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
     ? BAR_UNIT_HEIGHT - ((tasks.length - 1) * BAR_SEGMENT_GAP) / tasks.length
     : BAR_UNIT_HEIGHT;
 
+  // Streamgraph mode doesn't fit the FlatList-per-day-column model Grid/Bars share -- a
+  // streamgraph is one continuous flowing shape across the whole visible width, which can't be
+  // decomposed into independently-rendered, virtualized columns the way a grid of cells or a set
+  // of flat-bottomed bars can. So it renders as one plain horizontal ScrollView holding a single
+  // SVG sized to the full loaded date range, rather than a FlatList -- it still shares the same
+  // `days`/pagination state as Grid/Bars (so switching modes doesn't reset how much history is
+  // loaded), just via its own onScroll-driven "am I near the end" check instead of onEndReached.
+  const streamHeight = tasks.length * BAR_UNIT_HEIGHT; // same total scale as Bars mode
+  const streamWidth = days.length * GRID_CELL_SIZE;
+  // Skipped entirely outside streamgraph mode -- no reason to pay for this on every render while
+  // the user's looking at Grid or Bars.
+  const streamPaths = useMemo(() => {
+    if (mainGridMode !== 'streamgraph' || tasks.length === 0 || days.length === 0) return [];
+    const values = tasks.map(task =>
+      days.map(day => {
+        const dateString = format(day, 'yyyy-MM-dd');
+        const completionCount = completionCountsByTask.get(task.id)?.get(dateString) ?? 0;
+        return Math.min(completionCount / (task.timesPerDay || 1), 1) * BAR_UNIT_HEIGHT;
+      })
+    );
+    const layers = computeStreamgraphLayers(values);
+    return tasks.map((task, t) => {
+      const toPoint = (layerPoint: (typeof layers)[number][number], d: number, edge: 'top' | 'bottom') => ({
+        x: d * GRID_CELL_SIZE + GRID_CELL_SIZE / 2,
+        y: layerPoint[edge] + streamHeight / 2, // shift the centered baseline into the SVG's own top-down coordinate space
+      });
+      const topPoints = layers[t].map((layerPoint, d) => toPoint(layerPoint, d, 'top'));
+      const bottomPoints = layers[t].map((layerPoint, d) => toPoint(layerPoint, d, 'bottom'));
+      return { task, path: buildStreamLayerPath(topPoints, bottomPoints) };
+    });
+  }, [mainGridMode, tasks, days, completionCountsByTask, streamHeight]);
+
+  const handleStreamScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+    if (days.length > 0) {
+      const centerIndex = Math.min(
+        days.length - 1,
+        Math.max(0, Math.round((contentOffset.x + layoutMeasurement.width / 2) / GRID_CELL_SIZE))
+      );
+      const monthStart = startOfMonth(days[centerIndex]);
+      setVisibleMonth(prev => (isSameMonth(prev, monthStart) ? prev : monthStart));
+    }
+    if (contentOffset.x + layoutMeasurement.width >= contentSize.width - GRID_CELL_SIZE * 5) {
+      handleEndReached();
+    }
+  };
+
   return (
     <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom }}>
       {tasks.length > 0 && (
@@ -213,28 +262,71 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
               old per-column abbreviation this replaced could only ever fit "MMM yy" at 8px). */}
           <Text style={styles.timelineMonthLabel} numberOfLines={1}>{format(visibleMonth, 'MMMM yyyy')}</Text>
           <View style={styles.mainGridModeToggle}>
-            <TouchableOpacity
-              style={[styles.mainGridModeButton, mainGridMode === 'grid' && styles.mainGridModeButtonActive]}
-              onPress={() => setMainGridMode('grid')}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: mainGridMode === 'grid' }}
-            >
-              <Text style={[styles.mainGridModeButtonText, mainGridMode === 'grid' && styles.mainGridModeButtonTextActive]}>Grid</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.mainGridModeButton, mainGridMode === 'bars' && styles.mainGridModeButtonActive]}
-              onPress={() => setMainGridMode('bars')}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: mainGridMode === 'bars' }}
-            >
-              <Text style={[styles.mainGridModeButtonText, mainGridMode === 'bars' && styles.mainGridModeButtonTextActive]}>Bars</Text>
-            </TouchableOpacity>
+            {([
+              { mode: 'grid' as const, icon: 'view-grid-outline' as const, label: 'Grid view' },
+              { mode: 'bars' as const, icon: 'chart-bar' as const, label: 'Bars view' },
+              { mode: 'streamgraph' as const, icon: 'chart-areaspline-variant' as const, label: 'Streamgraph view' },
+            ]).map(({ mode, icon, label }) => (
+              <TouchableOpacity
+                key={mode}
+                style={[styles.mainGridModeButton, mainGridMode === mode && styles.mainGridModeButtonActive]}
+                onPress={() => setMainGridMode(mode)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: mainGridMode === mode }}
+                accessibilityLabel={label}
+              >
+                <MaterialCommunityIcons name={icon} size={18} color={mainGridMode === mode ? '#fff' : colors.textSecondary} />
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
       )}
 
       {tasks.length === 0 ? (
         <Text style={styles.emptyText}>No tasks selected.</Text>
+      ) : mainGridMode === 'streamgraph' ? (
+        <View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            onScroll={handleStreamScroll}
+            scrollEventThrottle={32}
+            style={styles.gridScroll}
+          >
+            <View>
+              <View style={{ flexDirection: 'row' }}>
+                {days.map(day => {
+                  // Same week/month boundary markers as Grid/Bars' own date axis -- see the
+                  // renderItem below for the fuller reasoning (newest-first-left ordering, why
+                  // the separator sits on the right edge, month winning over week on a tie).
+                  const isWeekStart = day.getDay() === 0;
+                  const isMonthStart = day.getDate() === 1;
+                  const separator = (isMonthStart || isWeekStart) && (
+                    <View
+                      style={[styles.gridSeparator, isMonthStart ? styles.gridSeparatorMonth : styles.gridSeparatorWeek]}
+                      pointerEvents="none"
+                    />
+                  );
+                  return (
+                    // gridColumn's fixed width (matching each day's GRID_CELL_SIZE slot in the
+                    // SVG below) is essential here -- without it these cells would shrink-to-
+                    // content instead, misaligning every label against its own day's x position.
+                    <View key={format(day, 'yyyy-MM-dd')} style={[styles.gridColumn, styles.gridAxisCell]}>
+                      {separator}
+                      <Text style={styles.gridWeekdayLabel} numberOfLines={1}>{format(day, 'EEEEE')}</Text>
+                      <Text style={styles.gridDateLabel}>{format(day, 'd')}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+              <Svg width={streamWidth} height={streamHeight}>
+                {streamPaths.map(({ task, path }) => (
+                  <Path key={task.id} d={path} fill={task.color} fillOpacity={0.85} />
+                ))}
+              </Svg>
+            </View>
+          </ScrollView>
+        </View>
       ) : (
         <View style={styles.gridWrapper}>
           <View style={styles.gridLabelColumn}>
@@ -505,20 +597,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: 3,
   },
   mainGridModeButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRadius: 17,
   },
   mainGridModeButtonActive: {
     backgroundColor: '#007AFF',
-  },
-  mainGridModeButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  mainGridModeButtonTextActive: {
-    color: '#fff',
   },
   gridWrapper: {
     flexDirection: 'row',
