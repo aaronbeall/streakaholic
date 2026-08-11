@@ -52,6 +52,7 @@
 - [ ] Swipe next/prev on task detail header (task) and calendar (month/year)
 - [x] Min streak history width to fit icon + 2 digits
 - [x] Streamgraph
+- [ ] Duration based tasks
 
 ## MMP
 
@@ -78,5 +79,4 @@
   - [ ] Leaderboards
 - [ ] Task groups (swipe left/right on home, etc)
 - [ ] Home screen customization (default=icons, calendar, timeline, list)
-- [ ] Duration based tasks
 - [ ] Ironman mode (can't change past day completions)
