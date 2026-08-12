@@ -3,9 +3,11 @@ import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { AchievementCelebration } from './components/AchievementCelebration';
 import { ToastBanner } from './components/ToastBanner';
 import { ToastProvider } from './context/ToastContext';
 import { useThemeColors } from './hooks/useThemeColors';
+import { useAchievementsStore } from './stores/achievementsStore';
 import { useLastImportStore } from './stores/lastImportStore';
 import { useSettingsStore } from './stores/settingsStore';
 import { useTaskStore } from './stores/taskStore';
@@ -64,6 +66,12 @@ function RootStack() {
         }}
       />
       <Stack.Screen
+        name="trophies"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="add-task"
         options={{
           title: 'Add New Task',
@@ -101,19 +109,25 @@ function LoadingScreen() {
   );
 }
 
-// Settings, tasks, and lastImport are all Zustand `persist` stores backed by AsyncStorage --
-// without this gate, the first frame renders with each store's default in-memory state (wrong
-// theme override, an empty task list flashing the "no tasks yet" empty state) before `persist`
-// finishes reading them back. `hasHydrated` is a plain field on each store, flipped by that
-// store's own `onRehydrateStorage` callback once its async read resolves -- the direct
+// Settings, tasks, lastImport, and achievements are all Zustand `persist` stores backed by
+// AsyncStorage -- without this gate, the first frame renders with each store's default in-memory
+// state (wrong theme override, an empty task list flashing the "no tasks yet" empty state) before
+// `persist` finishes reading them back. `hasHydrated` is a plain field on each store, flipped by
+// that store's own `onRehydrateStorage` callback once its async read resolves -- the direct
 // Zustand-native equivalent of the old Context setup's hand-rolled `isLoaded` state. No
 // `<Provider>` wrapping needed for any of them; they're just imported hook modules.
+//
+// achievementsStore specifically needs this too, not just the original three -- a completion
+// firing (and calling recordCompletionAchievements) before its own AsyncStorage read resolves
+// would append to an in-memory empty array that the real persisted data then silently overwrites
+// moments later, losing the just-earned trophy.
 function AppGate() {
   const settingsHydrated = useSettingsStore(state => state.hasHydrated);
   const tasksHydrated = useTaskStore(state => state.hasHydrated);
   const lastImportHydrated = useLastImportStore(state => state.hasHydrated);
+  const achievementsHydrated = useAchievementsStore(state => state.hasHydrated);
 
-  if (!settingsHydrated || !tasksHydrated || !lastImportHydrated) {
+  if (!settingsHydrated || !tasksHydrated || !lastImportHydrated || !achievementsHydrated) {
     return <LoadingScreen />;
   }
 
@@ -130,6 +144,7 @@ export default function Layout() {
       <ToastProvider>
         <AppGate />
         <ToastBanner />
+        <AchievementCelebration />
       </ToastProvider>
     </GestureHandlerRootView>
   );

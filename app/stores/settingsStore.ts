@@ -34,6 +34,9 @@ export interface AppSettings {
   showCardBackground: boolean;
   showTaskName: boolean;
   showTaskCounter: boolean;
+  // Gates only whether AchievementCelebration shows its screen -- achievements are still recorded (and
+  // still show up in the Trophy Case) regardless of this setting, see achievementsStore.ts.
+  achievementCelebrationsEnabled: boolean;
   onboardingHintsSeen: OnboardingHintsSeen;
   // Restored as the default tab the next time each screen opens without an explicit deep-linked
   // tab (task-detail's own `tab` search param) -- only updated by actually switching tabs within
@@ -48,6 +51,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   showCardBackground: true,
   showTaskName: true,
   showTaskCounter: true,
+  achievementCelebrationsEnabled: true,
   onboardingHintsSeen: DEFAULT_ONBOARDING_HINTS_SEEN,
   dashboardLastTab: 'stats',
   taskDetailLastTab: 'calendar',
@@ -60,6 +64,7 @@ interface SettingsStore extends AppSettings {
   setShowCardBackground: (value: boolean) => void;
   setShowTaskName: (value: boolean) => void;
   setShowTaskCounter: (value: boolean) => void;
+  setAchievementCelebrationsEnabled: (value: boolean) => void;
   setOnboardingHintSeen: (key: OnboardingHintKey, seen: boolean) => void;
   // `preserve` lets a caller keep specific hints marked seen instead of clearing everything --
   // e.g. Settings' "Replay Onboarding Hints" keeps 'hold-to-complete' seen when a task's already
@@ -105,6 +110,7 @@ export const useSettingsStore = create<SettingsStore>()(
       setShowCardBackground: (showCardBackground) => set({ showCardBackground }),
       setShowTaskName: (showTaskName) => set({ showTaskName }),
       setShowTaskCounter: (showTaskCounter) => set({ showTaskCounter }),
+      setAchievementCelebrationsEnabled: (achievementCelebrationsEnabled) => set({ achievementCelebrationsEnabled }),
       setOnboardingHintSeen: (key, seen) => set(state => ({
         onboardingHintsSeen: { ...state.onboardingHintsSeen, [key]: seen },
       })),
@@ -122,6 +128,7 @@ export const useSettingsStore = create<SettingsStore>()(
         showCardBackground: state.showCardBackground,
         showTaskName: state.showTaskName,
         showTaskCounter: state.showTaskCounter,
+        achievementCelebrationsEnabled: state.achievementCelebrationsEnabled,
         onboardingHintsSeen: state.onboardingHintsSeen,
         dashboardLastTab: state.dashboardLastTab,
         taskDetailLastTab: state.taskDetailLastTab,

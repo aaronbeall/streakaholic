@@ -35,11 +35,11 @@
 - [ ] Re-order tasks on home screen
 - [x] Double-wide task card is not okay (`TaskCard`'s `container` had `flex: 1`, whose implied `flexBasis: 0%` overrode the explicit `width` in `HomeScreen`'s row, stretching a lone last-row card to fill the row; fixed by dropping `flex: 1` and centering a partial last row via `justifyContent: 'center'`)
 - [x] Archive/Delete task should take you back to homepage (`AddTaskScreen`'s Archive/Delete confirm now calls `router.dismissTo('/')` instead of `router.back()` — fixes a real crash: reached via task-detail's pencil icon, `back()` only popped to task-detail, which still held the just-deleted `taskId` and threw "Missing task" on render)
-- [ ] Congratulations stringers
-  - [ ] New best streak congratulations
-  - [ ] Perfect day congratulations
-  - [ ] First streak congratulations
-  - [ ] Milestone completions (10, 100, 1000)
+- [x] Congratulations stringers (`app/utils/achievements.ts`'s `detectCompletionAchievements` — 12 kinds: first-streak, new-best-streak, streak-length tiers 10/25/50/100/1000, completion-count milestones 10/100/1000, perfect-day, comeback. Event-triggered off `taskStore.completeTask`, recorded to a persisted `achievementsStore`, celebrated via a top-anchored `AchievementStinger` popup, browsable in a new Trophy Case screen (`/trophies`), toggleable in Settings — see CLAUDE.md)
+  - [x] New best streak congratulations
+  - [x] Perfect day congratulations
+  - [x] First streak congratulations
+  - [x] Milestone completions (10, 100, 1000)
 - [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
 - [x] Performance optimizations
   - [x] Performance pass (audited Context re-render fan-out, memoization/referential-stability gaps, and common RN FlatList traps — see CLAUDE.md's "State management" section)
@@ -53,6 +53,10 @@
 - [x] Min streak history width to fit icon + 2 digits
 - [x] Streamgraph
 - [ ] Duration based tasks
+- [ ] Landscape mode
+- [ ] Sounds
+  - [ ] Completion and streak
+  - [ ] Congratulations
 
 ## MMP
 

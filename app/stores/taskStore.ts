@@ -5,6 +5,7 @@ import { PersistStorage, persist } from 'zustand/middleware';
 import { Task, TaskCompletion } from '../types';
 import { mergeTaskLists } from '../utils/importExport';
 import { calculateTaskStats } from '../utils/streaks';
+import { useAchievementsStore } from './achievementsStore';
 import { useLastImportStore } from './lastImportStore';
 
 interface ImportOptions {
@@ -107,9 +108,16 @@ export const useTaskStore = create<TaskStore>()(
 
       completeTask: (taskId, date = new Date()) => {
         const dateString = format(date, 'yyyy-MM-dd');
+        // Captured from inside the same map() that performs the mutation, rather than a separate
+        // get().tasks.find() before/after -- guarantees prevTask/nextTask are the exact before/
+        // after pair for *this* task, with no risk of racing a concurrent update to some other
+        // task in the same array.
+        let prevTask: Task | undefined;
+        let nextTask: Task | undefined;
         set({
           tasks: get().tasks.map(task => {
             if (task.id !== taskId) return task;
+            prevTask = task;
 
             const existing = (task.completions || []).find(c => c.date === dateString);
             const newCompletions: TaskCompletion[] = existing
@@ -129,9 +137,18 @@ export const useTaskStore = create<TaskStore>()(
                   },
                 ];
 
-            return withUpdatedStats({ ...task, completions: newCompletions });
+            nextTask = withUpdatedStats({ ...task, completions: newCompletions });
+            return nextTask;
           }),
         });
+        // Achievement detection needs the actual before/after task state plus the full task list
+        // (perfect-day spans every task, not just this one) -- both only exist once the mutation
+        // above has actually run, so this has to happen after set(), not before. Only completeTask
+        // triggers this -- restoreCompletion/uncompleteTask/undoCompleteTask/importTasks are
+        // corrections or bulk data operations, not a user completing a task right now.
+        if (prevTask && nextTask) {
+          useAchievementsStore.getState().recordCompletionAchievements(prevTask, nextTask, get().tasks, date);
+        }
       },
 
       uncompleteTask: (taskId, date) => {

@@ -1,0 +1,827 @@
+import { format } from 'date-fns';
+import { Task, TaskCompletion, TaskStats } from '../../app/types';
+import {
+  Achievement,
+  AchievementKind,
+  ACHIEVEMENT_KIND_ORDER,
+  ONE_TIME_KINDS,
+  detectCompletionAchievements,
+  detectRetroactiveAchievements,
+  getAchievementCardStatus,
+  getAllAchievementCardStatuses,
+  getGroupedAchievementCardStatuses,
+} from '../../app/utils/achievements';
+
+const makeCompletion = (id: string, date: Date, timesCompleted = 1): TaskCompletion => ({
+  id,
+  taskId: 't1',
+  date: format(date, 'yyyy-MM-dd'),
+  completedAt: date.toISOString(),
+  timesCompleted,
+});
+
+const makeStats = (overrides: Partial<TaskStats> = {}): TaskStats => ({
+  currentStreak: 0,
+  lastStreak: 0,
+  bestStreak: 0,
+  totalCompletions: 0,
+  completionRate: 0,
+  streakStatus: 'never_started',
+  ...overrides,
+});
+
+// detectCompletionAchievements only ever reads `.stats` (never recomputes it), so tests can set
+// whatever before/after stats a scenario needs directly, rather than synthesizing a real
+// completion history through calculateTaskStats -- except the perfect-day tests, which do need
+// real completions/frequency since isDueOnDate/isTaskCompleted read those directly, not `.stats`.
+const makeTask = (overrides: Partial<Task> = {}, statsOverrides: Partial<TaskStats> = {}): Task => ({
+  id: 't1',
+  name: 'Read',
+  icon: 'book-open-page-variant',
+  color: '#4285F4',
+  frequency: 'daily',
+  daysOfWeek: [],
+  daysPerWeek: 0,
+  daysPerMonth: 0,
+  timesPerDay: 1,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  completions: [],
+  stats: makeStats(statsOverrides),
+  ...overrides,
+});
+
+const today = new Date();
+const kindsOf = (earned: { kind: string }[]) => earned.map(e => e.kind);
+
+describe('detectCompletionAchievements', () => {
+  describe('first-completion', () => {
+    it('fires on a task\'s very first-ever completion (totalCompletions 0 -> 1)', () => {
+      const prev = makeTask({}, { totalCompletions: 0 });
+      const next = makeTask({}, { totalCompletions: 1 });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+      expect(kindsOf(earned)).toContain('first-completion');
+    });
+
+    it('does not fire again on later completions', () => {
+      const prev = makeTask({}, { totalCompletions: 4 });
+      const next = makeTask({}, { totalCompletions: 5 });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+      expect(kindsOf(earned)).not.toContain('first-completion');
+    });
+
+    it('does not fire twice if already recorded (dedup) -- global scope, not per-task', () => {
+      const prev = makeTask({}, { totalCompletions: 0 });
+      const next = makeTask({}, { totalCompletions: 1 });
+      // first-completion is global (see achievements.ts), so its dedup key is a fixed 'global'
+      // scope, not the task's own id -- once any task has ever fired it, no task can fire it
+      // again (e.g. a second, brand-new task later reaching its own first completion).
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set(['first-completion:global']));
+      expect(kindsOf(earned)).not.toContain('first-completion');
+    });
+
+    it('carries no task identity, unlike a per-task kind like streak-2', () => {
+      const prev = makeTask({}, { currentStreak: 1, totalCompletions: 0 });
+      const next = makeTask({}, { currentStreak: 2, totalCompletions: 1 });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+      const firstCompletion = earned.find(e => e.kind === 'first-completion');
+      const streakTwo = earned.find(e => e.kind === 'streak-2');
+      expect(firstCompletion?.taskId).toBeUndefined();
+      expect(firstCompletion?.dedupScope).toBe('global');
+      expect(streakTwo?.taskId).toBe('t1');
+      expect(streakTwo?.dedupScope).toBe('t1');
+    });
+  });
+
+  describe('streak-2', () => {
+    it('fires once currentStreak reaches 2', () => {
+      const prev = makeTask({}, { currentStreak: 1 });
+      const next = makeTask({}, { currentStreak: 2 });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+      expect(kindsOf(earned)).toContain('streak-2');
+    });
+
+  });
+
+  describe('repeatability', () => {
+    it('first-completion, anniversary, and every milestone-N tier are one-time -- every other kind is repeatable', () => {
+      // detectCompletionAchievements itself is agnostic to "repeatable" -- it just respects
+      // whatever's in the alreadyEarnedScopes set it's given. The actual repeatable/one-time
+      // distinction lives in ONE_TIME_KINDS (derived from ACHIEVEMENT_META's own `repeatable`
+      // flag), which is what the store uses to decide which scopes even go into that set in the
+      // first place -- so this is what's actually worth pinning down directly. `anniversary`
+      // joins first-completion since a task can only turn 1 year old once; milestone-10/50/100/1000
+      // (2026-08-12, per explicit user direction) join for a softer reason -- totalCompletions is a
+      // lifetime counter that never un-crosses a threshold in normal use, so they were already
+      // self-limiting even as "repeatable"; this just makes that a hard guarantee. Being one-time
+      // is still scoped per-task (see repeatable's own comment in achievements.ts) -- different
+      // tasks each independently earn their own copy regardless. century-club/habit-collector/
+      // early-bird/night-owl (2026-08-12) join too -- each is a one-shot "you crossed this global
+      // threshold/pattern for the first time" moment (see their own ACHIEVEMENT_META comments),
+      // not something meant to re-celebrate every time its own condition happens to hold again.
+      expect(ONE_TIME_KINDS.sort()).toEqual(
+        [
+          'anniversary', 'first-completion', 'milestone-10', 'milestone-50', 'milestone-100', 'milestone-1000',
+          'century-club', 'habit-collector', 'early-bird', 'night-owl',
+        ].sort()
+      );
+    });
+  });
+
+  describe('anniversary', () => {
+    it('fires once a task has been alive for a full year (365 days)', () => {
+      const createdAt = new Date('2025-01-01T00:00:00.000Z');
+      const completionDate = new Date('2026-01-01T00:00:00.000Z'); // exactly 365 days later
+      const prev = makeTask({ createdAt: createdAt.toISOString() }, { currentStreak: 1 });
+      const next = makeTask({ createdAt: createdAt.toISOString() }, { currentStreak: 2 });
+      const earned = detectCompletionAchievements(prev, next, [next], completionDate, new Set());
+      const anniversary = earned.find(e => e.kind === 'anniversary');
+      expect(anniversary).toBeDefined();
+      expect(anniversary?.value).toBe(365);
+      expect(anniversary?.taskId).toBe('t1');
+    });
+
+    it('does not fire before the task\'s own createdAt reaches 365 days old', () => {
+      const createdAt = new Date('2025-06-01T00:00:00.000Z');
+      const completionDate = new Date('2025-12-01T00:00:00.000Z'); // ~183 days later
+      const task = makeTask({ createdAt: createdAt.toISOString() });
+      const earned = detectCompletionAchievements(task, task, [task], completionDate, new Set());
+      expect(kindsOf(earned)).not.toContain('anniversary');
+    });
+
+    it('does not fire twice for the same task once already recorded (dedup by taskId)', () => {
+      const createdAt = new Date('2024-01-01T00:00:00.000Z');
+      const completionDate = new Date('2026-01-01T00:00:00.000Z'); // well over a year old
+      const task = makeTask({ id: 't1', createdAt: createdAt.toISOString() });
+      const earned = detectCompletionAchievements(task, task, [task], completionDate, new Set(['anniversary:t1']));
+      expect(kindsOf(earned)).not.toContain('anniversary');
+    });
+
+    it('evaluates against the completion\'s own date, not "today" -- a backfilled past completion is judged against that day', () => {
+      const createdAt = new Date('2024-01-01T00:00:00.000Z');
+      const backfilledDate = new Date('2024-06-01T00:00:00.000Z'); // task was only ~5 months old then
+      const task = makeTask({ createdAt: createdAt.toISOString() });
+      const earned = detectCompletionAchievements(task, task, [task], backfilledDate, new Set());
+      expect(kindsOf(earned)).not.toContain('anniversary');
+    });
+  });
+
+  describe('new-best-streak', () => {
+    it('does NOT fire during a brand-new task\'s first unbroken climb (regression)', () => {
+      // A first-ever streak has bestStreak === currentStreak at every step (no prior closed run
+      // to compare against) -- this must not read as "beating a record" on every single day.
+      for (let day = 1; day <= 10; day++) {
+        const prev = makeTask({}, { currentStreak: day - 1, bestStreak: day - 1 });
+        const next = makeTask({}, { currentStreak: day, bestStreak: day });
+        const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+        expect(kindsOf(earned)).not.toContain('new-best-streak');
+      }
+    });
+
+    it('fires exactly once when a new run exceeds a real prior best', () => {
+      // A real prior record (5) is on the books, and this run -- which started below it -- just
+      // climbed past it.
+      const prev = makeTask({}, { currentStreak: 4, bestStreak: 5 });
+      const next = makeTask({}, { currentStreak: 6, bestStreak: 6 });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+      expect(kindsOf(earned).filter(k => k === 'new-best-streak')).toHaveLength(1);
+    });
+
+    it('does not fire while still climbing toward (not yet past) the old best', () => {
+      const prev = makeTask({}, { currentStreak: 2, bestStreak: 5 });
+      const next = makeTask({}, { currentStreak: 3, bestStreak: 5 });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+      expect(kindsOf(earned)).not.toContain('new-best-streak');
+    });
+
+    it('is never gated by the dedup set, since it is not a one-time kind', () => {
+      const prev = makeTask({}, { currentStreak: 4, bestStreak: 5 });
+      const next = makeTask({}, { currentStreak: 6, bestStreak: 6 });
+      // Even with this exact scope already present in the "already earned" set (as it would be
+      // for a one-time kind), new-best-streak isn't in ONE_TIME_KINDS and is never checked
+      // against it -- it should still fire.
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set(['new-best-streak:t1']));
+      expect(kindsOf(earned)).toContain('new-best-streak');
+    });
+  });
+
+  describe('streak-N tiers', () => {
+    it('fires each tier exactly once at its own threshold', () => {
+      const cases: [number, number][] = [[4, 5], [9, 10], [24, 25], [49, 50], [99, 100], [999, 1000]];
+      for (const [before, after] of cases) {
+        const prev = makeTask({}, { currentStreak: before });
+        const next = makeTask({}, { currentStreak: after });
+        const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+        expect(kindsOf(earned)).toContain(`streak-${after}`);
+      }
+    });
+
+    it('does not re-fire a tier already recorded', () => {
+      const prev = makeTask({}, { currentStreak: 9 });
+      const next = makeTask({}, { currentStreak: 10 });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set(['streak-10:t1']));
+      expect(kindsOf(earned)).not.toContain('streak-10');
+    });
+
+    it('is independent of milestone-N', () => {
+      // Crossing a streak-length tier shouldn't imply anything about total completions.
+      const prev = makeTask({}, { currentStreak: 9, totalCompletions: 9 });
+      const next = makeTask({}, { currentStreak: 10, totalCompletions: 10 });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+      expect(kindsOf(earned)).toEqual(expect.arrayContaining(['streak-10', 'milestone-10']));
+    });
+  });
+
+  describe('milestone-N tiers', () => {
+    it('fires each tier exactly once at its own threshold', () => {
+      const cases: [number, number][] = [[9, 10], [49, 50], [99, 100], [999, 1000]];
+      for (const [before, after] of cases) {
+        const prev = makeTask({}, { totalCompletions: before });
+        const next = makeTask({}, { totalCompletions: after });
+        const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+        expect(kindsOf(earned)).toContain(`milestone-${after}`);
+      }
+    });
+
+    it('does not re-fire a tier already recorded', () => {
+      const prev = makeTask({}, { totalCompletions: 9 });
+      const next = makeTask({}, { totalCompletions: 10 });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set(['milestone-10:t1']));
+      expect(kindsOf(earned)).not.toContain('milestone-10');
+    });
+  });
+
+  describe('comeback', () => {
+    it('fires when a genuinely expired streak is revived', () => {
+      const prev = makeTask({}, { currentStreak: 0, streakStatus: 'expired' });
+      const next = makeTask({}, { currentStreak: 1, streakStatus: 'up_to_date' });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+      expect(kindsOf(earned)).toContain('comeback');
+    });
+
+    it('does not fire for an ordinary (never-lapsed) completion', () => {
+      const prev = makeTask({}, { currentStreak: 3, streakStatus: 'up_to_date' });
+      const next = makeTask({}, { currentStreak: 4, streakStatus: 'up_to_date' });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+      expect(kindsOf(earned)).not.toContain('comeback');
+    });
+  });
+
+  describe('perfect-day', () => {
+    it('fires when every due, non-archived task is completed that day', () => {
+      const t1 = makeTask({ id: 't1', completions: [makeCompletion('c1', today)] }, { currentStreak: 1 });
+      const t2 = makeTask({ id: 't2', completions: [makeCompletion('c2', today)] }, { currentStreak: 1 });
+      const earned = detectCompletionAchievements(t1, t1, [t1, t2], today, new Set());
+      expect(kindsOf(earned)).toContain('perfect-day');
+    });
+
+    it('does not fire if any due, non-archived task is incomplete', () => {
+      const t1 = makeTask({ id: 't1', completions: [makeCompletion('c1', today)] }, { currentStreak: 1 });
+      const t2 = makeTask({ id: 't2', completions: [] }, { currentStreak: 0 });
+      const earned = detectCompletionAchievements(t1, t1, [t1, t2], today, new Set());
+      expect(kindsOf(earned)).not.toContain('perfect-day');
+    });
+
+    it('ignores archived tasks', () => {
+      const t1 = makeTask({ id: 't1', completions: [makeCompletion('c1', today)] }, { currentStreak: 1 });
+      const t2 = makeTask({ id: 't2', archived: true, completions: [] }, { currentStreak: 0 });
+      const earned = detectCompletionAchievements(t1, t1, [t1, t2], today, new Set());
+      expect(kindsOf(earned)).toContain('perfect-day');
+    });
+
+    it('does not count a day with nothing due for anyone as trivially perfect', () => {
+      const t1 = makeTask({
+        id: 't1',
+        frequency: 'specific_days_of_week',
+        daysOfWeek: [], // isDueOnDate treats an empty selection as "always due" -- pick a real non-due case instead
+      }, { currentStreak: 0 });
+      // Force a genuinely non-due day: due only on a day-of-week that isn't today's.
+      const notToday = (today.getDay() + 1) % 7;
+      const t1NotDue = { ...t1, frequency: 'specific_days_of_week' as const, daysOfWeek: [notToday] };
+      const earned = detectCompletionAchievements(t1NotDue, t1NotDue, [t1NotDue], today, new Set());
+      expect(kindsOf(earned)).not.toContain('perfect-day');
+    });
+
+    it('dedupes per calendar date', () => {
+      const dateString = format(today, 'yyyy-MM-dd');
+      const t1 = makeTask({ id: 't1', completions: [makeCompletion('c1', today)] }, { currentStreak: 1 });
+      const earned = detectCompletionAchievements(t1, t1, [t1], today, new Set([`perfect-day:${dateString}`]));
+      expect(kindsOf(earned)).not.toContain('perfect-day');
+    });
+
+    it('evaluates against the completion\'s own date, not "today", for a backfilled past completion', () => {
+      const pastDate = new Date(2020, 0, 1);
+      const t1 = makeTask({ id: 't1', completions: [makeCompletion('c1', pastDate)] }, { currentStreak: 1 });
+      const earned = detectCompletionAchievements(t1, t1, [t1], pastDate, new Set());
+      const perfectDay = earned.find(e => e.kind === 'perfect-day');
+      expect(perfectDay?.dedupScope).toBe(format(pastDate, 'yyyy-MM-dd'));
+    });
+  });
+
+  describe('perfect-week', () => {
+    const makeDailyTask = (id: string, completions: TaskCompletion[]) =>
+      makeTask({ id, completions }, { currentStreak: completions.length });
+
+    const completionsFor = (id: string, dates: Date[]) => dates.map((d, i) => makeCompletion(`${id}-${i}`, d));
+
+    it('fires on the exact day 7 consecutive perfect days is first reached', () => {
+      const days = Array.from({ length: 7 }, (_, i) => new Date(today.getTime() - (6 - i) * 86400000));
+      const t1 = makeDailyTask('t1', completionsFor('t1', days));
+      const earned = detectCompletionAchievements(t1, t1, [t1], today, new Set());
+      expect(kindsOf(earned)).toContain('perfect-week');
+    });
+
+    it('does not fire on day 6 of a perfect run', () => {
+      const days = Array.from({ length: 6 }, (_, i) => new Date(today.getTime() - (5 - i) * 86400000));
+      const t1 = makeDailyTask('t1', completionsFor('t1', days));
+      const earned = detectCompletionAchievements(t1, t1, [t1], today, new Set());
+      expect(kindsOf(earned)).not.toContain('perfect-week');
+    });
+
+    it('does not fire again on day 8, since the crossing already happened on day 7', () => {
+      const days = Array.from({ length: 8 }, (_, i) => new Date(today.getTime() - (7 - i) * 86400000));
+      const t1 = makeDailyTask('t1', completionsFor('t1', days));
+      // No dedup entry needed -- the crossing check itself (today's window perfect, yesterday's
+      // own trailing window already perfect too) is what prevents the re-fire here, not dedup.
+      const earned = detectCompletionAchievements(t1, t1, [t1], today, new Set());
+      expect(kindsOf(earned)).not.toContain('perfect-week');
+    });
+
+    it('does not fire if any of the 7 days had an incomplete due task', () => {
+      const days = Array.from({ length: 7 }, (_, i) => new Date(today.getTime() - (6 - i) * 86400000));
+      const t1 = makeDailyTask('t1', completionsFor('t1', days).filter((_, i) => i !== 3)); // day 4 missed
+      const earned = detectCompletionAchievements(t1, t1, [t1], today, new Set());
+      expect(kindsOf(earned)).not.toContain('perfect-week');
+    });
+  });
+
+  describe('century-club', () => {
+    it('fires once the lifetime sum of totalCompletions across all active tasks crosses the target', () => {
+      const t1 = makeTask({ id: 't1' }, { totalCompletions: 400 });
+      const prevT2 = makeTask({ id: 't2' }, { totalCompletions: 599 });
+      const nextT2 = makeTask({ id: 't2' }, { totalCompletions: 600 }); // 400 + 600 = 1000, crosses CENTURY_CLUB_TARGET
+      const earned = detectCompletionAchievements(prevT2, nextT2, [t1, nextT2], today, new Set());
+      expect(kindsOf(earned)).toContain('century-club');
+    });
+
+    it('does not fire while the sum is still short of the target', () => {
+      const t1 = makeTask({ id: 't1' }, { totalCompletions: 400 });
+      const prevT2 = makeTask({ id: 't2' }, { totalCompletions: 400 });
+      const nextT2 = makeTask({ id: 't2' }, { totalCompletions: 401 });
+      const earned = detectCompletionAchievements(prevT2, nextT2, [t1, nextT2], today, new Set());
+      expect(kindsOf(earned)).not.toContain('century-club');
+    });
+
+    it('carries no task identity -- a global, cross-task sum', () => {
+      const prev = makeTask({ id: 't1' }, { totalCompletions: 999 });
+      const next = makeTask({ id: 't1' }, { totalCompletions: 1000 });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+      const centuryClub = earned.find(e => e.kind === 'century-club');
+      expect(centuryClub?.taskId).toBeUndefined();
+      expect(centuryClub?.dedupScope).toBe('global');
+    });
+  });
+
+  describe('habit-collector', () => {
+    it('fires once the active task count reaches the cap', () => {
+      const tasks = Array.from({ length: 6 }, (_, i) => makeTask({ id: `t${i}` }));
+      const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
+      expect(kindsOf(earned)).toContain('habit-collector');
+    });
+
+    it('does not fire with fewer active tasks than the cap', () => {
+      const tasks = Array.from({ length: 5 }, (_, i) => makeTask({ id: `t${i}` }));
+      const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
+      expect(kindsOf(earned)).not.toContain('habit-collector');
+    });
+
+    it('excludes archived tasks from the active count', () => {
+      const tasks = [
+        ...Array.from({ length: 5 }, (_, i) => makeTask({ id: `t${i}` })),
+        makeTask({ id: 't5', archived: true }),
+      ];
+      const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
+      expect(kindsOf(earned)).not.toContain('habit-collector');
+    });
+  });
+
+  describe('early-bird / night-owl', () => {
+    const completionAt = (id: string, hour: number): TaskCompletion => {
+      const d = new Date(today);
+      d.setHours(hour, 0, 0, 0);
+      return makeCompletion(id, d);
+    };
+
+    it('early-bird fires when at least half of the recent window completed before the hour', () => {
+      const completions = [
+        ...Array.from({ length: 6 }, (_, i) => completionAt(`e${i}`, 5)), // before 7am
+        ...Array.from({ length: 4 }, (_, i) => completionAt(`l${i}`, 20)), // not
+      ];
+      const task = makeTask({ id: 't1', completions });
+      const earned = detectCompletionAchievements(task, task, [task], today, new Set());
+      expect(kindsOf(earned)).toContain('early-bird');
+      expect(kindsOf(earned)).not.toContain('night-owl');
+    });
+
+    it('night-owl fires when at least half of the recent window completed at/after the hour', () => {
+      const completions = [
+        ...Array.from({ length: 6 }, (_, i) => completionAt(`l${i}`, 22)), // after 9pm
+        ...Array.from({ length: 4 }, (_, i) => completionAt(`e${i}`, 8)), // not
+      ];
+      const task = makeTask({ id: 't1', completions });
+      const earned = detectCompletionAchievements(task, task, [task], today, new Set());
+      expect(kindsOf(earned)).toContain('night-owl');
+      expect(kindsOf(earned)).not.toContain('early-bird');
+    });
+
+    it('does not fire below the minimum sample size, even if every completion so far qualifies', () => {
+      const completions = Array.from({ length: 3 }, (_, i) => completionAt(`e${i}`, 5));
+      const task = makeTask({ id: 't1', completions });
+      const earned = detectCompletionAchievements(task, task, [task], today, new Set());
+      expect(kindsOf(earned)).not.toContain('early-bird');
+    });
+
+    it('does not fire when the ratio is under half', () => {
+      const completions = [
+        ...Array.from({ length: 4 }, (_, i) => completionAt(`e${i}`, 5)),
+        ...Array.from({ length: 6 }, (_, i) => completionAt(`m${i}`, 13)),
+      ];
+      const task = makeTask({ id: 't1', completions });
+      const earned = detectCompletionAchievements(task, task, [task], today, new Set());
+      expect(kindsOf(earned)).not.toContain('early-bird');
+      expect(kindsOf(earned)).not.toContain('night-owl');
+    });
+  });
+
+  describe('beast-mode', () => {
+    const completionAt = (id: string, taskId: string, offsetMinutes: number): TaskCompletion => {
+      const d = new Date(today.getTime() + offsetMinutes * 60000);
+      return { ...makeCompletion(id, d), taskId };
+    };
+
+    it('fires when every due task is completed within the duration window', () => {
+      const t1 = makeTask({ id: 't1', completions: [completionAt('c1', 't1', 0)] }, { currentStreak: 1 });
+      const t2 = makeTask({ id: 't2', completions: [completionAt('c2', 't2', 5)] }, { currentStreak: 1 });
+      const earned = detectCompletionAchievements(t2, t2, [t1, t2], today, new Set());
+      expect(kindsOf(earned)).toContain('beast-mode');
+    });
+
+    it('does not fire when the completions are spread past the duration window', () => {
+      const t1 = makeTask({ id: 't1', completions: [completionAt('c1', 't1', 0)] }, { currentStreak: 1 });
+      const t2 = makeTask({ id: 't2', completions: [completionAt('c2', 't2', 45)] }, { currentStreak: 1 });
+      const earned = detectCompletionAchievements(t2, t2, [t1, t2], today, new Set());
+      expect(kindsOf(earned)).not.toContain('beast-mode');
+    });
+
+    it('does not fire if any due task is still incomplete', () => {
+      const t1 = makeTask({ id: 't1', completions: [completionAt('c1', 't1', 0)] }, { currentStreak: 1 });
+      const t2 = makeTask({ id: 't2', completions: [] }, { currentStreak: 0 });
+      const earned = detectCompletionAchievements(t2, t2, [t1, t2], today, new Set());
+      expect(kindsOf(earned)).not.toContain('beast-mode');
+    });
+  });
+
+  describe('multiple achievements from one completion', () => {
+    it('returns every achievement earned in a single call', () => {
+      const prev = makeTask({}, { currentStreak: 9, totalCompletions: 9, bestStreak: 9 });
+      const next = makeTask({}, { currentStreak: 10, totalCompletions: 10, bestStreak: 10 });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+      // streak-10 and milestone-10 both cross their threshold on this exact completion; the run
+      // is still climbing toward its own first ceiling (bestStreak already matches currentStreak
+      // pre-completion), so new-best-streak correctly stays out of this particular batch.
+      expect(kindsOf(earned).sort()).toEqual(['milestone-10', 'streak-10'].sort());
+    });
+  });
+});
+
+const makeAchievement = (kind: AchievementKind, overrides: Partial<Achievement> = {}): Achievement => ({
+  id: `${kind}-${Math.random()}`,
+  kind,
+  taskId: 't1',
+  taskName: 'Read',
+  taskColor: '#4285F4',
+  dedupScope: 't1',
+  earnedAt: new Date().toISOString(),
+  ...overrides,
+});
+
+describe('detectRetroactiveAchievements', () => {
+  it('awards every fixed-threshold kind the task current stats already qualify for, and stops at the highest tier reached', () => {
+    const task = makeTask({ id: 't1' }, { currentStreak: 15, totalCompletions: 3 });
+    const earned = detectRetroactiveAchievements([], [task]);
+    const kinds = kindsOf(earned);
+    expect(kinds).toEqual(expect.arrayContaining(['first-completion', 'streak-2', 'streak-5', 'streak-10']));
+    expect(kinds).not.toContain('streak-25');
+  });
+
+  it('never re-awards a (kind, scope) pair that already has an earned record, regardless of repeatability', () => {
+    const task = makeTask({ id: 't1' }, { currentStreak: 15 });
+    const already = makeAchievement('streak-10', { taskId: 't1', dedupScope: 't1' });
+    const earned = detectRetroactiveAchievements([already], [task]);
+    expect(kindsOf(earned)).not.toContain('streak-10');
+    // Still catches the other, not-yet-earned tiers this same task also currently qualifies for.
+    expect(kindsOf(earned)).toEqual(expect.arrayContaining(['streak-5', 'streak-2']));
+  });
+
+  it('awards the global first-completion once, even with multiple currently-qualifying tasks, with no task identity attached', () => {
+    const a = makeTask({ id: 'a' }, { totalCompletions: 5 });
+    const b = makeTask({ id: 'b' }, { totalCompletions: 3 });
+    const earned = detectRetroactiveAchievements([], [a, b]);
+    const firstCompletionEntries = earned.filter(e => e.kind === 'first-completion');
+    expect(firstCompletionEntries).toHaveLength(1);
+    expect(firstCompletionEntries[0].taskId).toBeUndefined();
+  });
+
+  it('awards new-best-streak only for a task currently sitting right at its own record', () => {
+    const atRecord = makeTask({ id: 'a' }, { currentStreak: 8, bestStreak: 8 });
+    const belowRecord = makeTask({ id: 'b' }, { currentStreak: 3, bestStreak: 8 });
+    const earned = detectRetroactiveAchievements([], [atRecord, belowRecord]);
+    const newBest = earned.filter(e => e.kind === 'new-best-streak');
+    expect(newBest).toHaveLength(1);
+    expect(newBest[0].taskId).toBe('a');
+  });
+
+  it('never produces comeback or perfect-day -- neither can be reconstructed from a current snapshot alone', () => {
+    const lapsed = makeTask({ id: 'a' }, { streakStatus: 'expired', currentStreak: 0 });
+    const earned = detectRetroactiveAchievements([], [lapsed]);
+    expect(kindsOf(earned)).not.toContain('comeback');
+    expect(kindsOf(earned)).not.toContain('perfect-day');
+  });
+
+  it('produces nothing on a second run against the same, unchanged tasks -- duplication rules hold across repeated scans', () => {
+    const task = makeTask({ id: 't1' }, { currentStreak: 15, bestStreak: 15 });
+    const firstRun = detectRetroactiveAchievements([], [task]);
+    expect(firstRun.length).toBeGreaterThan(0);
+    const recorded: Achievement[] = firstRun.map((a, i) => ({ ...a, id: `r${i}`, earnedAt: new Date().toISOString() }));
+    const secondRun = detectRetroactiveAchievements(recorded, [task]);
+    expect(secondRun).toEqual([]);
+  });
+
+  it('awards anniversary for a task already over a year old, catching history that predates the feature', () => {
+    const today = new Date('2026-01-01T00:00:00.000Z');
+    const oldTask = makeTask({ id: 'old', createdAt: new Date('2024-01-01T00:00:00.000Z').toISOString() });
+    const newTask = makeTask({ id: 'new', createdAt: new Date('2025-06-01T00:00:00.000Z').toISOString() });
+    const earned = detectRetroactiveAchievements([], [oldTask, newTask], today);
+    const anniversaries = earned.filter(e => e.kind === 'anniversary');
+    expect(anniversaries).toHaveLength(1);
+    expect(anniversaries[0].taskId).toBe('old');
+  });
+});
+
+describe('getAchievementCardStatus', () => {
+  describe('fixed-threshold kinds (first-completion / streak-N / milestone-N)', () => {
+    it('is locked with no progress when there are no active tasks', () => {
+      const status = getAchievementCardStatus('streak-10', [], []);
+      expect(status.unlocked).toBe(false);
+      expect(status.progress).toBeUndefined();
+    });
+
+    it('reports live progress from the closest not-yet-earned task, capped at the target', () => {
+      const near = makeTask({ id: 'near', name: 'Near' }, { currentStreak: 7 });
+      const far = makeTask({ id: 'far', name: 'Far' }, { currentStreak: 2 });
+      const overshooting = makeTask({ id: 'over', name: 'Over' }, { currentStreak: 15 });
+      const status = getAchievementCardStatus('streak-10', [], [near, far, overshooting]);
+      expect(status.unlocked).toBe(false);
+      // The overshooting task's own 15 is capped at the 10 target, but the "closest" pick still
+      // has to be re-derived from the (already-capped) value -- 10 (capped) > 7 -- so it wins.
+      expect(status.progress).toEqual({ current: 10, target: 10, taskName: 'Over', taskColor: '#4285F4' });
+    });
+
+    it('excludes tasks that have already earned this specific kind from progress', () => {
+      const alreadyEarned = makeTask({ id: 't1', name: 'Already' }, { currentStreak: 9 });
+      const stillWorking = makeTask({ id: 't2', name: 'Working' }, { currentStreak: 3 });
+      const achievements = [makeAchievement('streak-10', { taskId: 't1' })];
+      const status = getAchievementCardStatus('streak-10', achievements, [alreadyEarned, stillWorking]);
+      expect(status.unlocked).toBe(true);
+      expect(status.progress).toEqual({ current: 3, target: 10, taskName: 'Working', taskColor: '#4285F4' });
+    });
+
+    it('reports the most recently earned instance as latest, and counts every instance', () => {
+      const older = makeAchievement('streak-10', { taskId: 't1', earnedAt: '2026-01-01T00:00:00.000Z' });
+      const newer = makeAchievement('streak-10', { taskId: 't2', taskName: 'Second', earnedAt: '2026-06-01T00:00:00.000Z' });
+      const status = getAchievementCardStatus('streak-10', [older, newer], []);
+      expect(status.unlocked).toBe(true);
+      expect(status.timesEarned).toBe(2);
+      expect(status.latest?.taskName).toBe('Second');
+    });
+
+    it('reads totalCompletions (not currentStreak) for milestone-N kinds', () => {
+      const task = makeTask({ id: 't1', name: 'Reader' }, { currentStreak: 1, totalCompletions: 7 });
+      const status = getAchievementCardStatus('milestone-10', [], [task]);
+      expect(status.progress).toEqual({ current: 7, target: 10, taskName: 'Reader', taskColor: '#4285F4' });
+    });
+
+    it('still finds the closest task for a global kind (first-completion), same as any per-task one', () => {
+      // Progress computation doesn't care about scope -- it's still just "fixed-threshold", the
+      // same shared handler streak-10/milestone-10 above use. The only thing that differs for a
+      // global kind is what happens to the *earned* record (no taskId attached), covered by
+      // detectCompletionAchievements's own tests above.
+      const near = makeTask({ id: 'near', name: 'Near' }, { totalCompletions: 1 });
+      const far = makeTask({ id: 'far', name: 'Far' }, { totalCompletions: 0 });
+      const status = getAchievementCardStatus('first-completion', [], [near, far]);
+      expect(status.progress).toEqual({ current: 1, target: 1, taskName: 'Near', taskColor: '#4285F4' });
+    });
+  });
+
+  describe('new-best-streak', () => {
+    it('picks the task closest to tying its own record', () => {
+      const closeToRecord = makeTask({ id: 'a', name: 'Close' }, { currentStreak: 8, bestStreak: 10 });
+      const farFromRecord = makeTask({ id: 'b', name: 'Far' }, { currentStreak: 1, bestStreak: 20 });
+      const status = getAchievementCardStatus('new-best-streak', [], [closeToRecord, farFromRecord]);
+      expect(status.progress).toEqual({ current: 8, target: 10, taskName: 'Close', taskColor: '#4285F4' });
+    });
+
+    it('excludes tasks with no real best (bestStreak 0) or already tied/passed it', () => {
+      const neverHadABest = makeTask({ id: 'a' }, { currentStreak: 3, bestStreak: 0 });
+      const tied = makeTask({ id: 'b' }, { currentStreak: 5, bestStreak: 5 });
+      const status = getAchievementCardStatus('new-best-streak', [], [neverHadABest, tied]);
+      expect(status.progress).toBeUndefined();
+    });
+  });
+
+  describe('anniversary (task-age)', () => {
+    it('reports the closest not-yet-earned task\'s own age in days, capped at the target', () => {
+      const today = new Date('2026-01-01T00:00:00.000Z');
+      const young = makeTask({ id: 'young', name: 'Young', createdAt: new Date('2025-11-01T00:00:00.000Z').toISOString() });
+      const old = makeTask({ id: 'old', name: 'Old', createdAt: new Date('2020-01-01T00:00:00.000Z').toISOString() });
+      const status = getAchievementCardStatus('anniversary', [], [young, old], today);
+      // `old` is already well past 365 days -- capped at the target, same as fixed-threshold's own
+      // "overshooting" behavior -- so it still wins over `young`'s uncapped ~61 days.
+      expect(status.progress).toEqual({ current: 365, target: 365, taskName: 'Old', taskColor: '#4285F4' });
+    });
+
+    it('excludes a task that has already earned this specific kind from progress', () => {
+      const today = new Date('2026-01-01T00:00:00.000Z');
+      const alreadyEarned = makeTask({ id: 't1', name: 'Already', createdAt: new Date('2020-01-01T00:00:00.000Z').toISOString() });
+      const stillYoung = makeTask({ id: 't2', name: 'Young', createdAt: new Date('2025-06-01T00:00:00.000Z').toISOString() });
+      const achievements = [makeAchievement('anniversary', { taskId: 't1' })];
+      const status = getAchievementCardStatus('anniversary', achievements, [alreadyEarned, stillYoung], today);
+      expect(status.unlocked).toBe(true);
+      expect(status.progress?.taskName).toBe('Young');
+    });
+  });
+
+  describe('comeback', () => {
+    it('has no numeric progress, only an opportunity flag', () => {
+      const expired = makeTask({}, { streakStatus: 'expired' });
+      const status = getAchievementCardStatus('comeback', [], [expired]);
+      expect(status.progress).toBeUndefined();
+      expect(status.opportunityAvailable).toBe(true);
+    });
+
+    it('reports no opportunity when nothing is currently lapsed', () => {
+      const healthy = makeTask({}, { streakStatus: 'up_to_date' });
+      const status = getAchievementCardStatus('comeback', [], [healthy]);
+      expect(status.opportunityAvailable).toBe(false);
+    });
+  });
+
+  describe('perfect-day', () => {
+    it('reports today\'s live completed-vs-due fraction regardless of unlocked state', () => {
+      const done = makeTask({ id: 't1', completions: [makeCompletion('c1', today)] }, { currentStreak: 1 });
+      const notDone = makeTask({ id: 't2', completions: [] }, { currentStreak: 0 });
+      const status = getAchievementCardStatus('perfect-day', [], [done, notDone], today);
+      expect(status.progress).toEqual({ current: 1, target: 2 });
+    });
+
+    it('has no progress when nothing is due today', () => {
+      const notToday = (today.getDay() + 1) % 7;
+      const notDue = makeTask({
+        frequency: 'specific_days_of_week',
+        daysOfWeek: [notToday],
+      }, { currentStreak: 0 });
+      const status = getAchievementCardStatus('perfect-day', [], [notDue], today);
+      expect(status.progress).toBeUndefined();
+    });
+  });
+
+  describe('perfect-week (perfect-day-streak)', () => {
+    it('counts consecutive perfect days walking backward from today', () => {
+      const days = Array.from({ length: 3 }, (_, i) => new Date(today.getTime() - (2 - i) * 86400000));
+      const completions = days.map((d, i) => makeCompletion(`c${i}`, d));
+      const task = makeTask({ id: 't1', completions }, { currentStreak: 3 });
+      const status = getAchievementCardStatus('perfect-week', [], [task], today);
+      expect(status.progress).toEqual({ current: 3, target: 7 });
+    });
+
+    it('stops counting at the first broken day', () => {
+      const task = makeTask({ id: 't1', completions: [] }, { currentStreak: 0 });
+      const status = getAchievementCardStatus('perfect-week', [], [task], today);
+      expect(status.progress).toEqual({ current: 0, target: 7 });
+    });
+  });
+
+  describe('century-club (total-completions-sum)', () => {
+    it('sums totalCompletions across every active task, capped at the target', () => {
+      // getAchievementCardStatus trusts `activeTasks` is already archive-filtered by the caller
+      // (TrophiesScreen passes tasks.filter(t => !t.archived)) -- same convention every other
+      // strategy case here already follows, so this doesn't re-test archived-exclusion at this
+      // layer (that's covered at the detection layer, above, where the filtering actually happens).
+      const t1 = makeTask({ id: 't1' }, { totalCompletions: 600 });
+      const t2 = makeTask({ id: 't2' }, { totalCompletions: 600 });
+      const status = getAchievementCardStatus('century-club', [], [t1, t2], today);
+      expect(status.progress).toEqual({ current: 1000, target: 1000 });
+    });
+  });
+
+  describe('habit-collector (active-task-count)', () => {
+    it('reports the active task count, capped at the cap', () => {
+      const tasks = Array.from({ length: 3 }, (_, i) => makeTask({ id: `t${i}` }));
+      const status = getAchievementCardStatus('habit-collector', [], tasks, today);
+      expect(status.progress).toEqual({ current: 3, target: 6 });
+    });
+  });
+
+  describe('early-bird / night-owl (time-of-day-ratio)', () => {
+    const completionAt = (id: string, hour: number): TaskCompletion => {
+      const d = new Date(today);
+      d.setHours(hour, 0, 0, 0);
+      return makeCompletion(id, d);
+    };
+
+    it('has no progress with zero completions', () => {
+      const task = makeTask({ id: 't1', completions: [] });
+      const status = getAchievementCardStatus('early-bird', [], [task], today);
+      expect(status.progress).toBeUndefined();
+    });
+
+    it('reports the qualifying fraction of the trailing window', () => {
+      const completions = [
+        ...Array.from({ length: 2 }, (_, i) => completionAt(`e${i}`, 5)),
+        ...Array.from({ length: 3 }, (_, i) => completionAt(`m${i}`, 13)),
+      ];
+      const task = makeTask({ id: 't1', completions });
+      const status = getAchievementCardStatus('early-bird', [], [task], today);
+      expect(status.progress).toEqual({ current: 2, target: 3 }); // Math.ceil(5 / 2)
+    });
+  });
+});
+
+describe('getAllAchievementCardStatuses', () => {
+  it('returns exactly one status per kind, in catalog order', () => {
+    const statuses = getAllAchievementCardStatuses([], []);
+    expect(statuses.map(s => s.kind)).toEqual(ACHIEVEMENT_KIND_ORDER);
+    // Deliberately not a hardcoded kind count -- always compared against
+    // ACHIEVEMENT_KIND_ORDER's own length, so this can't silently drift out of sync with it as
+    // the catalog grows (22 kinds as of the 2026-08-12 six-kind addition).
+    expect(statuses).toHaveLength(ACHIEVEMENT_KIND_ORDER.length);
+  });
+});
+
+describe('getGroupedAchievementCardStatuses', () => {
+  it('with nothing unlocked or in progress, puts every kind in Locked, in catalog order, and omits the Unlocked group entirely', () => {
+    const untouched = makeTask({ id: 't1' }); // every stat 0, never_started -- no progress anywhere
+    const groups = getGroupedAchievementCardStatuses([], [untouched]);
+    expect(groups.map(g => g.group)).toEqual(['locked']);
+    // habit-collector is the one exception: its own progress metric is "how many active tasks
+    // exist" (active-task-count), not a task stat -- with one real task present in this fixture it
+    // already reads partial progress (1/6), so it's the sole in-progress kind and sorts ahead of
+    // every genuinely untouched (not-started) kind within Locked.
+    const expectedOrder = ['habit-collector', ...ACHIEVEMENT_KIND_ORDER.filter(k => k !== 'habit-collector')];
+    expect(groups[0].statuses.map(s => s.kind)).toEqual(expectedOrder);
+  });
+
+  it('sorts the Unlocked group by most recently earned first', () => {
+    const older = makeAchievement('milestone-10', { taskId: 't1', earnedAt: '2026-01-01T00:00:00.000Z' });
+    const newest = makeAchievement('streak-10', { taskId: 't2', earnedAt: '2026-06-01T00:00:00.000Z' });
+    const middle = makeAchievement('perfect-day', { dedupScope: '2026-03-01', earnedAt: '2026-03-01T00:00:00.000Z' });
+    const groups = getGroupedAchievementCardStatuses([older, newest, middle], []);
+    const unlocked = groups.find(g => g.group === 'unlocked');
+    expect(unlocked?.statuses.map(s => s.kind)).toEqual(['streak-10', 'perfect-day', 'milestone-10']);
+  });
+
+  it('within the Locked group, sorts the in-progress portion by closeness (highest fraction first), ahead of every not-yet-started kind', () => {
+    // A single task, its own currentStreak partially crossing several fixed-threshold tiers at
+    // once -- each tier's progress is capped independently, so the lower the target relative to
+    // this streak, the closer (higher fraction) that tier reads. first-completion and milestone-N
+    // (both reading totalCompletions, left at 0) have no progress at all, so they stay in the
+    // not-started portion -- appended after every in-progress kind, never interspersed among them.
+    const task = makeTask({ id: 't1' }, { currentStreak: 3, bestStreak: 3, totalCompletions: 0 });
+    const groups = getGroupedAchievementCardStatuses([], [task]);
+    const locked = groups.find(g => g.group === 'locked');
+    expect(locked).toBeDefined();
+    const kinds = locked!.statuses.map(s => s.kind);
+    // streak-2 (target 2) is already at its cap (3 -> capped 2/2 = 1.0), ranking above streak-5
+    // (3/5 = 0.6), which ranks above streak-10 (3/10 = 0.3), which in turn ranks ahead of both
+    // not-started kinds (first-completion, milestone-10 -- both 0 progress).
+    const indexOfStreak5 = kinds.indexOf('streak-5');
+    const indexOfStreak10 = kinds.indexOf('streak-10');
+    const indexOfMilestone10 = kinds.indexOf('milestone-10');
+    const indexOfFirstCompletion = kinds.indexOf('first-completion');
+    expect(kinds.indexOf('streak-2')).toBeLessThan(indexOfStreak5);
+    expect(indexOfStreak5).toBeLessThan(indexOfStreak10);
+    expect(indexOfStreak10).toBeLessThan(indexOfFirstCompletion);
+    expect(indexOfStreak10).toBeLessThan(indexOfMilestone10);
+  });
+
+  it('treats a readiness kind with an opportunity available as maximally close, sorting ahead of every not-started kind within Locked', () => {
+    const lapsed = makeTask({ id: 't1' }, { streakStatus: 'expired' });
+    const groups = getGroupedAchievementCardStatuses([], [lapsed]);
+    const locked = groups.find(g => g.group === 'locked');
+    const kinds = locked!.statuses.map(s => s.kind);
+    // A lapsed task's other stats are all still 0, so comeback (opportunityAvailable -> fraction
+    // 1) is the *only* kind with any progress here -- it lands first in the concatenated list,
+    // ahead of every zero-progress, not-started kind that follows it.
+    expect(kinds.indexOf('comeback')).toBe(0);
+  });
+});

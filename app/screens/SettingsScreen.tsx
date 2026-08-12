@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { useAchievementsStore } from '../stores/achievementsStore';
 import { useLastImportStore } from '../stores/lastImportStore';
 import { ThemeMode, useSettingsStore } from '../stores/settingsStore';
 import { useTaskStore } from '../stores/taskStore';
@@ -39,12 +40,15 @@ export const SettingsScreen: React.FC = () => {
     useShallow(state => ({ tasks: state.tasks, importTasks: state.importTasks }))
   );
   const lastImport = useLastImportStore(state => state.lastImport);
+  const achievementCount = useAchievementsStore(state => state.achievements.length);
+  const runRetroactiveScan = useAchievementsStore(state => state.runRetroactiveScan);
   const { showToast } = useToast();
   const {
     themeMode, setThemeMode,
     showCardBackground, setShowCardBackground,
     showTaskName, setShowTaskName,
     showTaskCounter, setShowTaskCounter,
+    achievementCelebrationsEnabled, setAchievementCelebrationsEnabled,
     resetOnboardingHints,
   } = useSettingsStore(
     useShallow(state => ({
@@ -56,6 +60,8 @@ export const SettingsScreen: React.FC = () => {
       setShowTaskName: state.setShowTaskName,
       showTaskCounter: state.showTaskCounter,
       setShowTaskCounter: state.setShowTaskCounter,
+      achievementCelebrationsEnabled: state.achievementCelebrationsEnabled,
+      setAchievementCelebrationsEnabled: state.setAchievementCelebrationsEnabled,
       resetOnboardingHints: state.resetOnboardingHints,
     }))
   );
@@ -65,6 +71,33 @@ export const SettingsScreen: React.FC = () => {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const appName = Constants.expoConfig?.name ?? 'Streakaholic';
   const version = Constants.expoConfig?.version ?? '';
+
+  // Turning celebrations ON (not off -- there's nothing to offer when disabling) is a natural
+  // moment to offer a retroactive "catch up" scan (the same one TrophiesScreen's own "Check for
+  // Missed Achievements" button runs), since a user re-enabling this after a while, or trying it
+  // for the first time, likely already has qualifying history sitting unrecorded. A toast with an
+  // action rather than running it automatically -- this is genuinely optional, not something to
+  // do on the user's behalf without asking, and follows the same toast+action shape the app
+  // already uses for exactly this kind of "here's a related thing you can also do" offer.
+  const handleAchievementCelebrationsToggle = (enabled: boolean) => {
+    setAchievementCelebrationsEnabled(enabled);
+    if (!enabled) return;
+    showToast({
+      message: 'Achievements enabled! Want to check for ones you already qualify for?',
+      action: {
+        label: 'Check Now',
+        onPress: () => {
+          const activeTasks = tasks.filter(t => !t.archived);
+          const count = runRetroactiveScan(activeTasks);
+          showToast({
+            message: count > 0
+              ? `Found ${count} achievement${count === 1 ? '' : 's'} you'd already earned!`
+              : "No new achievements found — you're all caught up.",
+          });
+        },
+      },
+    });
+  };
 
   const handleExport = async () => {
     setIsBusy(true);
@@ -218,6 +251,29 @@ export const SettingsScreen: React.FC = () => {
               accessibilityLabel="Show Completion Counter"
             />
           </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>Achievements</Text>
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <MaterialCommunityIcons name="party-popper" size={22} color={colors.textSecondary} />
+            <Text style={styles.rowLabel}>Celebrate Achievements</Text>
+            <WebSwitch
+              value={achievementCelebrationsEnabled}
+              onValueChange={handleAchievementCelebrationsToggle}
+              trackColor={{ false: colors.border, true: '#007AFF' }}
+              thumbColor="#fff"
+              activeThumbColor="#fff"
+              accessibilityLabel="Celebrate Achievements"
+            />
+          </View>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.row} onPress={() => router.push('/trophies')} accessibilityRole="button" accessibilityHint="Opens your trophy history">
+            <MaterialCommunityIcons name="trophy-outline" size={22} color={colors.textSecondary} />
+            <Text style={styles.rowLabel}>Trophy Case</Text>
+            <Text style={styles.rowValue}>{achievementCount}</Text>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionTitle}>Data</Text>
