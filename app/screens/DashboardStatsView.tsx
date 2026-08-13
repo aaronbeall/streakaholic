@@ -75,6 +75,18 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
     : 0;
   const avgPerWeek = daysTracked > 0 ? stats.totalCompletions / (daysTracked / 7) : 0;
 
+  // Replaces a plain "Current Streak" (previously just the single longest streak among the
+  // filtered tasks, via stats.currentStreak -- see calculateAggregateStats) per explicit user
+  // direction: on an aggregate, multi-task screen, one task's own streak length says little about
+  // overall consistency (a lone 50-day streak can mask five other lapsed tasks), whereas "how many
+  // of your tasks are currently on a live streak" is the more representative "am I keeping up with
+  // everything" signal for this context. `up_to_date`/`expiring` both count as "active" (a streak
+  // that's still alive, whether comfortably or urgently) -- only `expired`/`never_started` don't.
+  const activeStreakCount = useMemo(
+    () => tasks.filter(t => t.stats?.streakStatus === 'up_to_date' || t.stats?.streakStatus === 'expiring').length,
+    [tasks]
+  );
+
   // All-time day-of-week histogram for "Best Day" -- deliberately independent of the Activity
   // section's own time-range toggle below, same reasoning as TaskStatsView.
   const allTimePatterns = useMemo(
@@ -167,11 +179,18 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
       <View style={styles.statsDivider} />
 
       <View style={styles.secondaryStrip}>
-        <View style={styles.secondaryItem}>
-          <Text style={styles.secondaryValue}>{stats.currentStreak}</Text>
+        <View
+          style={styles.secondaryItem}
+          accessible
+          accessibilityLabel={`${activeStreakCount} of ${tasks.length} tasks currently on an active streak`}
+        >
+          <Text style={styles.secondaryValue}>
+            {activeStreakCount}
+            <Text style={[styles.secondaryValue, styles.secondaryValueTotal]}>/{tasks.length}</Text>
+          </Text>
           <View style={styles.labelRow}>
             <MaterialCommunityIcons name="fire" size={14} color="#FF6B6B" />
-            <Text style={styles.secondaryLabel}>Current Streak</Text>
+            <Text style={styles.secondaryLabel}>Active Streaks</Text>
           </View>
         </View>
         <View style={styles.stripDividerV} />
@@ -454,6 +473,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     color: colors.text,
+  },
+  // Nested Text (the "/N" denominator, e.g. "5" bold + "/7" smaller-and-muted) -- a lighter
+  // weight/size for the total reads as "5 out of 7" rather than two equally-weighted numbers
+  // competing for attention, matching how ratios are conventionally typeset.
+  secondaryValueTotal: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.textTertiary,
   },
   secondaryLabel: {
     fontSize: 12,

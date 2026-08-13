@@ -28,6 +28,27 @@ interface TaskStore {
   archiveTask: (taskId: string) => void;
   restoreTask: (taskId: string) => void;
   importTasks: (tasks: Task[], options?: ImportOptions) => void;
+  // Not persisted (excluded by `partialize` below, same as `hasHydrated`) -- purely an in-memory
+  // guard, for one running process, against redundant same-day recomputes (see
+  // `maybeRefreshStats`'s own comment for why this exists at all and why a plain day-string
+  // comparison, not a real invalidation scheme, is enough). A fresh process always starts with
+  // this `null`, so a cold launch's first check always genuinely recomputes regardless of how long
+  // the app was actually closed.
+  statsRefreshedOn: string | null;
+  // Recomputes every task's own cached `.stats` against the real current moment -- but only if
+  // they're not already fresh for today, checked via `statsRefreshedOn` above. `.stats` (including
+  // `streakStatus`) is a snapshot, only ever recomputed by `withUpdatedStats` at the moment of an
+  // actual mutation -- with no mutation since yesterday, a task's cached status can go stale purely
+  // from the calendar day rolling over (e.g. a long streak's `streakStatus` still reading
+  // yesterday's comfortable 'up_to_date' after opening the app on a fresh, not-yet-acted-on day,
+  // when it should already read 'expiring'). See this action's own call site in _layout.tsx for
+  // when it's actually invoked (on hydrate + every app-foreground transition) -- the day-check here
+  // is what keeps most of those calls a genuine no-op (same calendar day as the last real check),
+  // rather than unconditionally rebuilding every task's object identity (and writing to
+  // AsyncStorage) on every single foreground, which would defeat the reference-preservation this
+  // store's other mutators are all deliberately built around (see this file's own top-of-file
+  // comment) purely to avoid re-rendering components that select an unaffected task.
+  maybeRefreshStats: () => void;
 }
 
 const withUpdatedStats = (task: Task): Task => ({
@@ -77,6 +98,7 @@ export const useTaskStore = create<TaskStore>()(
       tasks: [],
       hasHydrated: false,
       setHasHydrated: (value) => set({ hasHydrated: value }),
+      statsRefreshedOn: null,
 
       addTask: (taskData) => {
         const newTask: Task = {
@@ -224,6 +246,21 @@ export const useTaskStore = create<TaskStore>()(
             importedAt: new Date().toISOString(),
           });
         }
+      },
+
+      maybeRefreshStats: () => {
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        // Already checked (and, if needed, refreshed) today -- a genuine no-op, deliberately not
+        // touching `tasks` at all so every task keeps its existing object reference (see this
+        // action's own interface comment for why that matters).
+        if (get().statsRefreshedOn === todayStr) return;
+        set({
+          tasks: get().tasks.map(task => ({
+            ...task,
+            stats: calculateTaskStats(task, task.completions || []),
+          })),
+          statsRefreshedOn: todayStr,
+        });
       },
     }),
     {

@@ -51,7 +51,18 @@ const DashboardHeader: React.FC<{
             <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Dashboard</Text>
-          <View style={styles.headerButton} />
+          {/* Was a plain empty spacer (matching headerButton's own size/shape but no icon) purely
+              to balance the back button so the title stays centered in this space-between row --
+              now a real nav button to the Trophy Case, still filling that same role. */}
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => router.push('/trophies')}
+            accessibilityRole="button"
+            accessibilityLabel="Trophy Case"
+            accessibilityHint="Opens your trophy history"
+          >
+            <MaterialCommunityIcons name="trophy-outline" size={22} color={colors.text} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.taskFilterContainer} ref={taskFilterRef}>

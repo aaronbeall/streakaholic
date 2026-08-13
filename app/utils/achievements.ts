@@ -11,7 +11,7 @@ export type AchievementKind =
   | 'new-best-streak'
   | 'anniversary'
   | 'milestone-10' | 'milestone-50' | 'milestone-100' | 'milestone-1000'
-  | 'century-club'
+  | 'century-club-100' | 'century-club-500' | 'century-club-1000'
   | 'perfect-day' | 'perfect-week'
   | 'comeback'
   | 'habit-collector'
@@ -89,7 +89,8 @@ export type ProgressStrategy =
   // task completed each of those days), capped at `days`. Covers perfect-week.
   | { type: 'perfect-day-streak'; days: number }
   // Progress = the live sum of `totalCompletions` across every active task, capped at `target` --
-  // a global, cross-task aggregate rather than any single task's own stat. Covers century-club.
+  // a global, cross-task aggregate rather than any single task's own stat. Covers the three
+  // century-club-N tiers.
   | { type: 'total-completions-sum'; target: number }
   // Progress = the current number of active (non-archived) tasks, capped at `target`. Covers
   // habit-collector.
@@ -349,9 +350,13 @@ const PERFECT_WEEK_DAYS = 7;
 // bar for someone with a modest task list; shared by both perfect-day and perfect-week (a
 // "perfect week" is just seven perfect days in a row, so both should mean the same thing).
 const PERFECT_DAY_MIN_DUE_TASKS = 2;
-// "Century" is idiomatic here (a big round milestone number), not literal -- see century-club's
-// own ACHIEVEMENT_META comment for why 1,000 was chosen over a literal 100.
-const CENTURY_CLUB_TARGET = 1000;
+// Century Club started as a single kind whose target was 1,000 (idiomatic, not literal -- "a big
+// round milestone number"). Split (2026-08-12, per explicit user direction) into three literal
+// tiers instead -- 100/500/1,000 -- so "Century Club" now genuinely means a century, matching
+// "500 Club"/"Millennium Club" alongside it (see the three `century-club-N` ACHIEVEMENT_META
+// entries below). Each tier inlines its own literal target directly (matching how
+// milestone-10/50/100/1000's own entries each inline their own target) rather than sharing one
+// constant across three genuinely different numbers.
 // Shared by early-bird/night-owl's own progressStrategy entries and their bespoke detection --
 // the trailing window of completions (across every active task, combined) considered, and the
 // minimum sample size required before evaluating at all (avoids a lucky 2-early-completions
@@ -675,24 +680,78 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     progressStrategy: { type: 'perfect-day-streak', days: PERFECT_WEEK_DAYS },
     color: { theme: 'Sapphire', base: '#1565C0', glow: '#42A5F5', accent: '#E3F2FD' }, // perfect-week
   },
-  // A global, lifetime *sum* of totalCompletions across every active task -- distinct from any
-  // single task's own milestone-N tier, which never aggregates across tasks. "Century" is used
-  // idiomatically here (a big, round achievement number), not literally 100 -- 100 combined
-  // completions across even two moderately-used tasks would trivially trip almost immediately,
-  // undermining the "milestone" framing; 1,000 keeps it a genuine reach. One-time (like
-  // milestone-N), since a lifetime sum never un-crosses a threshold in normal use.
-  'century-club': {
-    icon: 'crown',
+  // Three global, lifetime-*sum* tiers of totalCompletions across every active task (2026-08-12,
+  // split from a single 1,000-target "Century Club" kind, per explicit user direction to "add a
+  // 100 and 500 version, appropriately named and styled") -- distinct from any single task's own
+  // milestone-N tier, which never aggregates across tasks. Named Century Club (100, a literal
+  // century), Fortune 500 (500 -- a deliberate pun on the real-world "Fortune 500" list, replacing
+  // an initial flat "500 Club" per direct user feedback that it "sucks" and needed something
+  // cleverer -- since there's no clean, well-known English word for "500" the way "century"/
+  // "millennium" exist for 100/1,000, borrowing an already-famous "500" itself was the better
+  // move than forcing one), Millennium Club (1,000, a literal millennium). All one-time (a
+  // lifetime sum never un-crosses a threshold in normal use), same reasoning as milestone-N.
+  //
+  // Styled as a "stone/monument" theme -- Cobalt (100) -> Garnet (500) -> Obsidian (1,000, the
+  // original kind's own color set, unchanged) -- deliberately distinct from milestone-N's own
+  // metal-medal theme (Bronze/Silver/Gold/Platinum, a *per-task* progression) and from the
+  // gemstone/fire themes used elsewhere in this catalog, since a cross-task lifetime total
+  // commemorating "how much you've built" reads more like an engraved monument than a medal. All
+  // three tiers are deliberately dark-based with a bright accent on top (matching Obsidian's own
+  // "dark base, bright warm accent" formula, `useAccentText: true` on all three) -- an earlier
+  // pass had these as light-based themes (Marble/Granite), which per direct user feedback had
+  // "serious contrast problems" next to Obsidian's own strong dark-base/bright-accent pairing: a
+  // light base pairs badly with this catalog's other shared conventions built around a dark base
+  // (most concretely, the ribbon banner's own fixed white text, which read as nearly invisible
+  // against Marble's pale `#FAFAFA` face). Renamed once more from an intermediate Slate/Basalt
+  // pass (2026-08-13) -- "Slate" -> "Cobalt" per direct request (the color itself was already
+  // approved, "otherwise it's perfect," just the mineral-name label), and "Basalt" replaced
+  // outright ("meh, try something else") with Garnet, a deep-red gemstone giving the middle tier
+  // its own distinct warm identity rather than sharing Cobalt's cool blue-grey family.
+  'century-club-100': {
+    icon: 'trophy-outline',
     title: 'Century Club!',
+    describe: () => 'Logged 100 completions across all your habits',
+    repeatable: false,
+    scope: 'global',
+    flavorText: 'Consistency is clearly your superpower.',
+    numberBlock: { eyebrow: 'Century Club', unit: 'TOTAL COMPLETIONS' },
+    ribbon: { kind: 'count', unit: 'DONE' },
+    triggerStandalone: v => `You've logged ${(v ?? 100).toLocaleString()} completions across all your habits.`,
+    progressStrategy: { type: 'total-completions-sum', target: 100 },
+    // Cobalt -- a deep blue-grey stone base with a vivid sky-blue mineral-glint accent (colors
+    // unchanged from the prior "Slate" pass, just the theme's own name corrected).
+    color: { theme: 'Cobalt', base: '#263238', glow: '#546E7A', accent: '#40C4FF', useAccentText: true }, // century-club-100
+  },
+  'century-club-500': {
+    icon: 'trophy',
+    title: 'Fortune 500!',
+    describe: () => 'Logged 500 completions across all your habits',
+    repeatable: false,
+    scope: 'global',
+    flavorText: 'Fortune favors the consistent.',
+    numberBlock: { eyebrow: 'Fortune 500', unit: 'TOTAL COMPLETIONS' },
+    ribbon: { kind: 'count', unit: 'DONE' },
+    triggerStandalone: v => `You've logged ${(v ?? 500).toLocaleString()} completions across all your habits.`,
+    progressStrategy: { type: 'total-completions-sum', target: 500 },
+    // Garnet -- a deep, dark garnet-red base with a warm amber-gold accent (jewelry convention:
+    // garnet is classically set in gold), giving this middle tier a warm identity distinct from
+    // Cobalt's cool blue-grey and Obsidian's neutral near-black.
+    color: { theme: 'Garnet', base: '#4A0E0E', glow: '#8B2635', accent: '#FFCA28', useAccentText: true }, // century-club-500
+  },
+  'century-club-1000': {
+    icon: 'crown',
+    title: 'Millennium Club!',
     describe: () => 'Logged 1,000 completions across all your habits',
     repeatable: false,
     scope: 'global',
     flavorText: "You've officially put in the reps.",
-    numberBlock: { eyebrow: 'Century Club', unit: 'TOTAL COMPLETIONS' },
+    numberBlock: { eyebrow: 'Millennium Club', unit: 'TOTAL COMPLETIONS' },
     ribbon: { kind: 'count', unit: 'DONE' },
-    triggerStandalone: v => `You've logged ${(v ?? CENTURY_CLUB_TARGET).toLocaleString()} completions across all your habits.`,
-    progressStrategy: { type: 'total-completions-sum', target: CENTURY_CLUB_TARGET },
-    color: { theme: 'Obsidian', base: '#212121', glow: '#616161', accent: '#FFD54F', useAccentText: true }, // century-club
+    triggerStandalone: v => `You've logged ${(v ?? 1000).toLocaleString()} completions across all your habits.`,
+    progressStrategy: { type: 'total-completions-sum', target: 1000 },
+    // Obsidian -- the original single kind's own color set, unchanged; the darkest, rarest stone
+    // for the top tier.
+    color: { theme: 'Obsidian', base: '#212121', glow: '#616161', accent: '#FFD54F', useAccentText: true }, // century-club-1000
   },
   // Reaching the free-tier's own active-task cap (MAX_ACTIVE_TASKS, taskLimits.ts) for the first
   // time -- an engagement milestone, not a performance one. One-time global moment, matching
@@ -772,11 +831,11 @@ const ACHIEVEMENT_ORDER_INDEX: Record<AchievementKind, number> = {
   'first-completion': 0, 'streak-2': 1, 'streak-5': 2, 'streak-10': 3, 'streak-25': 4, 'streak-50': 5,
   'streak-100': 6, 'streak-1000': 7, 'new-best-streak': 8, anniversary: 9,
   'milestone-10': 10, 'milestone-50': 11, 'milestone-100': 12, 'milestone-1000': 13,
-  'century-club': 14,
-  'perfect-day': 15, 'perfect-week': 16,
-  comeback: 17,
-  'habit-collector': 18,
-  'early-bird': 19, 'night-owl': 20,
+  'century-club-100': 14, 'century-club-500': 15, 'century-club-1000': 16,
+  'perfect-day': 17, 'perfect-week': 18,
+  comeback: 19,
+  'habit-collector': 20,
+  'early-bird': 21, 'night-owl': 22,
 };
 
 export const ACHIEVEMENT_KIND_ORDER: AchievementKind[] = (Object.keys(ACHIEVEMENT_META) as AchievementKind[])
@@ -813,6 +872,18 @@ const FIXED_THRESHOLD_ENTRIES: { kind: AchievementKind; metric: 'currentStreak' 
         entry.strategy.type === 'fixed-threshold'
     )
     .map(({ kind, strategy }) => ({ kind, metric: strategy.metric, target: strategy.target }));
+
+// Every total-completions-sum kind (the three century-club-N tiers), derived the same way as
+// FIXED_THRESHOLD_ENTRIES above -- adding a fourth tier needs one new ACHIEVEMENT_META entry and
+// nothing else, the same "add a tier of an existing pattern for free" property every other
+// derived-entries list here already has.
+const TOTAL_COMPLETIONS_SUM_ENTRIES: { kind: AchievementKind; target: number }[] = ACHIEVEMENT_KIND_ORDER
+  .map(kind => ({ kind, strategy: ACHIEVEMENT_META[kind].progressStrategy }))
+  .filter(
+    (entry): entry is { kind: AchievementKind; strategy: Extract<ProgressStrategy, { type: 'total-completions-sum' }> } =>
+      entry.strategy.type === 'total-completions-sum'
+  )
+  .map(({ kind, strategy }) => ({ kind, target: strategy.target }));
 
 // Every task-age kind, derived the same way as FIXED_THRESHOLD_ENTRIES above -- currently just
 // anniversary. Used both by detectCompletionAchievements (live) and detectRetroactiveAchievements'
@@ -1001,17 +1072,19 @@ export const detectCompletionAchievements = (
   }
 
   // Century club -- a global lifetime sum of totalCompletions across every active task, crossing
-  // CENTURY_CLUB_TARGET. `delta` isolates just this one completion's own contribution to the sum
-  // (nextTask's own totalCompletions minus its prior value) so `prevSum` can be derived without a
-  // separate "every task's stats before this mutation" snapshot -- every other task's own stats
-  // are already unchanged in `activeTasksAfter`, only nextTask's own differs.
-  if (isFirstEarn('century-club', 'global')) {
-    const nextSum = activeTasksAfter.reduce((sum, t) => sum + (t.stats?.totalCompletions ?? 0), 0);
-    const delta = nextStats.totalCompletions - (prevStats?.totalCompletions ?? 0);
-    const prevSum = nextSum - delta;
-    if (prevSum < CENTURY_CLUB_TARGET && nextSum >= CENTURY_CLUB_TARGET) {
-      earned.push({ kind: 'century-club', value: CENTURY_CLUB_TARGET, dedupScope: 'global' });
-    }
+  // each tier's own target (see TOTAL_COMPLETIONS_SUM_ENTRIES). `delta` isolates just this one
+  // completion's own contribution to the sum (nextTask's own totalCompletions minus its prior
+  // value) so `prevSum` can be derived without a separate "every task's stats before this
+  // mutation" snapshot -- every other task's own stats are already unchanged in
+  // `activeTasksAfter`, only nextTask's own differs. `nextSum`/`delta` are computed once, outside
+  // the loop, since neither depends on which tier is being checked.
+  const nextSum = activeTasksAfter.reduce((sum, t) => sum + (t.stats?.totalCompletions ?? 0), 0);
+  const sumDelta = nextStats.totalCompletions - (prevStats?.totalCompletions ?? 0);
+  const prevSum = nextSum - sumDelta;
+  for (const { kind, target } of TOTAL_COMPLETIONS_SUM_ENTRIES) {
+    if (prevSum >= target || nextSum < target) continue;
+    if (!isFirstEarn(kind, 'global')) continue;
+    earned.push({ kind, value: target, dedupScope: 'global' });
   }
 
   // Habit collector -- reaching the active-task cap. Evaluated fresh on every completion, not as

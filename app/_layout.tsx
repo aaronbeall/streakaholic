@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, AppState, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AchievementCelebration } from './components/AchievementCelebration';
 import { ToastBanner } from './components/ToastBanner';
@@ -126,8 +126,34 @@ function AppGate() {
   const tasksHydrated = useTaskStore(state => state.hasHydrated);
   const lastImportHydrated = useLastImportStore(state => state.hasHydrated);
   const achievementsHydrated = useAchievementsStore(state => state.hasHydrated);
+  const hydrated = settingsHydrated && tasksHydrated && lastImportHydrated && achievementsHydrated;
 
-  if (!settingsHydrated || !tasksHydrated || !lastImportHydrated || !achievementsHydrated) {
+  // Every task's `.stats` (including `streakStatus`) is a cached snapshot, only recomputed by
+  // taskStore's own mutators (completeTask, etc.) at the moment something actually happens -- with
+  // no mutation since yesterday, that cache can go stale purely from the calendar day rolling
+  // over (a long streak's status still reading yesterday's comfortable 'up_to_date' instead of
+  // today's genuinely 'expiring', confirmed as a real on-device bug report rather than a logic
+  // error in the streak math itself). Checked here on two triggers, once hydration completes:
+  // once immediately (covers a cold launch on a fresh day after the app was closed overnight) and
+  // again every time the app returns to the foreground (covers backgrounding overnight without a
+  // full relaunch, the more common real-world case on a phone). `maybeRefreshStats` itself no-ops
+  // unless the calendar day has actually changed since its own last check, so most of these calls
+  // -- especially repeated foregrounding within the same day -- do no work at all. Deliberately not
+  // a running timer while the app stays open and active -- crossing midnight during one continuous
+  // foreground session without ever backgrounding is a rare edge case, not worth the added
+  // complexity here.
+  useEffect(() => {
+    if (!hydrated) return;
+    useTaskStore.getState().maybeRefreshStats();
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        useTaskStore.getState().maybeRefreshStats();
+      }
+    });
+    return () => subscription.remove();
+  }, [hydrated]);
+
+  if (!hydrated) {
     return <LoadingScreen />;
   }
 

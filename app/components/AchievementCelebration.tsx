@@ -281,9 +281,24 @@ const UnlockHistoryList: React.FC<{
             <View style={[styles.historyConnector, index === instances.length - 1 && styles.historyConnectorHidden]} />
           </View>
           <View style={styles.historyContent}>
-            <Text style={[styles.historyTaskName, { color: a.taskColor ?? kindColor }]} numberOfLines={1}>
-              {a.taskName ?? 'Overall'}
-            </Text>
+            {/* A global (taskless) instance has no task name to show -- previously fell back to a
+                generic "Overall" label, which said nothing an achievement's own icon/title didn't
+                already convey. Per explicit user direction, shows that instance's own count stat
+                instead when the kind actually has one (a "count"-ribbon kind, e.g. "7 DAYS"/"1,000
+                DONE" via getRibbonText -- the exact same formatting TrophyBadge's own ribbon banner
+                uses, so this line and that banner never disagree), or nothing at all for a
+                "fixed"-ribbon kind (first-completion, perfect-day, early-bird, night-owl) whose
+                ribbon text is a fixed word, not a real count -- just the date remains, centered
+                within the row on its own. */}
+            {a.taskName ? (
+              <Text style={[styles.historyTaskName, { color: a.taskColor ?? kindColor }]} numberOfLines={1}>
+                {a.taskName}
+              </Text>
+            ) : ACHIEVEMENT_META[a.kind].ribbon.kind === 'count' ? (
+              <Text style={[styles.historyTaskName, { color: kindColor }]} numberOfLines={1}>
+                {getRibbonText(a)}
+              </Text>
+            ) : null}
             <Text style={styles.historyDate}>{format(parseISO(a.earnedAt), 'MMM d, yyyy')}</Text>
           </View>
         </View>

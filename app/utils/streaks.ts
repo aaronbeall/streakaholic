@@ -286,7 +286,19 @@ const calculateQuotaStats = (
       ? daysRemainingInclusiveOfToday - 1
       : daysRemainingInclusiveOfToday;
     const stillNeeded = safeQuota - currentPeriodDays;
-    const isTight = remainingOpportunities <= stillNeeded;
+    // `'expiring'` is meant to be an actionable "do something today or this breaks" signal --
+    // once today's own chance has already been used, there's nothing left to *act on* today
+    // regardless of how tight the days after today are (that's tomorrow's problem to flag, if
+    // it's still tight then). `calculateDueDayStats` (the daily/specific_days_of_week sibling of
+    // this function) already gates its own 'expiring' on `!todayCompleted` for exactly this
+    // reason -- this was a real gap between the two, not a deliberate quota-specific difference:
+    // without it, a task could show 'expiring' on a day its own quota-relevant action was already
+    // completed, which every downstream consumer of this status (DashboardCalendarView/
+    // TaskCalendarScreen's own "expiring today" clock icon, HomeScreen's "needs attention" filter)
+    // was already independently guarding against via its own redundant `!isCompleted` check --
+    // this fix makes the underlying status itself correct instead of relying on every caller to
+    // compensate for it.
+    const isTight = !todayAlreadyCounted && remainingOpportunities <= stillNeeded;
 
     if (currentStreak > 0 && isTight) {
       streakStatus = 'expiring';

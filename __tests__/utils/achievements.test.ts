@@ -5,6 +5,7 @@ import {
   AchievementKind,
   ACHIEVEMENT_KIND_ORDER,
   ONE_TIME_KINDS,
+  dedupKey,
   detectCompletionAchievements,
   detectRetroactiveAchievements,
   getAchievementCardStatus,
@@ -115,14 +116,15 @@ describe('detectCompletionAchievements', () => {
       // lifetime counter that never un-crosses a threshold in normal use, so they were already
       // self-limiting even as "repeatable"; this just makes that a hard guarantee. Being one-time
       // is still scoped per-task (see repeatable's own comment in achievements.ts) -- different
-      // tasks each independently earn their own copy regardless. century-club/habit-collector/
-      // early-bird/night-owl (2026-08-12) join too -- each is a one-shot "you crossed this global
-      // threshold/pattern for the first time" moment (see their own ACHIEVEMENT_META comments),
-      // not something meant to re-celebrate every time its own condition happens to hold again.
+      // tasks each independently earn their own copy regardless. The three century-club-N tiers/
+      // habit-collector/early-bird/night-owl (2026-08-12) join too -- each is a one-shot "you
+      // crossed this global threshold/pattern for the first time" moment (see their own
+      // ACHIEVEMENT_META comments), not something meant to re-celebrate every time its own
+      // condition happens to hold again.
       expect(ONE_TIME_KINDS.sort()).toEqual(
         [
           'anniversary', 'first-completion', 'milestone-10', 'milestone-50', 'milestone-100', 'milestone-1000',
-          'century-club', 'habit-collector', 'early-bird', 'night-owl',
+          'century-club-100', 'century-club-500', 'century-club-1000', 'habit-collector', 'early-bird', 'night-owl',
         ].sort()
       );
     });
@@ -373,28 +375,68 @@ describe('detectCompletionAchievements', () => {
     });
   });
 
-  describe('century-club', () => {
-    it('fires once the lifetime sum of totalCompletions across all active tasks crosses the target', () => {
+  describe('century-club (three tiers: 100/500/1000)', () => {
+    it('fires century-club-1000 once the lifetime sum of totalCompletions across all active tasks crosses 1000', () => {
       const t1 = makeTask({ id: 't1' }, { totalCompletions: 400 });
       const prevT2 = makeTask({ id: 't2' }, { totalCompletions: 599 });
-      const nextT2 = makeTask({ id: 't2' }, { totalCompletions: 600 }); // 400 + 600 = 1000, crosses CENTURY_CLUB_TARGET
+      const nextT2 = makeTask({ id: 't2' }, { totalCompletions: 600 }); // 400 + 600 = 1000
       const earned = detectCompletionAchievements(prevT2, nextT2, [t1, nextT2], today, new Set());
-      expect(kindsOf(earned)).toContain('century-club');
+      expect(kindsOf(earned)).toContain('century-club-1000');
+      expect(kindsOf(earned)).not.toContain('century-club-100');
+      expect(kindsOf(earned)).not.toContain('century-club-500');
     });
 
-    it('does not fire while the sum is still short of the target', () => {
-      const t1 = makeTask({ id: 't1' }, { totalCompletions: 400 });
-      const prevT2 = makeTask({ id: 't2' }, { totalCompletions: 400 });
-      const nextT2 = makeTask({ id: 't2' }, { totalCompletions: 401 });
+    it('does not fire any tier while the sum is still short of the lowest one', () => {
+      const t1 = makeTask({ id: 't1' }, { totalCompletions: 40 });
+      const prevT2 = makeTask({ id: 't2' }, { totalCompletions: 40 });
+      const nextT2 = makeTask({ id: 't2' }, { totalCompletions: 41 });
       const earned = detectCompletionAchievements(prevT2, nextT2, [t1, nextT2], today, new Set());
-      expect(kindsOf(earned)).not.toContain('century-club');
+      expect(kindsOf(earned)).not.toContain('century-club-100');
+      expect(kindsOf(earned)).not.toContain('century-club-500');
+      expect(kindsOf(earned)).not.toContain('century-club-1000');
+    });
+
+    it('fires century-club-100, independent of the higher tiers', () => {
+      // Also legitimately crosses this same task's own milestone-100 (a per-task tier sharing the
+      // identical round-number target) -- toContain/not.toContain per tier, not an exact-array
+      // match, same reasoning as the "fires all three tiers" test above.
+      const prevT1 = makeTask({ id: 't1' }, { totalCompletions: 99 });
+      const nextT1 = makeTask({ id: 't1' }, { totalCompletions: 100 });
+      const earned = detectCompletionAchievements(prevT1, nextT1, [nextT1], today, new Set());
+      const kinds = kindsOf(earned);
+      expect(kinds).toContain('century-club-100');
+      expect(kinds).not.toContain('century-club-500');
+      expect(kinds).not.toContain('century-club-1000');
+    });
+
+    it('fires century-club-500 (and not -100, already earned) once past 500', () => {
+      const prevT1 = makeTask({ id: 't1' }, { totalCompletions: 499 });
+      const nextT1 = makeTask({ id: 't1' }, { totalCompletions: 500 });
+      const alreadyEarned100 = new Set([dedupKey('century-club-100', 'global')]);
+      const earned = detectCompletionAchievements(prevT1, nextT1, [nextT1], today, alreadyEarned100);
+      expect(kindsOf(earned)).toEqual(['century-club-500']);
+    });
+
+    it('fires all three tiers at once when a single jump crosses every threshold together', () => {
+      // A single task's own totalCompletions jump this big also happens to cross that same task's
+      // own milestone-100/milestone-1000 tiers (a coincidence of the two families sharing several
+      // identical round-number targets, not a bug) -- kindsOf is checked with toContain per tier
+      // rather than an exact-array toEqual, so this test isn't coupled to exactly which other
+      // kinds also legitimately fire alongside century-club here.
+      const prevT1 = makeTask({ id: 't1' }, { totalCompletions: 50 });
+      const nextT1 = makeTask({ id: 't1' }, { totalCompletions: 1200 });
+      const earned = detectCompletionAchievements(prevT1, nextT1, [nextT1], today, new Set());
+      const kinds = kindsOf(earned);
+      expect(kinds).toContain('century-club-100');
+      expect(kinds).toContain('century-club-500');
+      expect(kinds).toContain('century-club-1000');
     });
 
     it('carries no task identity -- a global, cross-task sum', () => {
       const prev = makeTask({ id: 't1' }, { totalCompletions: 999 });
       const next = makeTask({ id: 't1' }, { totalCompletions: 1000 });
       const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
-      const centuryClub = earned.find(e => e.kind === 'century-club');
+      const centuryClub = earned.find(e => e.kind === 'century-club-1000');
       expect(centuryClub?.taskId).toBeUndefined();
       expect(centuryClub?.dedupScope).toBe('global');
     });
@@ -803,16 +845,18 @@ describe('getAchievementCardStatus', () => {
     });
   });
 
-  describe('century-club (total-completions-sum)', () => {
-    it('sums totalCompletions across every active task, capped at the target', () => {
+  describe('century-club (total-completions-sum, three tiers)', () => {
+    it('sums totalCompletions across every active task, capped at each tier\'s own target', () => {
       // getAchievementCardStatus trusts `activeTasks` is already archive-filtered by the caller
       // (TrophiesScreen passes tasks.filter(t => !t.archived)) -- same convention every other
       // strategy case here already follows, so this doesn't re-test archived-exclusion at this
       // layer (that's covered at the detection layer, above, where the filtering actually happens).
       const t1 = makeTask({ id: 't1' }, { totalCompletions: 600 });
       const t2 = makeTask({ id: 't2' }, { totalCompletions: 600 });
-      const status = getAchievementCardStatus('century-club', [], [t1, t2], today);
-      expect(status.progress).toEqual({ current: 1000, target: 1000 });
+      // Sum is 1200 -- comfortably past all three tiers' own targets, each capped independently.
+      expect(getAchievementCardStatus('century-club-100', [], [t1, t2], today).progress).toEqual({ current: 100, target: 100 });
+      expect(getAchievementCardStatus('century-club-500', [], [t1, t2], today).progress).toEqual({ current: 500, target: 500 });
+      expect(getAchievementCardStatus('century-club-1000', [], [t1, t2], today).progress).toEqual({ current: 1000, target: 1000 });
     });
   });
 

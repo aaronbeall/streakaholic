@@ -262,6 +262,37 @@ describe('calculateTaskStats', () => {
       }
     });
 
+    // 'expiring' is meant to be an actionable "do something today or this breaks" signal -- once
+    // today's own quota-relevant action is already done, there's nothing left to act on *today*
+    // regardless of how tight the remaining future days are (that's a future day's own problem to
+    // flag, once it arrives still undone). Mirrors calculateDueDayStats's own `!todayCompleted`
+    // gate for daily/specific_days_of_week tasks -- the quota branch was missing the equivalent
+    // guard (a real bug, not a deliberate quota-specific difference, per direct user report).
+    it('does not flag expiring once today\'s own completion is already logged, even with zero slack left after today', () => {
+      const task = baseTask({ frequency: 'days_per_week', daysPerWeek: 7 }); // every day of the week required
+      jest.useFakeTimers().setSystemTime(new Date(2026, 7, 6)); // Thu Aug 6 2026
+      try {
+        // Sun/Mon/Tue/Wed (4) already done, plus today (Thu) -- 5 of 7, with Fri/Sat still
+        // strictly required (zero slack) once today's own contribution is excluded.
+        const completions = [
+          makeCompletion('sun', new Date(2026, 7, 2)),
+          makeCompletion('mon', new Date(2026, 7, 3)),
+          makeCompletion('tue', new Date(2026, 7, 4)),
+          makeCompletion('wed', new Date(2026, 7, 5)),
+          makeCompletion('thu', new Date(2026, 7, 6)), // today
+        ];
+        const stats = calculateTaskStats(task, completions);
+        expect(stats.streakStatus).toBe('up_to_date');
+        expect(stats.currentStreak).toBe(5);
+
+        // Same exact tightness, but today NOT yet completed -- still genuinely actionable/urgent.
+        const completionsNoToday = completions.slice(0, 4);
+        expect(calculateTaskStats(task, completionsNoToday).streakStatus).toBe('expiring');
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     // A period that fails its quota still contributes its own days to the run that's ending
     // (mirrors the due-day "tail bonus" behavior above) -- it just doesn't link forward, so a
     // fresh mini-streak starts from the next period.
@@ -309,6 +340,18 @@ describe('calculateTaskStats', () => {
       jest.useFakeTimers().setSystemTime(new Date(2026, 7, 31)); // Aug 31, the month's last day -- needs 1, exactly 1 left
       try {
         expect(calculateTaskStats(task, priorMonthCompletion).streakStatus).toBe('expiring');
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    // Same "already-done-today shouldn't be urgent" fix as the days_per_week case above, for the
+    // month unit.
+    it('does not flag expiring once today\'s own completion is already logged, even on the month\'s tightest day', () => {
+      const task = baseTask({ frequency: 'days_per_month', daysPerMonth: 1 });
+      jest.useFakeTimers().setSystemTime(new Date(2026, 7, 31)); // Aug 31, the month's last day
+      try {
+        expect(calculateTaskStats(task, [makeCompletion('a', new Date(2026, 7, 31))]).streakStatus).toBe('up_to_date');
       } finally {
         jest.useRealTimers();
       }

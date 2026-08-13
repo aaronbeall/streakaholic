@@ -247,7 +247,9 @@ const AchievementBadgeCard: React.FC<{
   cardWidth: number;
   styles: ReturnType<typeof createStyles>;
   onPlay: (achievement: Achievement) => void;
-}> = ({ status, cardWidth, styles, onPlay }) => {
+  isMuted: boolean;
+  mutedIconColor: string;
+}> = ({ status, cardWidth, styles, onPlay, isMuted, mutedIconColor }) => {
   const meta = ACHIEVEMENT_META[status.kind];
   const { unlocked, latest, earners, progress, opportunityAvailable, timesEarned } = status;
   // Kind-level color, not task-level -- per explicit user direction, an achievement's identity no
@@ -305,9 +307,27 @@ const AchievementBadgeCard: React.FC<{
       <EarnerIconRow earners={earners} styles={styles} />
 
       {unlocked ? (
-        <Text style={styles.cardCaption} numberOfLines={1}>
-          {format(parseISO(latest!.earnedAt), 'MMM d, yyyy')}
-        </Text>
+        <View style={styles.captionRow}>
+          <Text style={styles.cardCaption} numberOfLines={1}>
+            {format(parseISO(latest!.earnedAt), 'MMM d, yyyy')}
+          </Text>
+          {/* A snoozed (muted, via the celebration screen's own bell toggle) kind still shows
+              here exactly as unlocked as it always would -- this is purely an at-a-glance note
+              that future unlocks of it will show a quick alert instead of the full
+              congratulations, not a status that changes anything else about the card.
+              Deliberately not interactive (no TouchableOpacity, no onPress of its own -- the
+              whole card's own tap still replays/previews normally) and placed right beside the
+              date it's a footnote to, rather than as a separate corner badge competing with
+              `countBadge`/`lockBadge` for attention. */}
+          {isMuted && (
+            <MaterialCommunityIcons
+              name="bell-off-outline"
+              size={11}
+              color={mutedIconColor}
+              importantForAccessibility="no"
+            />
+          )}
+        </View>
       ) : progress ? (
         <View style={styles.progressBlock}>
           <View style={styles.progressTrack}>
@@ -373,6 +393,7 @@ export const TrophiesScreen: React.FC = () => {
   const router = useRouter();
   const achievements = useAchievementsStore(state => state.achievements);
   const queueCelebration = useAchievementsStore(state => state.queueCelebration);
+  const mutedKinds = useAchievementsStore(state => state.mutedKinds);
   const tasks = useTaskStore(state => state.tasks);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
@@ -427,6 +448,8 @@ export const TrophiesScreen: React.FC = () => {
                   cardWidth={cardWidth}
                   styles={styles}
                   onPlay={queueCelebration}
+                  isMuted={mutedKinds.includes(status.kind)}
+                  mutedIconColor={colors.textSecondary}
                 />
               ))}
             </View>
@@ -587,6 +610,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 11,
     color: colors.textTertiary,
     textAlign: 'center',
+  },
+  // Holds the unlock date plus, when applicable, the small snoozed (muted) indicator right beside
+  // it -- centered as one unit so a card without the indicator doesn't leave a lopsided gap.
+  captionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
   },
   cardCaptionReady: {
     color: '#FFA726',

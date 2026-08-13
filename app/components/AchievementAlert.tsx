@@ -99,7 +99,34 @@ export const AchievementAlert: React.FC<{ achievement: Achievement; onDismiss: (
           </View>
           <View style={styles.textBlock}>
             <Text style={styles.title} numberOfLines={1}>{meta.title}</Text>
-            <Text style={styles.description} numberOfLines={2}>{meta.describe(achievement)}</Text>
+            {/* Same inline icon + task-colored bold name technique as CelebrationContent's own
+                DescriptionText (AchievementCelebration.tsx) -- a task's own brand is meant to
+                surface wherever it's actually named, not just on the full-screen takeover, and
+                MaterialCommunityIcons is itself Text-based, so nesting it inside a parent Text
+                works exactly like nesting a styled Text span. `triggerSuffix` (not `describe`,
+                which bakes the task name into a plain quoted string with no room to color it)
+                is what's built for exactly this "task is the subject, this is just the tail"
+                split; a taskless kind or one with no triggerSuffix falls back to its own
+                standalone phrasing (or, failing that, the plain describe() text). */}
+            <Text style={styles.description} numberOfLines={2}>
+              {achievement.taskName && meta.triggerSuffix ? (
+                <>
+                  {achievement.taskIcon && (
+                    <MaterialCommunityIcons
+                      name={achievement.taskIcon}
+                      size={12}
+                      color={achievement.taskColor ?? meta.color.base}
+                    />
+                  )}
+                  <Text style={[styles.descriptionTaskName, { color: achievement.taskColor ?? meta.color.base }]}>
+                    {' '}{achievement.taskName}
+                  </Text>
+                  {meta.triggerSuffix(achievement.value ?? 0)}
+                </>
+              ) : (
+                meta.triggerStandalone?.(achievement.value) ?? meta.describe(achievement)
+              )}
+            </Text>
           </View>
         </Reanimated.View>
       </GestureDetector>
@@ -156,5 +183,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     marginTop: 1,
+  },
+  descriptionTaskName: {
+    fontWeight: '800',
   },
 });
