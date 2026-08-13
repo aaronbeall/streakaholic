@@ -42,6 +42,8 @@ export const SettingsScreen: React.FC = () => {
   const lastImport = useLastImportStore(state => state.lastImport);
   const achievementCount = useAchievementsStore(state => state.achievements.length);
   const runRetroactiveScan = useAchievementsStore(state => state.runRetroactiveScan);
+  const mutedAchievementCount = useAchievementsStore(state => state.mutedKinds.length);
+  const unmuteAllKinds = useAchievementsStore(state => state.unmuteAllKinds);
   const { showToast } = useToast();
   const {
     themeMode, setThemeMode,
@@ -97,6 +99,16 @@ export const SettingsScreen: React.FC = () => {
         },
       },
     });
+  };
+
+  // A single kind can also be un-muted directly from its own celebration screen (the bell toggle
+  // under the close button, AchievementCelebration.tsx) -- this is the bulk equivalent for
+  // restoring several at once without having to re-trigger and toggle each one individually. The
+  // row itself only renders when there's actually something to restore (see its own call site) --
+  // no point offering a reset with nothing to reset.
+  const handleRestoreFullCelebrations = () => {
+    unmuteAllKinds();
+    showToast({ message: 'Full celebrations are back for every achievement.' });
   };
 
   const handleExport = async () => {
@@ -274,6 +286,19 @@ export const SettingsScreen: React.FC = () => {
             <Text style={styles.rowValue}>{achievementCount}</Text>
             <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
           </TouchableOpacity>
+          {/* Only shown once there's actually something muted -- a bulk reset alongside the
+              per-kind bell toggle each celebration screen already offers (see mutedKinds' own
+              comment in achievementsStore.ts). */}
+          {mutedAchievementCount > 0 && (
+            <>
+              <View style={styles.divider} />
+              <TouchableOpacity style={styles.row} onPress={handleRestoreFullCelebrations} accessibilityRole="button" accessibilityHint="Brings back the full celebration for every achievement you've muted">
+                <MaterialCommunityIcons name="party-popper" size={22} color={colors.textSecondary} />
+                <Text style={styles.rowLabel}>Restore Full Celebrations</Text>
+                <Text style={styles.rowValue}>{mutedAchievementCount}</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         <Text style={styles.sectionTitle}>Data</Text>

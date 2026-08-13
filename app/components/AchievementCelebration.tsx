@@ -9,8 +9,10 @@ import Reanimated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AchievementAlert } from '../components/AchievementAlert';
 import { Confetti } from '../components/Confetti';
 import { TROPHY_BADGE_STACK_SIZE, TrophyBadge } from '../components/TrophyBadge';
+import { useToast } from '../context/ToastContext';
 import { useAchievementsStore } from '../stores/achievementsStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { MaterialCommunityIconName } from '../types';
@@ -56,8 +58,13 @@ const DISMISS_ANIM_DURATION = 220;
 // in the row, not an estimate left to content-driven sizing, per the redesign below. Drives the
 // list's own height so it only ever takes up as much room as it actually needs -- one row for two
 // unlocks, three rows for three, capped at HISTORY_MAX_VISIBLE_ROWS before it switches from
-// "grows to fit" to "scrolls" (see the list's own `maxHeight` at its one call site).
-const HISTORY_ROW_HEIGHT = 40;
+// "grows to fit" to "scrolls" (see the list's own `maxHeight` at its one call site). Bumped back
+// up (32->36, 3->4 -- both had been tightened during an earlier layout-fit compaction pass, see
+// this file's own bottom-safe-area follow-up in CLAUDE.md) per direct on-device feedback that the
+// list read as too small; the mute link's own footprint (below) moving out of this screen's
+// vertical stack entirely, into a fixed corner button instead, freed up the room to do this
+// without reopening that same overflow risk.
+const HISTORY_ROW_HEIGHT = 36;
 const HISTORY_MAX_VISIBLE_ROWS = 4;
 // A fixed pixel width, not a percentage -- see UnlockHistoryList's own comment for why. Comfortably
 // fits within `content`'s own inner width (screen width minus 64px of horizontal padding) on any
@@ -288,6 +295,10 @@ const UnlockHistoryList: React.FC<{
 const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => void }> = ({ achievement, onDismiss }) => {
   const insets = useSafeAreaInsets();
   const allAchievements = useAchievementsStore(state => state.achievements);
+  const muteKind = useAchievementsStore(state => state.muteKind);
+  const unmuteKind = useAchievementsStore(state => state.unmuteKind);
+  const isMuted = useAchievementsStore(state => state.mutedKinds.includes(achievement.kind));
+  const { showToast } = useToast();
   const meta = ACHIEVEMENT_META[achievement.kind];
   // The achievement's own kind-level identity (badge/rings/confetti/hero number) -- no longer
   // task-driven, see AchievementMeta.color's own comment for the full reasoning. The task's own
@@ -314,6 +325,9 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
     ? Math.min(kindInstanceCount, HISTORY_MAX_VISIBLE_ROWS) * HISTORY_ROW_HEIGHT
     : 0;
 
+  // See handleToggleMute's own comment for why this is repeatable-only and preview-excluded.
+  const showMuteToggle = meta.repeatable && achievement.dedupScope !== 'preview';
+
   // Doubles as both the entrance fade-in (0 -> 1 on mount) and the tap-to-dismiss fade-out
   // (1 -> 0), rather than two separate shared values -- there's no state where both would need
   // to animate independently.
@@ -334,12 +348,34 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
   // value to fix it then left numberBlock-based achievements visibly cramped instead. Sizing per
   // variant fixes both at once -- safe to do since the variant itself never changes mid-playback
   // (it's a constant for this achievement's whole lifetime, only the reveal *opacity* animates).
-  const titleMinHeight = showsNumber ? 140 : 64;
+  const titleMinHeight = showsNumber ? 116 : 48;
 
   const handleDismiss = useCallback(() => {
     visibility.value = withTiming(0, { duration: DISMISS_ANIM_DURATION, easing: Easing.in(Easing.cubic) });
     setTimeout(onDismiss, DISMISS_ANIM_DURATION);
   }, [onDismiss, visibility]);
+
+  // Only offered for repeatable kinds -- a one-time kind (e.g. a milestone) can never fire again
+  // for anything, so there'd be nothing for this to actually suppress. Toggles mute for the whole
+  // *kind* (every task, until toggled back off here or via Settings' own "restore full
+  // celebrations") rather than just this one instance -- see mutedKinds' own comment in
+  // achievementsStore.ts for why that's the right scope.
+  //
+  // A real toggle (2026-08-12), not a one-shot "mute and dismiss" action -- an earlier version was
+  // a text link that muted and immediately closed the screen, replaced per direct user direction
+  // with an icon button that reflects and flips the current state without leaving the celebration,
+  // since a persistent on/off setting reads more naturally as something you can flip back
+  // immediately than as an action bundled into dismissal. Each direction gets its own toast,
+  // stating the resulting behavior plainly rather than just confirming "done."
+  const handleToggleMute = useCallback(() => {
+    if (isMuted) {
+      unmuteKind(achievement.kind);
+      showToast({ message: `Future unlocks of "${meta.title}" will show the full congratulations again.` });
+    } else {
+      muteKind(achievement.kind);
+      showToast({ message: `Future unlocks of "${meta.title}" won't show the full congratulations — just a quick alert.` });
+    }
+  }, [isMuted, muteKind, unmuteKind, achievement.kind, showToast, meta.title]);
 
   // Android hardware/gesture back button dismisses the celebration instead of navigating
   // backward in the router stack -- per explicit user direction. `hardwareBackPress` handlers
@@ -411,12 +447,48 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
           <MaterialCommunityIcons name="close" size={22} color="#fff" />
         </Pressable>
 
+        {/* Mute toggle, stacked directly under the close button (2026-08-12) -- replaces an
+            earlier in-flow text link ("show a quick alert next time instead"), per direct user
+            direction for a smaller icon button reflecting current state rather than a one-shot
+            link. Only for repeatable kinds, never on a locked card's own preview -- see
+            handleToggleMute's own comment. */}
+        {showMuteToggle && (
+          <Pressable
+            onPress={handleToggleMute}
+            style={[styles.muteToggleButton, { top: insets.top + 60 }]}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: isMuted }}
+            accessibilityLabel={isMuted ? `Full celebrations off for ${meta.title}` : `Full celebrations on for ${meta.title}`}
+            accessibilityHint={isMuted ? 'Turns full celebrations back on for this achievement' : 'Switches this achievement to a quick alert instead of the full celebration'}
+          >
+            <MaterialCommunityIcons name={isMuted ? 'bell-off-outline' : 'bell-outline'} size={16} color="#fff" />
+          </Pressable>
+        )}
+
         {/* Top-anchored, not centered -- every slot below is always mounted (fixed minHeight)
             from the very first frame, so the *total* content height never changes as later
             slots reveal their content. A centered/justify-content:center layout would have
             re-centered (and visibly shifted) every already-revealed element each time a new one
-            was added -- this is what that bug fix relies on. */}
-        <View style={[styles.content, { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 24 }]}>
+            was added -- this is what that bug fix relies on.
+
+            Deliberately still a plain View, not a ScrollView (2026-08-12) -- a ScrollView was
+            tried first for the same "no safe margin above Android's nav buttons" report this
+            entry addresses, but per direct follow-up that wasn't the right fix: the actual ask is
+            for the whole layout to just fit within the screen, not to make it scrollable. Reverted
+            that in full (including the now-unneeded `nestedScrollEnabled` on UnlockHistoryList's
+            own inner ScrollView), and instead tightened every fixed size in this screen's own
+            layout -- reveal-slot minHeights, inter-section gaps, the top/bottom padding beyond the
+            safe-area insets themselves, and the unlock-history list's own row height/max visible
+            rows -- to meaningfully shrink the worst-case total height (every reveal fully played
+            out, a 3+ instance history list, and the new mute link all showing at once). This is a
+            "much less likely to overflow" fix, not a mathematically guaranteed one -- RN has no
+            built-in way to force arbitrary content to shrink to fit an exact available height
+            without either scrolling or measuring-and-scaling at runtime, and this screen was
+            asked to avoid the former; if overflow still shows up on a real device (e.g. a very
+            long task name wrapping to two lines, or an unusually short screen), the next lever
+            would be shrinking the emblem's own `TROPHY_BADGE_STACK_SIZE` (currently untouched, and
+            the single largest fixed dimension on this screen) or genuinely measuring/scaling. */}
+        <View style={[styles.content, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }]}>
           <View style={styles.emblemSlot}>
             {showEmblem && (
               <TrophyBadge
@@ -456,7 +528,7 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
               this (task woven in inline), followed by a lighthearted reaction (FLAVOR_TEXT) --
               merged into a single inline-wrapping element per explicit user direction, rather
               than two separately-spaced lines. */}
-          <RevealSlot revealed={showDescription} minHeight={100} style={styles.descriptionBlock}>
+          <RevealSlot revealed={showDescription} minHeight={80} style={styles.descriptionBlock}>
             <DescriptionText achievement={achievement} taskColor={achievement.taskColor ?? kindColor} />
           </RevealSlot>
 
@@ -472,8 +544,11 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
               to actually scroll the list. This used to be followed by a "Tap anywhere to continue"
               hint anchored to the bottom of the screen -- removed along with the tap-anywhere
               dismiss behavior itself (see the top-of-file comment); the close button is now the
-              only dismiss affordance, and it doesn't need a hint pointing at it. */}
-          <RevealSlot revealed={showHint} minHeight={64 + historyListHeight} style={styles.metaBlock}>
+              only dismiss affordance, and it doesn't need a hint pointing at it. The mute toggle
+              used to live here too, as an in-flow text link -- moved out to its own fixed corner
+              button (see the close-button JSX above), so it no longer contributes to this slot's
+              own height. */}
+          <RevealSlot revealed={showHint} minHeight={48 + historyListHeight} style={styles.metaBlock}>
             <View style={styles.metaDivider} />
             {showHistoryList ? (
               <View style={styles.unlockedHistoryHeader}>
@@ -517,10 +592,20 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
 export const AchievementCelebration: React.FC = () => {
   const pending = useAchievementsStore(state => state.pendingCelebrations[0]);
   const dismissCurrentCelebration = useAchievementsStore(state => state.dismissCurrentCelebration);
+  const mutedKinds = useAchievementsStore(state => state.mutedKinds);
+  const forcedCelebrationIds = useAchievementsStore(state => state.forcedCelebrationIds);
   const celebrationsEnabled = useSettingsStore(state => state.achievementCelebrationsEnabled);
 
+  // A deliberate Trophy Case replay (queueCelebration -- see forcedCelebrationIds' own comment in
+  // achievementsStore.ts) always wins over the ambient mute setting: "the trophy case lets you
+  // open any congratulations" regardless of whether that kind is currently muted. A real live
+  // unlock (recordCompletionAchievements) never sets this, so it still falls through to the alert
+  // below exactly as muting intends.
+  const isForced = !!pending && forcedCelebrationIds.includes(pending.id);
+  const isMuted = !!pending && mutedKinds.includes(pending.kind) && !isForced;
+
   // Achievements are always recorded into history regardless of this setting (see
-  // achievementsStore.ts) -- it only ever gates whether this screen appears. When it's off,
+  // achievementsStore.ts) -- it only ever gates whether anything shows here at all. When it's off,
   // silently drain the queue instead of ever rendering, rather than backlogging popups for if it
   // gets re-enabled.
   useEffect(() => {
@@ -531,8 +616,17 @@ export const AchievementCelebration: React.FC = () => {
 
   if (!pending || !celebrationsEnabled) return null;
 
-  // Keying by id forces a fresh mount per achievement, replaying the whole reveal sequence for
-  // each one rather than reusing a stale instance whose timers have already fired.
+  // A muted kind (see mutedKinds' own comment in achievementsStore.ts) still gets recorded and
+  // queued exactly like any other unlock -- it just never gets the full-screen treatment here,
+  // rendering AchievementAlert's own top-anchored notice instead (its own icon/kind-colored badge
+  // is what keeps this reading as a distinct, recognizable moment rather than a generic notice).
+  // Keying by id forces a fresh mount per achievement (both branches below), replaying the whole
+  // reveal sequence / restarting the alert's own auto-dismiss timer for each one rather than
+  // reusing a stale instance whose timers have already fired.
+  if (isMuted) {
+    return <AchievementAlert key={pending.id} achievement={pending} onDismiss={dismissCurrentCelebration} />;
+  }
+
   return <CelebrationContent key={pending.id} achievement={pending} onDismiss={dismissCurrentCelebration} />;
 };
 
@@ -577,16 +671,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Stacked directly under closeButton -- horizontally centered under it (closeButton is 40 wide
+  // at right:16, this is 32 wide, so right:20 keeps the two visually aligned on the same center
+  // line) and smaller, per explicit user direction, reflecting supporting-action-not-primary-
+  // dismissal status. Top offset is set inline at the call site (insets.top + 60 -- 12 + 40 + 8,
+  // clearing closeButton's own height plus a small gap), same reasoning as closeButton's own
+  // inline `top`.
+  muteToggleButton: {
+    position: 'absolute',
+    right: 20,
+    zIndex: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Plain View, not a ScrollView -- this screen is top-anchored and sized to fit the visible
+  // viewport without scrolling (see the comment at this style's own call site for the full
+  // reasoning/history). `flex: 1` lets it fill whatever space its own parent (the full-screen
+  // Reanimated.View) gives it.
   content: {
     flex: 1,
     alignItems: 'center',
     paddingHorizontal: 32,
     // Still wider than the individual gaps within each block (e.g. momentBlock's own 22) -- the
     // major sections (emblem, hero number, moment, record) need clearer air between them than
-    // elements within the same idea do. Brought down from an earlier 28 per direct feedback that
-    // the overall top-to-bottom rhythm read as too spaced out once every slot's minHeight was
-    // also tightened to match its actual content (see each RevealSlot's own minHeight below).
-    gap: 18,
+    // elements within the same idea do. Tightened from an earlier 18 (itself brought down from an
+    // even earlier 28) specifically to help the whole screen fit without scrolling on a shorter
+    // device -- every RevealSlot's own minHeight below was tightened for the same reason.
+    gap: 12,
   },
   emblemSlot: {
     width: TROPHY_BADGE_STACK_SIZE,
@@ -600,19 +715,19 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     color: 'rgba(255, 255, 255, 0.65)',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1.5,
   },
   bigNumber: {
-    fontSize: 68,
+    fontSize: 58,
     fontWeight: '900',
     fontVariant: ['tabular-nums'],
   },
   unitCaption: {
     color: 'rgba(255, 255, 255, 0.65)',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1.5,
@@ -620,7 +735,7 @@ const styles = StyleSheet.create({
   },
   plainTitle: {
     color: '#fff',
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: '800',
     textAlign: 'center',
   },
@@ -704,6 +819,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#fff',
   },
+  // Deliberately quiet -- small, muted, underlined like a plain text link rather than a button,
+  // so it reads as a minor, easy-to-ignore option rather than competing with the close button or
+  // the celebration itself for attention.
   // Fixed pixel `width` (HISTORY_LIST_WIDTH, not a percentage) -- see UnlockHistoryList's own
   // comment for why. Applied directly to the ScrollView itself (its `style` prop targets the
   // outer scroll container, `contentContainerStyle` the inner scrollable content -- this is the

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { Achievement, dedupKey, detectCompletionAchievements, detectRetroactiveAchievements, ONE_TIME_KINDS } from '../utils/achievements';
+import { Achievement, AchievementKind, dedupKey, detectCompletionAchievements, detectRetroactiveAchievements, ONE_TIME_KINDS } from '../utils/achievements';
 import { Task } from '../types';
 
 interface AchievementsStore {
@@ -11,6 +11,21 @@ interface AchievementsStore {
   // `achievements` itself (rather than e.g. an `unseen` flag on each record) so the celebration
   // UI has nothing to do with history bookkeeping at all.
   pendingCelebrations: Achievement[];
+  // Not persisted -- ids (from `pendingCelebrations`) that should show the full celebration
+  // regardless of `mutedKinds`. Set only by `queueCelebration` (a deliberate Trophy Case replay --
+  // "the user just tapped this specific achievement to see it," which always wins over the ambient
+  // mute setting), never by `recordCompletionAchievements` (a real live unlock, which should still
+  // respect mute normally). This is what lets "the trophy case always lets you open any
+  // congratulations" hold true even for a kind that's currently muted.
+  forcedCelebrationIds: string[];
+  // Persisted. Kinds the user has explicitly opted out of the full-screen celebration for (via the
+  // bell toggle on that kind's own celebration) -- future unlocks of a muted kind still get
+  // recorded into `achievements` exactly as normal, they just surface via a top-anchored
+  // AchievementAlert notice (AchievementAlert.tsx, rendered by AchievementCelebration.tsx in place
+  // of the full takeover) instead. Scoped by *kind*, not per-task or per-instance, since the whole
+  // point is "I get this one often enough that the big ceremony has stopped feeling special" -- a
+  // property of the achievement, not of one earn of it.
+  mutedKinds: AchievementKind[];
   hasHydrated: boolean;
   setHasHydrated: (value: boolean) => void;
   // Called right after a real completion (see taskStore.completeTask) -- detects whatever this
@@ -28,9 +43,19 @@ interface AchievementsStore {
   // this should never trigger the full-screen celebration, only a plain summary toast the caller
   // builds from the returned count. Returns how many new achievements were recorded.
   runRetroactiveScan: (activeTasks: Task[]) => number;
+  // Opts a kind out of the full celebration going forward -- idempotent (muting an
+  // already-muted kind is a no-op, not a duplicate entry).
+  muteKind: (kind: AchievementKind) => void;
+  // Reverses muteKind for exactly this one kind -- backs the celebration screen's own toggle
+  // button (2026-08-12, replacing an earlier one-shot "mute and dismiss" link with a real
+  // on/off toggle that stays on screen either direction), idempotent the same way muteKind is.
+  unmuteKind: (kind: AchievementKind) => void;
+  // Settings' own "restore full celebrations" action -- clears every muted kind at once, for
+  // when the per-kind toggle above isn't a convenient way to restore several at once.
+  unmuteAllKinds: () => void;
 }
 
-type PersistedAchievementsState = { achievements: Achievement[] };
+type PersistedAchievementsState = { achievements: Achievement[]; mutedKinds: AchievementKind[] };
 
 // 'achievements' is a brand-new AsyncStorage key with no pre-Zustand legacy shape to migrate
 // (unlike tasks/appSettings/lastImport, which predate the Zustand migration and need custom
@@ -41,6 +66,8 @@ export const useAchievementsStore = create<AchievementsStore>()(
     (set, get) => ({
       achievements: [],
       pendingCelebrations: [],
+      forcedCelebrationIds: [],
+      mutedKinds: [],
       hasHydrated: false,
       setHasHydrated: (value) => set({ hasHydrated: value }),
 
@@ -66,17 +93,30 @@ export const useAchievementsStore = create<AchievementsStore>()(
 
         // Recorded into history unconditionally, regardless of the celebration setting -- that
         // setting only ever gates whether AchievementCelebration shows its screen, never whether the
-        // Trophy Case's history stays complete.
+        // Trophy Case's history stays complete. Muted kinds still get queued too -- muting only
+        // changes how AchievementCelebration *presents* a pending entry (full screen vs. a toast),
+        // not whether one gets queued in the first place.
         set(state => ({
           achievements: [...state.achievements, ...recorded],
           pendingCelebrations: [...state.pendingCelebrations, ...recorded],
         }));
       },
 
-      dismissCurrentCelebration: () => set(state => ({ pendingCelebrations: state.pendingCelebrations.slice(1) })),
+      dismissCurrentCelebration: () => set(state => {
+        const dismissedId = state.pendingCelebrations[0]?.id;
+        return {
+          pendingCelebrations: state.pendingCelebrations.slice(1),
+          forcedCelebrationIds: dismissedId
+            ? state.forcedCelebrationIds.filter(id => id !== dismissedId)
+            : state.forcedCelebrationIds,
+        };
+      }),
 
       queueCelebration: (achievement) => set(state => ({
         pendingCelebrations: [...state.pendingCelebrations, achievement],
+        forcedCelebrationIds: state.forcedCelebrationIds.includes(achievement.id)
+          ? state.forcedCelebrationIds
+          : [...state.forcedCelebrationIds, achievement.id],
       })),
 
       runRetroactiveScan: (activeTasks) => {
@@ -95,11 +135,21 @@ export const useAchievementsStore = create<AchievementsStore>()(
         set(state => ({ achievements: [...state.achievements, ...recorded] }));
         return recorded.length;
       },
+
+      muteKind: (kind) => set(state => (
+        state.mutedKinds.includes(kind) ? state : { mutedKinds: [...state.mutedKinds, kind] }
+      )),
+
+      unmuteKind: (kind) => set(state => (
+        state.mutedKinds.includes(kind) ? { mutedKinds: state.mutedKinds.filter(k => k !== kind) } : state
+      )),
+
+      unmuteAllKinds: () => set({ mutedKinds: [] }),
     }),
     {
       name: 'achievements',
       storage: createJSONStorage<PersistedAchievementsState>(() => AsyncStorage),
-      partialize: (state) => ({ achievements: state.achievements }),
+      partialize: (state) => ({ achievements: state.achievements, mutedKinds: state.mutedKinds }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },

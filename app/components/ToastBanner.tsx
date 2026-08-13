@@ -110,10 +110,23 @@ const styles = StyleSheet.create({
   // Bottom-right screens (Home) put a FAB right where a bottom-anchored toast's action sits --
   // an explicit high zIndex (elevation for Android) makes sure the toast wins hit-testing there
   // instead of taps bleeding through to whatever button happens to be underneath.
+  //
+  // Deliberately higher than AchievementCelebration's own host zIndex/elevation (1000, both
+  // platforms), not just equal (2026-08-12) -- `<ToastBanner />` mounts before
+  // `<AchievementCelebration />` in `_layout.tsx`, and at equal values two absolutely-positioned
+  // siblings resolve ties by paint order, so the later-mounted celebration screen always won
+  // regardless of which one the toast was actually triggered by. That's fine for the case this was
+  // originally tuned for (a plain task-completion toast happening to be superseded by a
+  // simultaneously-earned achievement's own full-screen takeover -- the celebration is the more
+  // relevant thing to see there), but it also meant a toast fired *from inside* the celebration
+  // itself (the mute toggle's own confirmation) rendered invisibly behind it, since the win was
+  // purely structural, not based on which one is actually newer/more relevant right now. A toast
+  // is inherently a transient acknowledgment layered on top of whatever's currently showing --
+  // giving it a genuinely higher value settles both cases the same way a toast should always win.
   host: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 1000,
-    elevation: 1000,
+    zIndex: 2000,
+    elevation: 2000,
   },
   banner: {
     position: 'absolute',
