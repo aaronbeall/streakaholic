@@ -294,7 +294,7 @@ export const SettingsScreen: React.FC = () => {
               <View style={styles.divider} />
               <TouchableOpacity style={styles.row} onPress={handleRestoreFullCelebrations} accessibilityRole="button" accessibilityHint="Turns full congratulations back on for every achievement you've snoozed">
                 <MaterialCommunityIcons name="bell-off-outline" size={22} color={colors.textSecondary} />
-                <Text style={styles.rowLabel}>Snoozed Achievements</Text>
+                <Text style={styles.rowLabel}>Unsnooze All Achievements</Text>
                 <Text style={styles.rowValue}>{mutedAchievementCount}</Text>
               </TouchableOpacity>
             </>
