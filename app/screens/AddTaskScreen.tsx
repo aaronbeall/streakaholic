@@ -458,7 +458,12 @@ export const AddTaskScreen: React.FC = () => {
 
       <CollapsibleSection
         title="Icon"
-        summary={<MaterialCommunityIcons name={selectedIcon} size={22} color={selectedColor} />}
+        summary={(
+          <View style={styles.summaryIconRow}>
+            <MaterialCommunityIcons name={selectedIcon} size={22} color={selectedColor} />
+            <Text style={styles.summaryText}>Icon</Text>
+          </View>
+        )}
         expanded={expandedSections.icon}
         onToggle={() => toggleSection('icon')}
       >
@@ -473,7 +478,12 @@ export const AddTaskScreen: React.FC = () => {
 
       <CollapsibleSection
         title="Color"
-        summary={<View style={[styles.summaryColorSwatch, { backgroundColor: selectedColor }]} />}
+        summary={(
+          <View style={styles.summaryIconRow}>
+            <View style={[styles.summaryColorSwatch, { backgroundColor: selectedColor }]} />
+            <Text style={styles.summaryText}>Color</Text>
+          </View>
+        )}
         expanded={expandedSections.color}
         onToggle={() => toggleSection('color')}
       >
@@ -801,6 +811,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: colors.textSecondary,
+  },
+  summaryIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   summaryColorSwatch: {
     width: 22,

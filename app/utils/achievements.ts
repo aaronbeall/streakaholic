@@ -854,6 +854,13 @@ export const getRibbonText = (achievement: Achievement): string => {
 
 export const dedupKey = (kind: AchievementKind, scope: string): string => `${kind}:${scope}`;
 
+// Whether a kind is attributable to a single task, vs. a global condition that spans every task
+// (or none in particular) -- e.g. Century Club's cross-task completion sum, or Perfect Day's
+// "every due task today" condition, can't meaningfully be scoped down to just one task. Shared by
+// every UI-layer "filter/preview by task" surface (TrophiesScreen's own task filter,
+// AchievementsPreviewCard) so they can't drift on what counts as task-scoped.
+export const isTaskScopedKind = (kind: AchievementKind): boolean => ACHIEVEMENT_META[kind].scope === 'task';
+
 const taskMeta = (task: Task) => ({
   taskId: task.id,
   taskName: task.name,

@@ -34,6 +34,7 @@
 - [ ] Pause tasks (hidden, doesn't count towards completion percentage while paused)
 - [x] Remember dashboard selection (`dashboardLastTab`/`taskDetailLastTab` in `SettingsContext` — last-viewed Stats/Calendar/Streaks tab persists across visits; the task-filter checkboxes themselves still reset to "all tasks" each time, that's a separate thing)
 - [ ] Re-order tasks on home screen
+- [ ] Auto-suggest an icon based on the habit name typed into Add/Edit Task (e.g. typing "Run" suggests the running-shoe/run icon) -- a convenience default, should still leave the icon freely overridable via the existing picker
 - [x] Add/Edit Task: switching Frequency to "Specific Days" should default to all 7 days selected instead of carrying over whatever `daysOfWeek` the previous frequency left behind (empty for a task that was never Specific Days)
 - [x] Use consistent terminology across user-facing copy -- standardized on "Habit" everywhere a user reads it (per explicit user direction: "Calling it 'habit' is purely a user facing term" -- the data model/code stays `Task` throughout, unchanged)
 - [ ] Consistent empty state design/copy across Stats/Calendar/Streaks views (Dashboard and per-task task-detail)
@@ -44,8 +45,8 @@
   - [x] Perfect day congratulations
   - [x] First streak congratulations
   - [x] Milestone completions (10, 50, 100, 1000)
-  - [ ] Trophy Case: filter by task
-  - [ ] Integrate achievements on Stats screens (per-task `TaskStatsScreen` and aggregate `DashboardStatsView`)
+  - [x] Trophy Case: filter by task (a radio-style "All" + per-task icon chip row, shown once there's more than one active task; selecting one scopes the grid to that task's own earned/in-progress kinds, dropping global-scoped kinds like Century Club/Perfect Day entirely since they aren't attributable to a single task -- see CLAUDE.md)
+  - [x] Integrate achievements on Stats screens (a shared `AchievementsPreviewCard` -- unlocked badges + closest-next progress + a "View Trophy Case" link -- on both `TaskStatsScreen` (this task's own earned/in-progress achievements, deep-linking into the Trophy Case pre-filtered to it) and `DashboardStatsView` (the full app-wide trophy status, unfiltered by Dashboard's own task-selection bubbles); see CLAUDE.md)
   - [ ] Achievement spam via undo/redo -- a repeatable kind's threshold-crossing check (e.g. `streak-10`, `new-best-streak`, `perfect-day`) can re-fire every time the same single completion is undone then redone, since each redo is a fresh prev/next transition crossing the same threshold again with nothing genuinely new earned; one-time kinds are already safe via dedup, this is scoped to the repeatable ones
 - [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
 - [x] Performance optimizations

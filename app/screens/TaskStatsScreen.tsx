@@ -1,11 +1,15 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
+import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Dimensions, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AchievementsPreviewCard } from '../components/AchievementsPreviewCard';
 import { LazyMount } from '../components/LazyMount';
 import { CompletionsOverTimeChartCard, HistogramChartCard } from '../components/StatsCharts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { useAchievementsStore } from '../stores/achievementsStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import { Task } from '../types';
 import { TimeFrame, dayOfWeekLabels, getChartData, getCompletionPatterns, getDateRange, hourOfDayLabels } from '../utils/data';
 
@@ -40,6 +44,7 @@ const TimeRangeButton: React.FC<TimeRangeButtonProps> = ({ range, label, isSelec
 // of a standalone routed screen so switching tabs is a local state change (see TaskDetailScreen)
 // rather than a full navigation that re-transitions the header too.
 export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
+  const router = useRouter();
   const [timeRange, setTimeRange] = useState<TimeFrame>('month');
   const [isCumulative, setIsCumulative] = useState(true);
   // Measured from the actual rendered container rather than guessed from Dimensions.get('window')
@@ -74,6 +79,26 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
   // an inline arrow here would be a fresh closure every render, exactly the prop-identity churn
   // this whole memoization pass exists to avoid.
   const handleToggleCumulative = useCallback(() => setIsCumulative(prev => !prev), []);
+
+  // Powers the Achievements preview card below -- this task's own earned records only (see
+  // AchievementsPreviewCard's own `taskScoped` doc comment for why global-scoped kinds like
+  // Century Club get dropped once scoped this way), and a stable single-element task list so the
+  // card's own internal useMemo doesn't recompute on every unrelated render. Hidden entirely (not
+  // just its own celebration popup) once the user has turned celebrations off in Settings -- the
+  // Trophy Case itself, and its own header nav button, stay reachable either way; this only
+  // suppresses the *unprompted* showcase surfacing achievements they've said they don't want
+  // pushed at them.
+  const achievementCelebrationsEnabled = useSettingsStore(state => state.achievementCelebrationsEnabled);
+  const allAchievements = useAchievementsStore(state => state.achievements);
+  const taskAchievements = useMemo(
+    () => allAchievements.filter(a => a.taskId === task.id),
+    [allAchievements, task.id]
+  );
+  const achievementsPreviewTasks = useMemo(() => [task], [task]);
+  const handleViewAchievements = useCallback(
+    () => router.push({ pathname: '/trophies', params: { taskId: task.id } }),
+    [router, task.id]
+  );
 
   // Scoped to just this task (not the app's full task list) -- "All Time" should mean this
   // task's own history, not incidentally shift based on some unrelated task's older completions.
@@ -189,6 +214,16 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
             <Text style={styles.tertiaryLabel}>Best Day</Text>
           </View>
         </View>
+
+        {achievementCelebrationsEnabled && (
+          <AchievementsPreviewCard
+            achievements={taskAchievements}
+            activeTasks={achievementsPreviewTasks}
+            taskScoped
+            accentColor={task.color}
+            onViewAll={handleViewAchievements}
+          />
+        )}
 
         <View style={styles.chartSection} onLayout={handleChartSectionLayout}>
           <View style={styles.chartHeader}>

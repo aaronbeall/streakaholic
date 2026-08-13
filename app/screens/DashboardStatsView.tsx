@@ -3,10 +3,14 @@ import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Dimensions, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AchievementsPreviewCard } from '../components/AchievementsPreviewCard';
 import { LazyMount } from '../components/LazyMount';
 import { CompletionsOverTimeChartCard, HistogramChartCard } from '../components/StatsCharts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { useAchievementsStore } from '../stores/achievementsStore';
+import { useSettingsStore } from '../stores/settingsStore';
+import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
 import { TimeFrame, calculateAggregateStats, dayOfWeekLabels, getChartData, getCompletionPatterns, getDateRange, hourOfDayLabels } from '../utils/data';
 
@@ -70,6 +74,20 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
     setViewportHeight(e.nativeEvent.layout.height);
   }, []);
   const handleToggleCumulative = useCallback(() => setIsCumulative(prev => !prev), []);
+
+  // Powers the Achievements preview card below -- deliberately reads the *full* active task list
+  // (not the `tasks` prop, which is already narrowed by Dashboard's own header task-filter
+  // bubbles) plus every recorded achievement, unfiltered: your overall trophy status is a
+  // persistent, cross-session fact, not something that should shrink just because a couple of task
+  // filter chips happen to be unchecked right now for charting purposes. Hidden entirely once
+  // celebrations are off in Settings -- see TaskStatsView for the same reasoning (the Trophy Case
+  // and its own header nav button both stay reachable regardless, this only suppresses the
+  // unprompted showcase).
+  const achievementCelebrationsEnabled = useSettingsStore(state => state.achievementCelebrationsEnabled);
+  const allTasks = useTaskStore(state => state.tasks);
+  const allActiveTasks = useMemo(() => allTasks.filter(t => !t.archived), [allTasks]);
+  const allAchievements = useAchievementsStore(state => state.achievements);
+  const handleViewAchievements = useCallback(() => router.push('/trophies'), [router]);
 
   // Headline stats are always all-time across the filtered tasks -- the Activity time-range
   // picker below only scopes the charts, not these numbers. Streak-type stats in particular
@@ -224,6 +242,16 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
           <Text style={styles.tertiaryLabel}>Best Day</Text>
         </View>
       </View>
+
+      {achievementCelebrationsEnabled && (
+        <AchievementsPreviewCard
+          achievements={allAchievements}
+          activeTasks={allActiveTasks}
+          taskScoped={false}
+          accentColor={ACCENT}
+          onViewAll={handleViewAchievements}
+        />
+      )}
 
       <View style={styles.chartSection} onLayout={handleChartSectionLayout}>
         <View style={styles.chartHeader}>
