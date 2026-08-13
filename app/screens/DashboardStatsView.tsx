@@ -1,19 +1,17 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
-import { Dimensions, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { BarChart, LineChart } from 'react-native-chart-kit';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Dimensions, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { LazyMount } from '../components/LazyMount';
+import { CompletionsOverTimeChartCard, HistogramChartCard } from '../components/StatsCharts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
-import { TimeFrame, calculateAggregateStats, dayOfWeekLabels, getBarPercentage, getChartData, getCompletionPatterns, getDateRange, hourOfDayLabels } from '../utils/data';
+import { TimeFrame, calculateAggregateStats, dayOfWeekLabels, getChartData, getCompletionPatterns, getDateRange, hourOfDayLabels } from '../utils/data';
 
 const CARD_HORIZONTAL_PADDING = 16;
 const ACCENT = '#007AFF';
-const CHART_TYPE_SEGMENT_SIZE = 30;
-const CHART_TYPE_SEGMENT_GAP = 3;
-const CHART_TYPE_SEGMENT_STEP = CHART_TYPE_SEGMENT_SIZE + CHART_TYPE_SEGMENT_GAP;
 
 interface TimeRangeButtonProps {
   range: TimeFrame;
@@ -58,6 +56,20 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
     setChartAreaWidth(event.nativeEvent.layout.width);
   };
   const chartWidth = Math.max(0, chartAreaWidth - CARD_HORIZONTAL_PADDING * 2);
+
+  // Powers LazyMount below -- see TaskStatsView for the full rationale (`contentRef` wraps the
+  // ScrollView's entire content starting at content-offset 0, so a chart's own measureLayout
+  // position relative to it is directly comparable to `scrollY`).
+  const contentRef = useRef<View>(null);
+  const [scrollY, setScrollY] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    setScrollY(e.nativeEvent.contentOffset.y);
+  }, []);
+  const handleScrollViewLayout = useCallback((e: LayoutChangeEvent) => {
+    setViewportHeight(e.nativeEvent.layout.height);
+  }, []);
+  const handleToggleCumulative = useCallback(() => setIsCumulative(prev => !prev), []);
 
   // Headline stats are always all-time across the filtered tasks -- the Activity time-range
   // picker below only scopes the charts, not these numbers. Streak-type stats in particular
@@ -149,24 +161,15 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
     datasets: [{ data: hourOfDayData }],
   }), [hourOfDayData]);
 
-  const baseChartConfig = {
-    backgroundColor: colors.surface,
-    backgroundGradientFrom: colors.surface,
-    backgroundGradientTo: colors.surface,
-    decimalPlaces: 0,
-    labelColor: () => colors.textSecondary,
-    style: {
-      borderRadius: 16,
-    },
-    propsForLabels: {
-      fontSize: 11,
-      fontFamily: 'System',
-      fontWeight: '400' as const,
-    },
-  };
-
   return (
-    <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom }}>
+    <ScrollView
+      style={styles.content}
+      contentContainerStyle={{ paddingBottom: insets.bottom }}
+      onScroll={handleScroll}
+      onLayout={handleScrollViewLayout}
+      scrollEventThrottle={100}
+    >
+      <View ref={contentRef}>
       <View style={styles.heroBlock}>
         <View style={styles.heroEyebrowRow}>
           <MaterialCommunityIcons name="check-decagram" size={16} color={ACCENT} />
@@ -260,141 +263,34 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
           </View>
         </View>
 
-        <View style={styles.chartCard}>
-          <View style={styles.chartHeaderRow}>
-            <Text style={[styles.chartTitle, styles.chartHeaderTitle]}>Completions Over Time</Text>
-            <TouchableOpacity
-              style={styles.chartTypeToggle}
-              onPress={() => setIsCumulative(!isCumulative)}
-              accessibilityRole="switch"
-              accessibilityLabel="Chart type"
-              accessibilityHint="Toggles between cumulative total and per-period bars"
-              accessibilityState={{ checked: isCumulative }}
-            >
-              <View
-                style={[
-                  styles.chartTypeIndicator,
-                  { backgroundColor: ACCENT, transform: [{ translateX: isCumulative ? 0 : CHART_TYPE_SEGMENT_STEP }] },
-                ]}
-              />
-              <View style={styles.chartTypeSegment}>
-                <MaterialCommunityIcons
-                  name="chart-line-variant"
-                  size={16}
-                  color={isCumulative ? '#fff' : colors.textSecondary}
-                />
-              </View>
-              <View style={styles.chartTypeSegment}>
-                <MaterialCommunityIcons
-                  name="chart-bar"
-                  size={16}
-                  color={!isCumulative ? '#fff' : colors.textSecondary}
-                />
-              </View>
-            </TouchableOpacity>
-          </View>
-          {isCumulative ? (
-            <LineChart
-              data={chartData}
-              width={chartWidth}
-              height={180}
-              chartConfig={{
-                ...baseChartConfig,
-                color: (opacity = 1) => ACCENT,
-                propsForDots: { r: '4' },
-                propsForBackgroundLines: {
-                  strokeDasharray: '',
-                  stroke: colors.border,
-                  strokeWidth: 1,
-                },
-                fillShadowGradient: ACCENT,
-                fillShadowGradientOpacity: 0.2,
-              }}
-              bezier
-              withInnerLines={false}
-              withOuterLines={false}
-              withVerticalLines={false}
-              withHorizontalLines={true}
-              withDots={true}
-              withShadow={true}
-              style={styles.chart}
-            />
-          ) : (
-            <BarChart
-              data={chartData}
-              width={chartWidth}
-              height={180}
-              yAxisLabel=""
-              yAxisSuffix=""
-              chartConfig={{
-                ...baseChartConfig,
-                color: (opacity = 1) => ACCENT,
-                barPercentage: getBarPercentage(chartWidth, labels.length),
-                fillShadowGradientOpacity: 1,
-                propsForBackgroundLines: {
-                  strokeDasharray: '',
-                  stroke: colors.border,
-                  strokeWidth: 1,
-                },
-              }}
-              style={styles.chart}
-              fromZero
-            />
-          )}
-        </View>
-
-        <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>By Day of Week</Text>
-          <BarChart
-            data={dayOfWeekChartData}
-            width={chartWidth}
-            height={180}
-            yAxisLabel=""
-            yAxisSuffix=""
-            chartConfig={{
-              ...baseChartConfig,
-              color: (opacity = 1) => ACCENT,
-              barPercentage: getBarPercentage(chartWidth, dayOfWeekLabels.length),
-              // BarChart's own bar fill defaults to 10% opacity (fillShadowGradientOpacity),
-              // reading as faded -- only its separate 2px "bar top" cap renders fully opaque,
-              // which is what actually looked like a solid border. Full opacity here makes the
-              // whole bar solid instead (LineChart's own area-shadow default is untouched, since
-              // this override lives on the BarChart's own config, not `baseChartConfig`).
-              fillShadowGradientOpacity: 1,
-              propsForBackgroundLines: {
-                strokeDasharray: '',
-                stroke: 'rgba(0,0,0,0)',
-                strokeWidth: 1,
-              },
-            }}
-            style={styles.chart}
-            fromZero
+        <LazyMount contentRef={contentRef} scrollY={scrollY} viewportHeight={viewportHeight}>
+          <CompletionsOverTimeChartCard
+            chartData={chartData}
+            chartWidth={chartWidth}
+            color={ACCENT}
+            isCumulative={isCumulative}
+            onToggleCumulative={handleToggleCumulative}
           />
-        </View>
+        </LazyMount>
 
-        <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>By Time of Day</Text>
-          <BarChart
-            data={hourOfDayChartData}
-            width={chartWidth}
-            height={180}
-            yAxisLabel=""
-            yAxisSuffix=""
-            chartConfig={{
-              ...baseChartConfig,
-              color: (opacity = 1) => ACCENT,
-              barPercentage: getBarPercentage(chartWidth, hourOfDayLabels.length),
-              fillShadowGradientOpacity: 1,
-              propsForBackgroundLines: {
-                strokeDasharray: '',
-                stroke: 'rgba(0,0,0,0)',
-                strokeWidth: 1,
-              },
-            }}
-            style={styles.chart}
-            fromZero
+        <LazyMount contentRef={contentRef} scrollY={scrollY} viewportHeight={viewportHeight}>
+          <HistogramChartCard
+            title="By Day of Week"
+            chartData={dayOfWeekChartData}
+            chartWidth={chartWidth}
+            color={ACCENT}
           />
-        </View>
+        </LazyMount>
+
+        <LazyMount contentRef={contentRef} scrollY={scrollY} viewportHeight={viewportHeight}>
+          <HistogramChartCard
+            title="By Time of Day"
+            chartData={hourOfDayChartData}
+            chartWidth={chartWidth}
+            color={ACCENT}
+          />
+        </LazyMount>
+      </View>
       </View>
     </ScrollView>
   );
@@ -551,41 +447,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
     marginBottom: 4,
-  },
-  chart: {
-    marginVertical: 8,
-    borderRadius: 16,
-  },
-  chartHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  chartHeaderTitle: {
-    marginBottom: 0,
-  },
-  chartTypeToggle: {
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: 18,
-    padding: 3,
-    gap: 3,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  chartTypeIndicator: {
-    position: 'absolute',
-    left: 3,
-    top: 3,
-    width: CHART_TYPE_SEGMENT_SIZE,
-    height: CHART_TYPE_SEGMENT_SIZE,
-    borderRadius: CHART_TYPE_SEGMENT_SIZE / 2,
-  },
-  chartTypeSegment: {
-    width: CHART_TYPE_SEGMENT_SIZE,
-    height: CHART_TYPE_SEGMENT_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   // One row per task, horizontal bars -- grows vertically to fit however many tasks there are
   // instead of needing horizontal scrolling for a wide vertical-bar chart.

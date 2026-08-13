@@ -46,6 +46,7 @@
   - [x] Milestone completions (10, 50, 100, 1000)
   - [ ] Trophy Case: filter by task
   - [ ] Integrate achievements on Stats screens (per-task `TaskStatsScreen` and aggregate `DashboardStatsView`)
+  - [ ] Achievement spam via undo/redo -- a repeatable kind's threshold-crossing check (e.g. `streak-10`, `new-best-streak`, `perfect-day`) can re-fire every time the same single completion is undone then redone, since each redo is a fresh prev/next transition crossing the same threshold again with nothing genuinely new earned; one-time kinds are already safe via dedup, this is scoped to the repeatable ones
 - [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
 - [x] Performance optimizations
   - [x] Performance pass (audited Context re-render fan-out, memoization/referential-stability gaps, and common RN FlatList traps — see CLAUDE.md's "State management" section)
