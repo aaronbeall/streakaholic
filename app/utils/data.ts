@@ -230,14 +230,27 @@ export const calculateAggregateStats = (tasks: Task[]): TaskStats => {
     lastStreak: 0,
   };
 
+  // completionRate is accumulated as a sum + count and averaged once at the end -- a true mean
+  // across tasks, not a running average. The previous version reassigned
+  // `stats.completionRate = (stats.completionRate + task.stats.completionRate) / 2` on every
+  // iteration, which blends the running result 50/50 with just the *next* task's rate each time --
+  // that's not equivalent to `sum / count` for more than two tasks, systematically overweights
+  // later tasks over earlier ones, and (worse) makes the result depend on array order, which a
+  // "rate" stat never should. Fixed 2026-08-13 per direct user report.
+  let completionRateSum = 0;
+  let statsCount = 0;
+
   tasks.forEach(task => {
     if (task.stats) {
       stats.totalCompletions += task.completions?.length || 0;
-      stats.completionRate = (stats.completionRate + task.stats.completionRate) / 2;
+      completionRateSum += task.stats.completionRate;
+      statsCount++;
       stats.currentStreak = Math.max(stats.currentStreak, task.stats.currentStreak);
       stats.bestStreak = Math.max(stats.bestStreak, task.stats.bestStreak);
     }
   });
+
+  stats.completionRate = statsCount > 0 ? completionRateSum / statsCount : 0;
 
   return stats;
 };

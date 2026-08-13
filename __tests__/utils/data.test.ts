@@ -152,15 +152,29 @@ describe('calculateAggregateStats', () => {
     expect(stats.bestStreak).toBe(5);
   });
 
-  // Documents a known, intentional-for-now bug (see CLAUDE.md "Known gaps"): this is a running
-  // average across tasks in array order, not a true mean, so later tasks are overweighted.
-  it('computes completionRate as a running average, not a true mean', () => {
+  // Fixed 2026-08-13 -- completionRate used to be a running average across tasks in array order
+  // (blending the cumulative result 50/50 with just the next task's rate each time), not a true
+  // mean, so later tasks were overweighted and the result depended on array order. This test used
+  // to document that bug directly (asserting 0.25 for two tasks at 1 and 0, instead of the true
+  // mean of 0.5); now it asserts the correct value, plus a genuinely order-independent check with
+  // three tasks -- the same three rates in a different order used to produce a different result
+  // under the old running-average bug.
+  it('computes completionRate as a true mean across tasks, independent of array order', () => {
     const tasks = [
       makeTask({ stats: makeStats({ completionRate: 1 }) }),
       makeTask({ stats: makeStats({ completionRate: 0 }) }),
     ];
     const stats = calculateAggregateStats(tasks);
-    expect(stats.completionRate).toBe(0.25); // true mean would be 0.5
+    expect(stats.completionRate).toBe(0.5);
+
+    const threeTasks = [
+      makeTask({ stats: makeStats({ completionRate: 1 }) }),
+      makeTask({ stats: makeStats({ completionRate: 1 }) }),
+      makeTask({ stats: makeStats({ completionRate: 0 }) }),
+    ];
+    const reordered = [threeTasks[2], threeTasks[0], threeTasks[1]];
+    expect(calculateAggregateStats(threeTasks).completionRate).toBeCloseTo(2 / 3);
+    expect(calculateAggregateStats(reordered).completionRate).toBeCloseTo(2 / 3);
   });
 });
 

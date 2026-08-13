@@ -35,11 +35,11 @@
 - [ ] Re-order tasks on home screen
 - [x] Double-wide task card is not okay (`TaskCard`'s `container` had `flex: 1`, whose implied `flexBasis: 0%` overrode the explicit `width` in `HomeScreen`'s row, stretching a lone last-row card to fill the row; fixed by dropping `flex: 1` and centering a partial last row via `justifyContent: 'center'`)
 - [x] Archive/Delete task should take you back to homepage (`AddTaskScreen`'s Archive/Delete confirm now calls `router.dismissTo('/')` instead of `router.back()` — fixes a real crash: reached via task-detail's pencil icon, `back()` only popped to task-detail, which still held the just-deleted `taskId` and threw "Missing task" on render)
-- [x] Congratulations stringers (`app/utils/achievements.ts`'s `detectCompletionAchievements` — 12 kinds: first-streak, new-best-streak, streak-length tiers 10/25/50/100/1000, completion-count milestones 10/100/1000, perfect-day, comeback. Event-triggered off `taskStore.completeTask`, recorded to a persisted `achievementsStore`, celebrated via a top-anchored `AchievementStinger` popup, browsable in a new Trophy Case screen (`/trophies`), toggleable in Settings — see CLAUDE.md)
+- [x] Congratulation achievements (`app/utils/achievements.ts`'s `detectCompletionAchievements` — 23 kinds: first-completion, new-best-streak, anniversary, streak-length tiers 2/5/10/25/50/100/1000, completion-count milestones 10/50/100/1000, three cross-task Century Club tiers (100/500/1000), perfect-day, perfect-week, comeback, habit-collector, early-bird, night-owl. Event-triggered off `taskStore.completeTask`, recorded to a persisted `achievementsStore`, celebrated via a full-screen `AchievementCelebration` (or, for a kind you've snoozed via its own bell toggle, a lighter top-anchored `AchievementAlert` notice instead), browsable in a Trophy Case screen (`/trophies`) with per-kind unlocked/in-progress/locked status, toggleable in Settings — see CLAUDE.md)
   - [x] New best streak congratulations
   - [x] Perfect day congratulations
   - [x] First streak congratulations
-  - [x] Milestone completions (10, 100, 1000)
+  - [x] Milestone completions (10, 50, 100, 1000)
 - [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
 - [x] Performance optimizations
   - [x] Performance pass (audited Context re-render fan-out, memoization/referential-stability gaps, and common RN FlatList traps — see CLAUDE.md's "State management" section)
@@ -49,7 +49,7 @@
 - [x] Layout/navigation improvement with proper screen transitions (`RootStack`'s `slide_from_right` animation)
 - [x] Already completed task on home screen should not have press-and-hold triggering completion animation (`TaskCard`'s `handleLongPress` now checks `isTaskCompleted` before deciding whether to run the completion pop at all — an already-completed task skips it entirely and opens `task-detail` directly via a new `onLongPressCompletedTask` prop, on whichever tab was last viewed)
 - [x] Split up task card icon ring based on per-day count (`TaskCard`'s outer ring, while incomplete: one continuous circle for 1x/day tasks, `timesPerDayCount` equal arc segments with a small gap between each for >1x/day tasks — see `ringSegments`/`RING_SEGMENT_GAP_DEGREES`; unchanged once completed, which still fills solid)
-- [ ] Swipe next/prev on task detail header (task) and calendar (month/year)
+- [ ] Swipe next/prev on task detail header (task) and calendar (month/year) — task cycling itself landed (`TaskHeader`'s prev/next chevron buttons, wraps around the active task list via `router.setParams`), but as tap targets, not a swipe gesture; calendar month/year navigation is still tap-only too
 - [x] Min streak history width to fit icon + 2 digits
 - [x] Streamgraph
 - [ ] Duration based tasks
@@ -74,7 +74,8 @@
 
 - [x] Timeline view (`DashboardCalendarView`'s "Timeline" section — infinite horizontal scroll, Grid | Bars toggle)
 - [x] Heatmap view (`DashboardCalendarView`'s Timeline section — partial-day fills across every task calendar now scale opacity by completion fraction, plus a Grid | Bars toggle with a per-day segmented completion bar chart)
-- [ ] Points/ranks/achievements/upgrades
+- [x] Achievements (see the MVP+ entry above — 23-kind system, Trophy Case, celebration screen; deliberately no points/ranks/upgrades layered on top yet, kept purely cosmetic per explicit design decision — a future point system could hang off the same recorded data, see below)
+- [ ] Points/ranks/upgrades
 - [ ] Daily summary
 - [ ] Personal leaderboard
 - [ ] Social features
