@@ -177,7 +177,7 @@ export const AddTaskScreen: React.FC = () => {
     }
     Alert.alert(
       'Discard changes?',
-      "You'll lose the changes you made to this task.",
+      "You'll lose the changes you made to this habit.",
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -227,7 +227,7 @@ export const AddTaskScreen: React.FC = () => {
     }
 
     if (!isNameValid) {
-      showToast({ message: 'Please enter a unique task name' });
+      showToast({ message: 'Please enter a unique habit name' });
       return;
     }
 
@@ -267,7 +267,7 @@ export const AddTaskScreen: React.FC = () => {
       bypassLeaveGuardRef.current = true;
       router.back();
     } catch {
-      showToast({ message: `Failed to ${isEditing ? 'update' : 'create'} task` });
+      showToast({ message: `Failed to ${isEditing ? 'update' : 'create'} habit` });
     }
   };
 
@@ -324,7 +324,7 @@ export const AddTaskScreen: React.FC = () => {
     if (!editingTask) return;
     const deletedTask = editingTask;
     Alert.alert(
-      'Delete Task',
+      'Delete Habit',
       `Delete "${deletedTask.name}"? This removes all of its history too.`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -363,8 +363,8 @@ export const AddTaskScreen: React.FC = () => {
 
     const archivedTask = editingTask;
     Alert.alert(
-      'Archive Task',
-      `Archive "${archivedTask.name}"? You can restore it later from Archived Tasks.`,
+      'Archive Habit',
+      `Archive "${archivedTask.name}"? You can restore it later from Archived Habits.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -417,15 +417,15 @@ export const AddTaskScreen: React.FC = () => {
   const renderNagDescription = () => {
     switch (notificationLevel) {
       case 0:
-        return <Text style={styles.nagDescription}>No reminders for this task.</Text>;
+        return <Text style={styles.nagDescription}>No reminders for this habit.</Text>;
       case 1:
         return <Text style={styles.nagDescription}>One reminder at {timeSpan}.</Text>;
       case 2:
         return <Text style={styles.nagDescription}>A reminder at {timeSpan}, plus every {intervalSpan} until you complete it.</Text>;
       case 3:
-        return <Text style={styles.nagDescription}>A reminder at {timeSpan} that stays until the task is done.</Text>;
+        return <Text style={styles.nagDescription}>A reminder at {timeSpan} that stays until the habit is done.</Text>;
       case 4:
-        return <Text style={styles.nagDescription}>A buzzing alarm at {timeSpan} and a reminder that stays until the task is done.</Text>;
+        return <Text style={styles.nagDescription}>A buzzing alarm at {timeSpan} and a reminder that stays until the habit is done.</Text>;
       default:
         return null;
     }
@@ -433,10 +433,10 @@ export const AddTaskScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 16 + insets.bottom }}>
-      <Stack.Screen options={{ title: isEditing ? 'Edit Task' : 'Add New Task' }} />
+      <Stack.Screen options={{ title: isEditing ? 'Edit Habit' : 'Add New Habit' }} />
 
       <CollapsibleSection
-        title="Task Name"
+        title="Habit Name"
         summary={<Text style={styles.summaryText} numberOfLines={1}>{name.trim() || 'Untitled'}</Text>}
         expanded={expandedSections.name}
         onToggle={() => toggleSection('name')}
@@ -446,12 +446,12 @@ export const AddTaskScreen: React.FC = () => {
             style={[styles.input, !isNameValid && !!name.trim() && styles.inputError]}
             value={name}
             onChangeText={setName}
-            placeholder="Enter task name"
+            placeholder="Enter habit name"
             placeholderTextColor={colors.textTertiary}
             autoFocus
           />
           {!isNameValid && !!name.trim() && (
-            <Text style={styles.errorText}>This task name already exists</Text>
+            <Text style={styles.errorText}>This habit name already exists</Text>
           )}
         </View>
       </CollapsibleSection>
@@ -745,7 +745,7 @@ export const AddTaskScreen: React.FC = () => {
         accessibilityRole="button"
       >
         <Text style={[styles.saveButtonText, (!isNameValid || atTaskLimit) && styles.saveButtonTextDisabled]}>
-          {isEditing ? 'Save Changes' : 'Add Task'}
+          {isEditing ? 'Save Changes' : 'Add Habit'}
         </Text>
       </TouchableOpacity>
 
@@ -764,7 +764,7 @@ export const AddTaskScreen: React.FC = () => {
               color={ARCHIVE_COLOR}
             />
             <Text style={[styles.manageButtonText, { color: ARCHIVE_COLOR }]}>
-              {editingTask.archived ? 'Restore Task' : 'Archive Task'}
+              {editingTask.archived ? 'Restore Habit' : 'Archive Habit'}
             </Text>
           </TouchableOpacity>
 
@@ -778,7 +778,7 @@ export const AddTaskScreen: React.FC = () => {
             accessibilityRole="button"
           >
             <MaterialCommunityIcons name="delete-outline" size={15} color={DELETE_COLOR} />
-            <Text style={styles.deleteLinkText}>Delete Task</Text>
+            <Text style={styles.deleteLinkText}>Delete Habit</Text>
           </TouchableOpacity>
         </View>
       )}

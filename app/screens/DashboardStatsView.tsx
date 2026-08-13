@@ -182,7 +182,7 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
         <View
           style={styles.secondaryItem}
           accessible
-          accessibilityLabel={`${activeStreakCount} of ${tasks.length} tasks currently on an active streak`}
+          accessibilityLabel={`${activeStreakCount} of ${tasks.length} habits currently on an active streak`}
         >
           <Text style={styles.secondaryValue}>
             {activeStreakCount}
@@ -243,7 +243,7 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
                 onPress={() => router.push({ pathname: '/task-detail', params: { taskId: task.id, tab: 'stats' } })}
                 accessibilityRole="button"
                 accessibilityLabel={`${task.name}, ${total} completions`}
-                accessibilityHint="Opens this task's stats"
+                accessibilityHint="Opens this habit's stats"
               >
                 <MaterialCommunityIcons name={task.icon} size={16} color={task.color} style={styles.hBarIcon} />
                 <View style={styles.hBarTrack}>

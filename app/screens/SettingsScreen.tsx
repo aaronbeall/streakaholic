@@ -178,7 +178,7 @@ export const SettingsScreen: React.FC = () => {
       await importTasks(importedTasks, { mode, exportMeta });
 
       showToast({
-        message: `Imported ${importedTasks.length} task(s) — ${mode === 'merge' ? 'merged with' : 'replaced'} your data`
+        message: `Imported ${importedTasks.length} habit(s) — ${mode === 'merge' ? 'merged with' : 'replaced'} your data`
           + (alreadyImported ? ' (already imported before)' : '') + '.',
         action: { label: 'Undo', onPress: () => importTasks(previousTasks, { mode: 'replace' }) },
       });
@@ -223,7 +223,7 @@ export const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Task Cards</Text>
+        <Text style={styles.sectionTitle}>Habit Cards</Text>
         <View style={styles.card}>
           <View style={styles.row}>
             <MaterialCommunityIcons name="card-outline" size={22} color={colors.textSecondary} />
@@ -240,14 +240,14 @@ export const SettingsScreen: React.FC = () => {
           <View style={styles.divider} />
           <View style={styles.row}>
             <MaterialCommunityIcons name="format-text" size={22} color={colors.textSecondary} />
-            <Text style={styles.rowLabel}>Show Task Name</Text>
+            <Text style={styles.rowLabel}>Show Habit Name</Text>
             <WebSwitch
               value={showTaskName}
               onValueChange={setShowTaskName}
               trackColor={{ false: colors.border, true: '#007AFF' }}
               thumbColor="#fff"
               activeThumbColor="#fff"
-              accessibilityLabel="Show Task Name"
+              accessibilityLabel="Show Habit Name"
             />
           </View>
           <View style={styles.divider} />
@@ -305,7 +305,7 @@ export const SettingsScreen: React.FC = () => {
         <View style={styles.card}>
           <TouchableOpacity style={styles.row} onPress={() => router.push('/archived-tasks')} accessibilityRole="button">
             <MaterialCommunityIcons name="archive-outline" size={22} color={colors.textSecondary} />
-            <Text style={styles.rowLabel}>Archived Tasks</Text>
+            <Text style={styles.rowLabel}>Archived Habits</Text>
             <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
           </TouchableOpacity>
           <View style={styles.divider} />

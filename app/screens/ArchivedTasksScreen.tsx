@@ -33,14 +33,14 @@ export const ArchivedTasksScreen: React.FC = () => {
         <TouchableOpacity style={styles.headerButton} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
           <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Archived Tasks</Text>
+        <Text style={styles.headerTitle}>Archived Habits</Text>
         <View style={styles.headerButton} />
       </View>
 
       {archivedTasks.length === 0 ? (
         <View style={styles.emptyState}>
           <MaterialCommunityIcons name="archive-outline" size={48} color={colors.textTertiary} />
-          <Text style={styles.emptyStateText}>No archived tasks</Text>
+          <Text style={styles.emptyStateText}>No archived habits</Text>
         </View>
       ) : (
         <FlatList
@@ -53,7 +53,7 @@ export const ArchivedTasksScreen: React.FC = () => {
               onPress={() => router.push({ pathname: '/add-task', params: { taskId: item.id } })}
               accessibilityRole="button"
               accessibilityLabel={item.name}
-              accessibilityHint="Opens this task for editing"
+              accessibilityHint="Opens this habit for editing"
             >
               <View style={[styles.iconCircle, { backgroundColor: item.color }]}>
                 <MaterialCommunityIcons name={item.icon} size={20} color="#fff" />

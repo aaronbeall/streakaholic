@@ -102,7 +102,7 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
     return (
       <View style={styles.emptyContainer}>
         <MaterialCommunityIcons name="fire" size={48} color={colors.textTertiary} />
-        <Text style={styles.emptyTitle}>No tasks selected</Text>
+        <Text style={styles.emptyTitle}>No habits selected</Text>
       </View>
     );
   }
@@ -112,7 +112,7 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
       <View style={styles.emptyContainer}>
         <MaterialCommunityIcons name="fire" size={48} color={colors.textTertiary} />
         <Text style={styles.emptyTitle}>No streaks yet</Text>
-        <Text style={styles.emptySubtitle}>Complete a task on its due days to start one.</Text>
+        <Text style={styles.emptySubtitle}>Complete a habit on its due days to start one.</Text>
       </View>
     );
   }
@@ -192,7 +192,7 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
           onPress={() => router.push({ pathname: '/task-detail', params: { taskId: item.taskId, tab: 'streaks' } })}
           accessibilityRole="button"
           accessibilityLabel={`${item.taskName}, ${item.length} day streak, ${format(item.startDate, 'MMM d')} to ${format(item.endDate, 'MMM d')}`}
-          accessibilityHint="Opens this task's streaks"
+          accessibilityHint="Opens this habit's streaks"
         >
           <Text style={[styles.streakDateLabel, styles.streakDateLabelStart]}>{format(item.startDate, 'MMM d')}</Text>
           <View

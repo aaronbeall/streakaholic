@@ -331,7 +331,7 @@ interface AchievementMeta {
   color: { theme: string; base: string; glow: string; accent: string; useAccentText?: boolean };
 }
 
-const taskName = (a: EarnedAchievement) => a.taskName ?? 'This task';
+const taskName = (a: EarnedAchievement) => a.taskName ?? 'This habit';
 
 // Fires the first time a task's own streak reaches this length -- deliberately not "day 1" (every
 // single completion of every task would trigger it, far too noisy to feel special), but low
@@ -390,7 +390,8 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     icon: 'shoe-print',
     title: 'First Steps!',
     // Taskless -- describe/triggerStandalone don't reference a task at all, matching perfect-day's
-    // own global phrasing rather than falling back to a generic "This task" placeholder.
+    // own global phrasing rather than falling back to the generic "This habit" placeholder
+    // (`taskName`'s own fallback, see that helper) other per-task kinds use.
     describe: () => 'You logged your very first completion',
     repeatable: false,
     scope: 'global',
@@ -612,12 +613,12 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
   'perfect-day': {
     icon: 'calendar-star',
     title: 'Perfect Day!',
-    describe: () => 'Every task completed today',
+    describe: () => 'Every habit completed today',
     repeatable: true,
     scope: 'global',
     flavorText: 'A clean sweep — nicely done!',
-    numberBlock: { eyebrow: 'Perfect Day', unit: 'TASKS COMPLETED' },
-    // A fixed word, not a count -- the number of tasks due today isn't really the interesting
+    numberBlock: { eyebrow: 'Perfect Day', unit: 'HABITS COMPLETED' },
+    // A fixed word, not a count -- the number of habits due today isn't really the interesting
     // fact about a perfect day (it doesn't escalate/grow the way a streak or completion count
     // does, it's just whatever happened to be due), so a plain declaration reads better.
     ribbon: { kind: 'fixed', text: 'PERFECT' },
@@ -626,8 +627,8 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     // this isn't always literally "today" in wall-clock terms. Accepted per explicit direction.
     triggerStandalone: v =>
       v !== undefined
-        ? `All ${v.toLocaleString()} tasks due today were completed.`
-        : 'Every task due today was completed.',
+        ? `All ${v.toLocaleString()} habits due today were completed.`
+        : 'Every habit due today was completed.',
     progressStrategy: { type: 'today-progress' },
     color: { theme: 'Emerald', base: '#00A86B', glow: '#00E676', accent: '#E8F5E9' }, // perfect-day
   },
@@ -670,13 +671,13 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
   'perfect-week': {
     icon: 'calendar-week',
     title: 'Perfect Week!',
-    describe: () => 'Every task completed, 7 days straight',
+    describe: () => 'Every habit completed, 7 days straight',
     repeatable: true,
     scope: 'global',
     flavorText: 'A full week without a single miss. Impressive.',
     numberBlock: { eyebrow: 'Perfect Week', unit: 'DAYS PERFECT' },
     ribbon: { kind: 'count', unit: 'DAYS' },
-    triggerStandalone: v => `You completed every task, ${(v ?? PERFECT_WEEK_DAYS).toLocaleString()} days in a row.`,
+    triggerStandalone: v => `You completed every habit, ${(v ?? PERFECT_WEEK_DAYS).toLocaleString()} days in a row.`,
     progressStrategy: { type: 'perfect-day-streak', days: PERFECT_WEEK_DAYS },
     color: { theme: 'Sapphire', base: '#1565C0', glow: '#42A5F5', accent: '#E3F2FD' }, // perfect-week
   },

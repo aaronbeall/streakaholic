@@ -75,8 +75,8 @@ const HomeHeader = React.memo(({ activeFilter, onFilterChange }: { activeFilter:
             ]}
             onPress={() => handleFilterPress('up_to_date')}
             accessibilityRole="button"
-            accessibilityLabel={`${streakStats.upToDate} ${streakStats.upToDate === 1 ? 'task' : 'tasks'} up to date`}
-            accessibilityHint="Filters the list to only these tasks"
+            accessibilityLabel={`${streakStats.upToDate} ${streakStats.upToDate === 1 ? 'habit' : 'habits'} up to date`}
+            accessibilityHint="Filters the list to only these habits"
             accessibilityState={{ selected: activeFilter === 'up_to_date' }}
           >
             <MaterialCommunityIcons
@@ -101,8 +101,8 @@ const HomeHeader = React.memo(({ activeFilter, onFilterChange }: { activeFilter:
             ]}
             onPress={() => handleFilterPress('expiring')}
             accessibilityRole="button"
-            accessibilityLabel={`${streakStats.expiring} ${streakStats.expiring === 1 ? 'task' : 'tasks'} expiring`}
-            accessibilityHint="Filters the list to only these tasks"
+            accessibilityLabel={`${streakStats.expiring} ${streakStats.expiring === 1 ? 'habit' : 'habits'} expiring`}
+            accessibilityHint="Filters the list to only these habits"
             accessibilityState={{ selected: activeFilter === 'expiring' }}
           >
             <MaterialCommunityIcons
@@ -404,7 +404,7 @@ export const HomeScreen: React.FC = () => {
             </Reanimated.View>
             <Reanimated.View entering={FadeInDown.duration(400).delay(100)} style={styles.emptyStateTextGroup}>
               <Text style={styles.emptyStateTitle}>
-                {hasAnyTasks ? 'No tasks match this filter' : 'Start your first streak'}
+                {hasAnyTasks ? 'No habits match this filter' : 'Start your first streak'}
               </Text>
               <Text style={styles.emptyStateSubtitle}>
                 {hasAnyTasks
@@ -418,7 +418,7 @@ export const HomeScreen: React.FC = () => {
               ) : (
                 <TouchableOpacity style={styles.emptyStateButton} onPress={handleAddTask} accessibilityRole="button">
                   <MaterialCommunityIcons name="plus" size={18} color="#fff" />
-                  <Text style={styles.emptyStateButtonText}>Add a Habit</Text>
+                  <Text style={styles.emptyStateButtonText}>Add Habit</Text>
                 </TouchableOpacity>
               )}
             </Reanimated.View>
@@ -429,7 +429,7 @@ export const HomeScreen: React.FC = () => {
         style={[styles.addButton, { bottom: FAB_OFFSET + insets.bottom }]}
         onPress={handleAddTask}
         accessibilityRole="button"
-        accessibilityLabel="Add a habit"
+        accessibilityLabel="Add habit"
       >
         <MaterialCommunityIcons name="plus" size={32} color="#fff" />
       </TouchableOpacity>

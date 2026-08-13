@@ -418,7 +418,7 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
       )}
 
       {tasks.length === 0 ? (
-        <Text style={styles.emptyText}>No tasks selected.</Text>
+        <Text style={styles.emptyText}>No habits selected.</Text>
       ) : mainGridMode === 'streamgraph' ? (
         <View style={styles.streamWrapper}>
           <YAxisColumn ticks={yAxisTicks} max={yAxisMax} height={streamHeight} mirrored styles={styles} />
@@ -744,7 +744,7 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                 })}
                 accessibilityRole="button"
                 accessibilityLabel={`${task.name}, ${format(visibleMonth, 'MMMM yyyy')}`}
-                accessibilityHint="Opens this task's calendar"
+                accessibilityHint="Opens this habit's calendar"
               >
                 <View style={styles.taskMonthCardHeader}>
                   <MaterialCommunityIcons name={task.icon} size={16} color={task.color} />

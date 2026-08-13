@@ -138,7 +138,7 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
               params: { taskId: task.id }
             })}
             accessibilityRole="button"
-            accessibilityLabel="Edit task"
+            accessibilityLabel="Edit habit"
           >
             <MaterialCommunityIcons name="pencil" size={24} color="rgba(255, 255, 255, 0.8)" />
           </TouchableOpacity>
@@ -151,7 +151,7 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
                 style={styles.cycleButton}
                 onPress={onPrevTask}
                 accessibilityRole="button"
-                accessibilityLabel="Previous task"
+                accessibilityLabel="Previous habit"
               >
                 <MaterialCommunityIcons name="chevron-left" size={28} color="rgba(255, 255, 255, 0.8)" />
               </TouchableOpacity>
@@ -190,7 +190,7 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
                 style={styles.cycleButton}
                 onPress={onNextTask}
                 accessibilityRole="button"
-                accessibilityLabel="Next task"
+                accessibilityLabel="Next habit"
               >
                 <MaterialCommunityIcons name="chevron-right" size={28} color="rgba(255, 255, 255, 0.8)" />
               </TouchableOpacity>

@@ -70,7 +70,7 @@ export const AboutScreen: React.FC = () => {
         <Text style={styles.sectionTitle}>Privacy Policy</Text>
         <View style={styles.card}>
           <Text style={styles.bodyText}>
-            {appName} doesn’t collect, transmit, or sell any of your data. Every task, streak, and
+            {appName} doesn’t collect, transmit, or sell any of your data. Every habit, streak, and
             completion is stored only on this device — there’s no account, no sign-in, and no
             server involved. Exporting your data creates a local file that only ever leaves this
             device if you choose to share it yourself.

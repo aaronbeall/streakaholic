@@ -16,7 +16,7 @@ import { DashboardStreaksView } from './DashboardStreaksView';
 
 export type DashboardTab = 'stats' | 'calendar' | 'streaks';
 const ACCENT = '#007AFF';
-const TASK_FILTER_HINT_TEXT = 'Tap tasks to toggle which ones are included in the dashboard';
+const TASK_FILTER_HINT_TEXT = 'Tap habits to toggle which ones are included in the dashboard';
 
 const DashboardHeader: React.FC<{
   activeTab: DashboardTab;

@@ -82,7 +82,7 @@ function RootStack() {
       <Stack.Screen
         name="add-task"
         options={{
-          title: 'Add New Task',
+          title: 'Add New Habit',
           presentation: 'modal',
           animation: 'slide_from_bottom',
           headerStyle: {

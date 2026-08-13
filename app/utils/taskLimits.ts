@@ -11,5 +11,7 @@ export const getActiveTaskCount = (tasks: Task[]): number =>
 export const hasReachedActiveTaskLimit = (tasks: Task[]): boolean =>
   getActiveTaskCount(tasks) >= MAX_ACTIVE_TASKS;
 
+// "Habit" is purely the user-facing term -- the underlying data model, this file's own
+// identifiers (Task, MAX_ACTIVE_TASKS, etc.), and every other piece of code stay "task" as-is.
 export const ACTIVE_TASK_LIMIT_MESSAGE =
-  `You can have up to ${MAX_ACTIVE_TASKS} active tasks. Archive one to add another.`;
+  `You can have up to ${MAX_ACTIVE_TASKS} active habits. Archive one to add another.`;
