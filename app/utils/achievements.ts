@@ -854,6 +854,27 @@ export const detectCompletionAchievements = (
   allTasksAfter: Task[],
   date: Date,
   alreadyEarnedScopes: Set<string>,
+  // Optional performance escape hatches, both purely additive -- omitted entirely by the live
+  // completion path (taskStore.ts), which gets byte-for-byte the same behavior as before either
+  // existed. detectRetroactiveAchievements' own replay loop (which calls this function once per
+  // *historical* completion, not once per real press -- potentially hundreds or thousands of
+  // times per scan) passes both to avoid rescanning/re-sorting the same data from scratch on every
+  // single call. Neither changes what's being checked, only how the data backing that check is
+  // sourced -- the actual rules (a day counts as completed once its count meets timesPerDay; the
+  // trailing window is the most recent N completions) stay defined in exactly one place, right
+  // here, whichever data source is in play.
+  options?: {
+    // Per-task completion-count-by-date maps (see buildCompletionCountsByDate in streaks.ts,
+    // already the established pattern elsewhere in this app for this exact problem) -- when
+    // provided, perfect-day/perfect-week's own day-completion checks read from these instead of
+    // linearly rescanning each task's own `completions` array via `isTaskCompleted` every time.
+    completionCountsByTaskId?: Map<string, Map<string, number>>;
+    // An already-sorted-newest-first, already-capped-to-TIME_OF_DAY_WINDOW slice of the most
+    // recent completions across every active task -- when provided, early-bird/night-owl use it
+    // directly instead of flattening and re-sorting every active task's own completions from
+    // scratch on every call.
+    recentCompletionsOverride?: TaskCompletion[];
+  },
 ): EarnedAchievement[] => {
   const nextStats = nextTask.stats;
   if (!nextStats) return [];
@@ -864,6 +885,16 @@ export const detectCompletionAchievements = (
   const earned: EarnedAchievement[] = [];
 
   const isFirstEarn = (kind: AchievementKind, scope: string) => !alreadyEarnedScopes.has(dedupKey(kind, scope));
+
+  // Same formula isTaskCompleted itself uses (getCompletionCount(t, date) >= its own timesPerDay)
+  // -- this doesn't reimplement that rule, it just sources the count from the caller's own
+  // precomputed map when one's supplied, instead of always calling through to a fresh linear scan.
+  const isCompletedOnDate = (t: Task, d: Date): boolean => {
+    const byDate = options?.completionCountsByTaskId?.get(t.id);
+    if (!byDate) return isTaskCompleted(t, d);
+    const count = byDate.get(format(d, 'yyyy-MM-dd')) ?? 0;
+    return count >= (t.timesPerDay || 1);
+  };
 
   // Every fixed-threshold kind shares the identical "crossed this metric's own threshold" shape
   // -- one generic loop over ACHIEVEMENT_META-derived tiers, rather than one special-cased block
@@ -930,13 +961,13 @@ export const detectCompletionAchievements = (
   const dateString = format(date, 'yyyy-MM-dd');
   if (isFirstEarn('perfect-day', dateString)) {
     const dueTasks = allTasksAfter.filter(t => !t.archived && isDueOnDate(t, date));
-    if (dueTasks.length >= PERFECT_DAY_MIN_DUE_TASKS && dueTasks.every(t => isTaskCompleted(t, date))) {
+    if (dueTasks.length >= PERFECT_DAY_MIN_DUE_TASKS && dueTasks.every(t => isCompletedOnDate(t, date))) {
       earned.push({ kind: 'perfect-day', value: dueTasks.length, dedupScope: dateString });
     }
   }
 
   // ============================================================================================
-  // Six kinds added 2026-08-12 -- see their own ACHIEVEMENT_META entries above for the full
+  // Five kinds added 2026-08-12 -- see their own ACHIEVEMENT_META entries above for the full
   // per-kind reasoning. `activeTasksAfter` is shared by all six (none of them are meaningfully
   // affected by archived-task history the way, say, Century Club's "lifetime" framing might
   // tempt you to include it -- keeping detection scoped to the same `activeTasks` universe
@@ -953,7 +984,7 @@ export const detectCompletionAchievements = (
   // just once when it first reaches 7.
   const isPerfectDayOn = (checkDate: Date): boolean => {
     const due = activeTasksAfter.filter(t => isDueOnDate(t, checkDate));
-    return due.length >= PERFECT_DAY_MIN_DUE_TASKS && due.every(t => isTaskCompleted(t, checkDate));
+    return due.length >= PERFECT_DAY_MIN_DUE_TASKS && due.every(t => isCompletedOnDate(t, checkDate));
   };
   const isPerfectWeekEndingOn = (endDate: Date): boolean => {
     for (let i = 0; i < PERFECT_WEEK_DAYS; i++) {
@@ -1006,11 +1037,11 @@ export const detectCompletionAchievements = (
     nightOwlStrategy.type === 'time-of-day-ratio' &&
     (isFirstEarn('early-bird', 'global') || isFirstEarn('night-owl', 'global'))
   ) {
-    const allCompletions = activeTasksAfter.flatMap(t => t.completions ?? []);
-    if (allCompletions.length >= TIME_OF_DAY_MIN_SAMPLES) {
-      const recent = [...allCompletions]
-        .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
-        .slice(0, TIME_OF_DAY_WINDOW);
+    const recent = options?.recentCompletionsOverride ?? (() => {
+      const allCompletions = activeTasksAfter.flatMap(t => t.completions ?? []);
+      return [...allCompletions].sort((a, b) => b.completedAt.localeCompare(a.completedAt)).slice(0, TIME_OF_DAY_WINDOW);
+    })();
+    if (recent.length >= TIME_OF_DAY_MIN_SAMPLES) {
       const earlyCount = recent.filter(c => new Date(c.completedAt).getHours() < earlyBirdStrategy.hour).length;
       const lateCount = recent.filter(c => new Date(c.completedAt).getHours() >= nightOwlStrategy.hour).length;
       if (isFirstEarn('early-bird', 'global') && earlyCount / recent.length >= 0.5) {
@@ -1137,7 +1168,21 @@ export const detectRetroactiveAchievements = (
   // this task's own record looked like at the real moment we've replayed up through so far".
   const runningCompletions = new Map<string, TaskCompletion[]>();
 
-  for (const { task, completion } of events) {
+  // Two performance-only accumulators, threaded into detectCompletionAchievements' own optional
+  // `options` (see that function's own comment on why these are safe, non-duplicative additions).
+  // Both are maintained incrementally as the replay proceeds -- O(1) work per event -- rather than
+  // rebuilt from scratch on every call, which is what made this scan slow in practice on a real
+  // device (a `calculateTaskStats`-style full rescan, but happening inside perfect-day/perfect-week
+  // and early-bird/night-owl's own checks too, once per historical completion instead of once per
+  // real press).
+  //
+  // Per-task completion-count-by-date map, updated with just this event's own one new entry each
+  // time (O(1)) instead of rebuilding via buildCompletionCountsByDate from that task's *entire*
+  // completions-so-far on every event (O(n) per event, O(n²) overall for that task's own history).
+  const completionCountsByTaskId = new Map<string, Map<string, number>>();
+
+  for (let i = 0; i < events.length; i++) {
+    const { task, completion } = events[i];
     const recordedAt = new Date(completion.completedAt);
     const forDate = parseISO(completion.date);
 
@@ -1148,10 +1193,14 @@ export const detectRetroactiveAchievements = (
     runningCompletions.set(task.id, nextCompletions);
     const nextTask: Task = { ...task, completions: nextCompletions, stats: calculateTaskStats(task, nextCompletions, recordedAt) };
 
+    const taskCounts = completionCountsByTaskId.get(task.id) ?? new Map<string, number>();
+    taskCounts.set(completion.date, completion.timesCompleted);
+    completionCountsByTaskId.set(task.id, taskCounts);
+
     // Every active task's own completions as accumulated up through this same real moment --
     // `.stats` isn't recomputed for tasks other than the one completing right now, since nothing
     // detectCompletionAchievements' own cross-task logic reads (perfect-day/perfect-week read raw
-    // completions via isDueOnDate/isTaskCompleted, not `.stats`; century-club's sum reads
+    // completions via isDueOnDate/isCompletedOnDate, not `.stats`; century-club's sum reads
     // totalCompletions, which is just `completions.length` and so isn't asOfDate-sensitive at all)
     // actually needs it. A task that didn't exist yet as of this moment (createdAt still in the
     // future) is excluded entirely, the same way a real historical moment wouldn't have known
@@ -1160,7 +1209,16 @@ export const detectRetroactiveAchievements = (
       .filter(t => differenceInCalendarDays(recordedAt, parseISO(t.createdAt)) >= 0)
       .map(t => (t.id === task.id ? nextTask : { ...t, completions: runningCompletions.get(t.id) ?? [] }));
 
-    const newlyEarnedNow = detectCompletionAchievements(prevTask, nextTask, allTasksAsOfNow, forDate, alreadyEarnedScopes);
+    // The trailing TIME_OF_DAY_WINDOW completions across every active task, up to and including
+    // this one -- `events` is already sorted ascending by completedAt, so this is a plain O(window)
+    // index slice into data already in hand, not a re-derivation from allTasksAsOfNow.
+    const windowStart = Math.max(0, i - TIME_OF_DAY_WINDOW + 1);
+    const recentCompletionsOverride = events.slice(windowStart, i + 1).map(e => e.completion).reverse();
+
+    const newlyEarnedNow = detectCompletionAchievements(prevTask, nextTask, allTasksAsOfNow, forDate, alreadyEarnedScopes, {
+      completionCountsByTaskId,
+      recentCompletionsOverride,
+    });
 
     for (const item of newlyEarnedNow) {
       const key = dedupKey(item.kind, item.dedupScope);

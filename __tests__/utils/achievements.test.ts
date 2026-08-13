@@ -471,6 +471,50 @@ describe('detectCompletionAchievements', () => {
     });
   });
 
+  // The two `options` fields (added 2026-08-12) are purely a performance mirror of the same
+  // default behavior -- detectRetroactiveAchievements' own replay loop passes precomputed data
+  // instead of letting this function re-derive it from scratch on every call, but the actual rule
+  // (a day counts once its completion count meets timesPerDay; the trailing window is the most
+  // recent N completions) has to stay identical either way. These tests exist specifically to
+  // catch any drift between the two paths.
+  describe('detectCompletionAchievements options (completionCountsByTaskId / recentCompletionsOverride)', () => {
+    it('perfect-day fires identically whether completionCountsByTaskId is supplied or omitted', () => {
+      const t1 = makeTask({ id: 't1', completions: [makeCompletion('c1', today)] }, { currentStreak: 1 });
+      const t2 = makeTask({ id: 't2', completions: [makeCompletion('c2', today)] }, { currentStreak: 1 });
+      const withoutMap = detectCompletionAchievements(t1, t1, [t1, t2], today, new Set());
+
+      const dateStr = format(today, 'yyyy-MM-dd');
+      const completionCountsByTaskId = new Map<string, Map<string, number>>([
+        ['t1', new Map([[dateStr, 1]])],
+        ['t2', new Map([[dateStr, 1]])],
+      ]);
+      const withMap = detectCompletionAchievements(t1, t1, [t1, t2], today, new Set(), { completionCountsByTaskId });
+
+      expect(kindsOf(withMap)).toEqual(kindsOf(withoutMap));
+      expect(kindsOf(withMap)).toContain('perfect-day');
+    });
+
+    it('early-bird fires identically whether recentCompletionsOverride is supplied or omitted', () => {
+      const completionAt = (id: string, hour: number): TaskCompletion => {
+        const d = new Date(today);
+        d.setHours(hour, 0, 0, 0);
+        return makeCompletion(id, d);
+      };
+      const completions = [
+        ...Array.from({ length: 6 }, (_, i) => completionAt(`e${i}`, 5)),
+        ...Array.from({ length: 4 }, (_, i) => completionAt(`m${i}`, 13)),
+      ];
+      const task = makeTask({ id: 't1', completions });
+      const withoutOverride = detectCompletionAchievements(task, task, [task], today, new Set());
+
+      const recentCompletionsOverride = [...completions].sort((a, b) => b.completedAt.localeCompare(a.completedAt));
+      const withOverride = detectCompletionAchievements(task, task, [task], today, new Set(), { recentCompletionsOverride });
+
+      expect(kindsOf(withOverride)).toEqual(kindsOf(withoutOverride));
+      expect(kindsOf(withOverride)).toContain('early-bird');
+    });
+  });
+
   describe('multiple achievements from one completion', () => {
     it('returns every achievement earned in a single call', () => {
       const prev = makeTask({}, { currentStreak: 9, totalCompletions: 9, bestStreak: 9 });
