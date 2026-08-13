@@ -128,7 +128,6 @@ export const IconPicker: React.FC<IconPickerProps> = ({
           onChangeText={setSearchQuery}
           placeholder="Search all icons..."
           placeholderTextColor={colors.textTertiary}
-          autoFocus
         />
         <MaterialCommunityIcons
           name="magnify"
