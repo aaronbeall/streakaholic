@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import tinycolor from 'tinycolor2';
 import { DEFAULT_COLORS, EXTENDED_COLOR_BATCHES } from '../constants/task';
 import { useThemeColors } from '../hooks/useThemeColors';
@@ -19,7 +19,6 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
   const themeColors = useThemeColors();
   // How many batches of EXTENDED_COLOR_BATCHES are revealed, beyond the 12 defaults always shown.
   const [batchesShown, setBatchesShown] = useState(0);
-  const scrollViewRef = useRef<ScrollView>(null);
 
   const colors = useMemo(() => {
     const revealed = [...DEFAULT_COLORS, ...EXTENDED_COLOR_BATCHES.slice(0, batchesShown).flat()];
@@ -38,65 +37,52 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
     setBatchesShown(0);
   };
 
-  // Scroll to bottom when additional colors are revealed
-  useEffect(() => {
-    if (batchesShown > 0) {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }
-  }, [batchesShown]);
-
   return (
     <View>
-      <ScrollView 
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <View style={styles.colorGrid}>
-          {colors.map((color) => (
-            <TouchableOpacity
-              key={color}
-              style={[
-                styles.colorButton,
-                { backgroundColor: color },
-                selectedColor === color && {
-                  ...styles.selectedColor,
-                  borderColor: tinycolor(color).lighten(15).toString(),
-                },
-              ]}
-              onPress={() => onColorSelect(color)}
-              accessibilityRole="radio"
-              accessibilityLabel={`Color ${color}`}
-              accessibilityState={{ checked: selectedColor === color }}
-            >
-              {selectedColor === color && (
-                <MaterialCommunityIcons
-                  name="check"
-                  size={20}
-                  color="#fff"
-                  style={styles.checkIcon}
-                />
-              )}
-            </TouchableOpacity>
-          ))}
-          {hasMore && (
-            <TouchableOpacity
-              style={styles.moreButton}
-              onPress={handleShowMore}
-              accessibilityRole="button"
-              accessibilityLabel="Show more colors"
-            >
+      {/* No internal scrolling -- this grid just grows as more color batches are revealed,
+          relying on the screen's own outer ScrollView (AddTaskScreen) for any page scrolling. */}
+      <View style={styles.colorGrid}>
+        {colors.map((color) => (
+          <TouchableOpacity
+            key={color}
+            style={[
+              styles.colorButton,
+              { backgroundColor: color },
+              selectedColor === color && {
+                ...styles.selectedColor,
+                borderColor: tinycolor(color).lighten(15).toString(),
+              },
+            ]}
+            onPress={() => onColorSelect(color)}
+            accessibilityRole="radio"
+            accessibilityLabel={`Color ${color}`}
+            accessibilityState={{ checked: selectedColor === color }}
+          >
+            {selectedColor === color && (
               <MaterialCommunityIcons
-                name="dots-horizontal"
-                size={24}
-                color={themeColors.textTertiary}
+                name="check"
+                size={20}
+                color="#fff"
+                style={styles.checkIcon}
               />
-            </TouchableOpacity>
-          )}
-        </View>
-      </ScrollView>
+            )}
+          </TouchableOpacity>
+        ))}
+        {hasMore && (
+          <TouchableOpacity
+            style={styles.moreButton}
+            onPress={handleShowMore}
+            accessibilityRole="button"
+            accessibilityLabel="Show more colors"
+          >
+            <MaterialCommunityIcons
+              name="dots-horizontal"
+              size={24}
+              color={themeColors.textTertiary}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
 
       {batchesShown > 0 && (
         <TouchableOpacity
@@ -112,12 +98,6 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
 };
 
 const styles = StyleSheet.create({
-  scrollView: {
-    maxHeight: 200,
-  },
-  scrollContent: {
-    paddingBottom: 8,
-  },
   colorGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

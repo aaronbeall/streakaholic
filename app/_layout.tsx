@@ -1,4 +1,5 @@
-import { Stack } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import { router, Stack } from 'expo-router';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { ActivityIndicator, AppState, View } from 'react-native';
@@ -11,6 +12,7 @@ import { useAchievementsStore } from './stores/achievementsStore';
 import { useLastImportStore } from './stores/lastImportStore';
 import { useSettingsStore } from './stores/settingsStore';
 import { useTaskStore } from './stores/taskStore';
+import { rescheduleAllTaskNotifications } from './utils/notifications';
 
 function RootStack() {
   const colors = useThemeColors();
@@ -67,6 +69,12 @@ function RootStack() {
       />
       <Stack.Screen
         name="trophies"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="debug-notifications"
         options={{
           headerShown: false,
         }}
@@ -145,12 +153,29 @@ function AppGate() {
   useEffect(() => {
     if (!hydrated) return;
     useTaskStore.getState().maybeRefreshStats();
+    // Same trigger as maybeRefreshStats (hydrate + every foreground) -- the self-healing bulk pass
+    // that recovers a task's "next occurrence" after a previously-scheduled reminder already fired
+    // while the app was closed, and re-derives everything across a calendar-day rollover. See
+    // rescheduleAllTaskNotifications's own doc comment for why this doesn't need a once-per-day
+    // dedup guard the way maybeRefreshStats does.
+    rescheduleAllTaskNotifications(useTaskStore.getState().tasks).catch(error => console.warn('Failed to reschedule task notifications', error));
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
         useTaskStore.getState().maybeRefreshStats();
+        rescheduleAllTaskNotifications(useTaskStore.getState().tasks).catch(error => console.warn('Failed to reschedule task notifications', error));
       }
     });
-    return () => subscription.remove();
+
+    // Tapping a delivered reminder just opens the app to Home -- per explicit user direction, not
+    // a deep link to the specific task's own detail screen (an earlier version did that).
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(() => {
+      router.push('/');
+    });
+
+    return () => {
+      subscription.remove();
+      responseSubscription.remove();
+    };
   }, [hydrated]);
 
   if (!hydrated) {

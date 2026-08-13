@@ -4,9 +4,26 @@ import { create } from 'zustand';
 import { PersistStorage, persist } from 'zustand/middleware';
 import { Task, TaskCompletion } from '../types';
 import { mergeTaskLists } from '../utils/importExport';
+import { cancelTaskNotifications, scheduleTaskNotifications } from '../utils/notifications';
 import { buildCompletionCountsByDate, calculateTaskStats } from '../utils/streaks';
 import { useAchievementsStore } from './achievementsStore';
 import { useLastImportStore } from './lastImportStore';
+
+// Fire-and-forget -- scheduling touches the native Notifications API and none of this store's
+// mutators are async, matching how recordCompletionAchievements is already called synchronously
+// without being awaited. A denied/never-granted permission is an expected, silent no-op (already
+// handled inside scheduleTaskNotifications/cancelTaskNotifications themselves) -- but a genuine
+// native rejection (e.g. a scheduling call actually throwing) was previously swallowed with
+// nothing logged at all, real diagnosability was a genuine gap (see the 2026-08-13 permission-gap
+// bug this same day, which needed to be root-caused by reading code alone since nothing had ever
+// surfaced a failure signal). Warning on catch costs nothing on the happy path and gives any
+// future failure of this kind an actual trace to look at.
+const rescheduleFor = (task: Task): void => {
+  scheduleTaskNotifications(task).catch(error => console.warn('Failed to schedule notifications for task', task.id, error));
+};
+const cancelFor = (taskId: string): void => {
+  cancelTaskNotifications(taskId).catch(error => console.warn('Failed to cancel notifications for task', taskId, error));
+};
 
 interface ImportOptions {
   mode?: 'replace' | 'merge';
@@ -110,15 +127,18 @@ export const useTaskStore = create<TaskStore>()(
           stats: calculateTaskStats(taskData, []),
         };
         set({ tasks: [...get().tasks, newTask] });
+        rescheduleFor(newTask);
       },
 
       updateTask: (task) => {
         const updatedTask = withUpdatedStats(task);
         set({ tasks: get().tasks.map(t => t.id === task.id ? updatedTask : t) });
+        rescheduleFor(updatedTask);
       },
 
       deleteTask: (taskId) => {
         set({ tasks: get().tasks.filter(t => t.id !== taskId) });
+        cancelFor(taskId);
       },
 
       // Re-inserts an already-deleted task exactly as it was (same id/completions/stats), for the
@@ -126,6 +146,7 @@ export const useTaskStore = create<TaskStore>()(
       // original list position isn't preserved.
       restoreDeletedTask: (task) => {
         set({ tasks: [...get().tasks, task] });
+        rescheduleFor(task);
       },
 
       completeTask: (taskId, date = new Date()) => {
@@ -197,18 +218,24 @@ export const useTaskStore = create<TaskStore>()(
             date,
             completionCountsByTaskId
           );
+          // A completion can affect whether today's reminder should still be pending (now done,
+          // cancel it) -- scheduleTaskNotifications recomputes from scratch either way.
+          rescheduleFor(nextTask);
         }
       },
 
       uncompleteTask: (taskId, date) => {
         const dateString = format(date, 'yyyy-MM-dd');
+        let updatedTask: Task | undefined;
         set({
           tasks: get().tasks.map(task => {
             if (task.id !== taskId) return task;
             const newCompletions = (task.completions || []).filter(c => c.date !== dateString);
-            return withUpdatedStats({ ...task, completions: newCompletions });
+            updatedTask = withUpdatedStats({ ...task, completions: newCompletions });
+            return updatedTask;
           }),
         });
+        if (updatedTask) rescheduleFor(updatedTask);
       },
 
       // Reverses exactly one completeTask press -- decrements today's count rather than clearing
@@ -217,6 +244,7 @@ export const useTaskStore = create<TaskStore>()(
       // day, intentionally clears the whole day instead.)
       undoCompleteTask: (taskId, date = new Date()) => {
         const dateString = format(date, 'yyyy-MM-dd');
+        let updatedTask: Task | undefined;
         set({
           tasks: get().tasks.map(task => {
             if (task.id !== taskId) return task;
@@ -230,9 +258,11 @@ export const useTaskStore = create<TaskStore>()(
                 )
               : (task.completions || []).filter(c => c.date !== dateString);
 
-            return withUpdatedStats({ ...task, completions: newCompletions });
+            updatedTask = withUpdatedStats({ ...task, completions: newCompletions });
+            return updatedTask;
           }),
         });
+        if (updatedTask) rescheduleFor(updatedTask);
       },
 
       // Re-inserts an exact completion record for the "Undo" action on the calendar's clear-a-day
@@ -240,21 +270,33 @@ export const useTaskStore = create<TaskStore>()(
       // multi-rep task can mean losing a `timesCompleted` > 1, so Undo needs to restore that exact
       // count rather than just adding one rep back.
       restoreCompletion: (taskId, completion) => {
+        let updatedTask: Task | undefined;
         set({
           tasks: get().tasks.map(task => {
             if (task.id !== taskId) return task;
             const withoutDate = (task.completions || []).filter(c => c.date !== completion.date);
-            return withUpdatedStats({ ...task, completions: [...withoutDate, completion] });
+            updatedTask = withUpdatedStats({ ...task, completions: [...withoutDate, completion] });
+            return updatedTask;
           }),
         });
+        if (updatedTask) rescheduleFor(updatedTask);
       },
 
       archiveTask: (taskId) => {
         set({ tasks: get().tasks.map(t => t.id === taskId ? withUpdatedStats({ ...t, archived: true }) : t) });
+        cancelFor(taskId);
       },
 
       restoreTask: (taskId) => {
-        set({ tasks: get().tasks.map(t => t.id === taskId ? withUpdatedStats({ ...t, archived: false }) : t) });
+        let updatedTask: Task | undefined;
+        set({
+          tasks: get().tasks.map(t => {
+            if (t.id !== taskId) return t;
+            updatedTask = withUpdatedStats({ ...t, archived: false });
+            return updatedTask;
+          }),
+        });
+        if (updatedTask) rescheduleFor(updatedTask);
       },
 
       importTasks: (importedTasks, options = {}) => {

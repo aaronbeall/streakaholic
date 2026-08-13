@@ -17,9 +17,10 @@
 
 - [x] Calendar year map (`TaskCalendarView`'s Year mode — grid-of-months with per-day dots; plus `DashboardCalendarView`'s aggregate infinite calendar grid across tasks)
 - [ ] Sharing
-- [ ] Reminders/notifications
-  - [ ] Nag level: 0=none, 1=dismissable notification, 2=repeated dismissable notifications, 3=ongoing notification, 4=alarm and ongoing notification
-  - [ ] Set time
+- [x] Reminders/notifications (`app/utils/notifications.ts` -- per-task `notifications: { level, time }`, escalating 0-4 exactly per the nag levels below, always scheduling only the single next due-and-incomplete occurrence and rescheduling on every relevant task mutation + app foreground/hydrate, rather than relying on OS-level recurring triggers. New tasks default to Level 1; existing tasks are never silently upgraded. Level 4 deliberately stops short of a true full-screen alarm — see CLAUDE.md for why. Not yet confirmed on-device, and needs a dev-client rebuild to test at all.)
+  - [x] Nag level: 0=none, 1=dismissable notification, 2=repeated dismissable notifications, 3=ongoing notification, 4=alarm and ongoing notification
+  - [x] Set time
+  - [ ] Notification dot: a small indicator (e.g. on TaskCard/TaskHeader) showing a task has reminders enabled -- deferred from the original notifications build as a nice-to-have, not essential
 
 ## UX / UI Improvements
 
@@ -33,6 +34,9 @@
 - [ ] Pause tasks (hidden, doesn't count towards completion percentage while paused)
 - [x] Remember dashboard selection (`dashboardLastTab`/`taskDetailLastTab` in `SettingsContext` — last-viewed Stats/Calendar/Streaks tab persists across visits; the task-filter checkboxes themselves still reset to "all tasks" each time, that's a separate thing)
 - [ ] Re-order tasks on home screen
+- [ ] Add/Edit Task: switching Frequency to "Specific Days" should default to all 7 days selected instead of carrying over whatever `daysOfWeek` the previous frequency left behind (empty for a task that was never Specific Days)
+- [ ] Use consistent terminology across user-facing copy -- "habit" vs "Task" (e.g. Home's empty state says "Add a Habit" while the rest of the app says "Task"/"Add Task")
+- [ ] Consistent empty state design/copy across Stats/Calendar/Streaks views (Dashboard and per-task task-detail)
 - [x] Double-wide task card is not okay (`TaskCard`'s `container` had `flex: 1`, whose implied `flexBasis: 0%` overrode the explicit `width` in `HomeScreen`'s row, stretching a lone last-row card to fill the row; fixed by dropping `flex: 1` and centering a partial last row via `justifyContent: 'center'`)
 - [x] Archive/Delete task should take you back to homepage (`AddTaskScreen`'s Archive/Delete confirm now calls `router.dismissTo('/')` instead of `router.back()` — fixes a real crash: reached via task-detail's pencil icon, `back()` only popped to task-detail, which still held the just-deleted `taskId` and threw "Missing task" on render)
 - [x] Congratulation achievements (`app/utils/achievements.ts`'s `detectCompletionAchievements` — 23 kinds: first-completion, new-best-streak, anniversary, streak-length tiers 2/5/10/25/50/100/1000, completion-count milestones 10/50/100/1000, three cross-task Century Club tiers (100/500/1000), perfect-day, perfect-week, comeback, habit-collector, early-bird, night-owl. Event-triggered off `taskStore.completeTask`, recorded to a persisted `achievementsStore`, celebrated via a full-screen `AchievementCelebration` (or, for a kind you've snoozed via its own bell toggle, a lighter top-anchored `AchievementAlert` notice instead), browsable in a Trophy Case screen (`/trophies`) with per-kind unlocked/in-progress/locked status, toggleable in Settings — see CLAUDE.md)
@@ -40,6 +44,8 @@
   - [x] Perfect day congratulations
   - [x] First streak congratulations
   - [x] Milestone completions (10, 50, 100, 1000)
+  - [ ] Trophy Case: filter by task
+  - [ ] Integrate achievements on Stats screens (per-task `TaskStatsScreen` and aggregate `DashboardStatsView`)
 - [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
 - [x] Performance optimizations
   - [x] Performance pass (audited Context re-render fan-out, memoization/referential-stability gaps, and common RN FlatList traps — see CLAUDE.md's "State management" section)

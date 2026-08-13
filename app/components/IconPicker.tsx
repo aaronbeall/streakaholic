@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useDebounce } from 'use-debounce';
 import { ALL_ICONS, DEFAULT_ICONS } from '../constants/task';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
@@ -35,7 +35,6 @@ export const IconPicker: React.FC<IconPickerProps> = ({
   const [icons, setIcons] = useState<MaterialCommunityIconName[]>(() => getInitialIcons(selectedIcon));
   const [showingCount, setShowingCount] = useState(PAGE_SIZE);
   const [searchIcons, setSearchIcons] = useState<MaterialCommunityIconName[]>([]);
-  const scrollViewRef = useRef<ScrollView>(null);
   const searchInputRef = useRef<TextInput>(null);
   const searchHeight = useRef(new Animated.Value(0)).current;
 
@@ -78,15 +77,6 @@ export const IconPicker: React.FC<IconPickerProps> = ({
     setShowingCount(prev => prev + PAGE_SIZE);
   }, [debouncedQuery, searchIcons, showingCount]);
 
-  // Scroll to bottom when additional icons are added
-  useEffect(() => {
-    if (icons.length > showingCount - PAGE_SIZE) {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }
-  }, [icons, showingCount]);
-
   const handleShowLess = useCallback(() => {
     setShowSearch(false);
     setSearchQuery('');
@@ -94,14 +84,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
     setShowingCount(PAGE_SIZE);
   }, [selectedIcon]);
 
-  // Scroll to top when search query changes
-  useEffect(() => {
-    if (debouncedQuery) {
-      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-    }
-  }, [debouncedQuery]);
-
-  const hasMoreIcons = debouncedQuery 
+  const hasMoreIcons = debouncedQuery
     ? searchIcons.length > showingCount
     : DEFAULT_ICONS.length > showingCount;
 
@@ -136,11 +119,10 @@ export const IconPicker: React.FC<IconPickerProps> = ({
           style={styles.searchIcon}
         />
       </Animated.View>
-      <ScrollView 
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-      >
+      {/* No internal scrolling -- this grid just grows as more icons/search results are
+          revealed, relying on the screen's own outer ScrollView (AddTaskScreen) for any page
+          scrolling. */}
+      <View>
         <View style={styles.iconGrid}>
           {icons.map((icon) => (
             <TouchableOpacity
@@ -184,7 +166,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
             Search for {ALL_ICONS.length - DEFAULT_ICONS.length} more icons...
           </Text>
         )}
-      </ScrollView>
+      </View>
       {showSearch && (
         <TouchableOpacity
           style={styles.showLessButton}
@@ -218,12 +200,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     right: 12,
     top: '50%',
     transform: [{ translateY: -10 }], // Center vertically
-  },
-  scrollView: {
-    maxHeight: 300,
-  },
-  scrollContent: {
-    paddingBottom: 8,
   },
   iconGrid: {
     flexDirection: 'row',

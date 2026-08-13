@@ -351,8 +351,10 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
     ? Math.min(kindInstanceCount, HISTORY_MAX_VISIBLE_ROWS) * HISTORY_ROW_HEIGHT
     : 0;
 
-  // See handleToggleMute's own comment for why this is repeatable-only and preview-excluded.
-  const showMuteToggle = meta.repeatable && achievement.dedupScope !== 'preview';
+  // See handleToggleMute's own comment for why this covers repeatable kinds AND task-scoped
+  // one-time kinds, excluding only global one-time kinds (which can never recur at all) and
+  // preview instances (nothing real to mute yet).
+  const showMuteToggle = (meta.repeatable || meta.scope === 'task') && achievement.dedupScope !== 'preview';
 
   // Doubles as both the entrance fade-in (0 -> 1 on mount) and the tap-to-dismiss fade-out
   // (1 -> 0), rather than two separate shared values -- there's no state where both would need
@@ -381,9 +383,14 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
     setTimeout(onDismiss, DISMISS_ANIM_DURATION);
   }, [onDismiss, visibility]);
 
-  // Only offered for repeatable kinds -- a one-time kind (e.g. a milestone) can never fire again
-  // for anything, so there'd be nothing for this to actually suppress. Toggles mute for the whole
-  // *kind* (every task, until toggled back off here or via Settings' own "restore full
+  // Offered whenever this kind can genuinely fire again for *something* -- either because it's
+  // marked repeatable (the same task can re-earn it, e.g. after a streak resets and climbs back
+  // up), or because it's task-scoped (per-task one-time kinds like milestone-N/anniversary can
+  // still be earned independently by every *other* qualifying task, even though any single task
+  // only gets its own copy once). Only a kind that's both non-repeatable *and* global (e.g.
+  // first-completion, a single user-wide "you got started" moment) can truly never happen again
+  // for anything -- that's the one case with nothing left for this to suppress. Toggles mute for
+  // the whole *kind* (every task, until toggled back off here or via Settings' own "restore full
   // celebrations") rather than just this one instance -- see mutedKinds' own comment in
   // achievementsStore.ts for why that's the right scope.
   //

@@ -355,6 +355,24 @@ export const SettingsScreen: React.FC = () => {
             <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
           </TouchableOpacity>
         </View>
+
+        {/* Dev-only -- a raw dump of expo-notifications' own scheduled/presented/permission state,
+            built to debug a real "permission granted but no reminder showed up" report where the
+            actual cause (silently swallowed elsewhere in this feature) was impossible to pin down
+            from code alone. `__DEV__` is a real RN/Metro global (not an app-defined flag), false in
+            a release build, so this row -- and the screen it opens -- never ships to a real user. */}
+        {__DEV__ && (
+          <>
+            <Text style={styles.sectionTitle}>Developer</Text>
+            <View style={styles.card}>
+              <TouchableOpacity style={styles.row} onPress={() => router.push('/debug-notifications')} accessibilityRole="button">
+                <MaterialCommunityIcons name="bug-outline" size={22} color={colors.textSecondary} />
+                <Text style={styles.rowLabel}>Notification Debug</Text>
+                <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
