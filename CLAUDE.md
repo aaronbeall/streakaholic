@@ -1815,6 +1815,10 @@ The Alert copy ("Discard changes?" / "You'll lose the changes you made to this t
 
 Verified via `tsc`/`eslint`/`jest` (222/222, unaffected -- pure UI/navigation-flow addition, no `utils/` logic touched). Not yet confirmed on-device -- this is genuinely new interaction territory for the app (first use of `usePreventRemove` anywhere in the codebase) and worth a careful pass: editing a field then backing out shows the prompt; Cancel keeps you on the screen with the edit intact; Discard actually leaves; an untouched screen (or one that was already saved) never shows it; and Delete/Archive/Restore/Save all still exit cleanly with no double-prompt.
 
+**TODO item addressed (2026-08-13): switching Frequency to "Specific Days" now defaults to all 7 days selected, instead of silently carrying over whatever `daysOfWeek` the previous frequency left behind.** For a task that was never Specific Days to begin with, `daysOfWeek` could be an empty array (never set/used by any other frequency type) -- switching to Specific Days rendered that as "no days selected" rather than a sensible starting point. New `handleSelectSpecificDays` (replacing the pill's own inline `() => setFrequency(...)`) sets the frequency and, only when `daysOfWeek` is currently empty, also resets it to all 7 -- deliberately conditional, not unconditional, so a real non-empty selection (the task's own original days, or one already chosen earlier in the same edit session before toggling to another frequency and back) is preserved rather than blown away every time the pill is tapped.
+
+Verified via `tsc`/`eslint`/`jest` (219/219, unaffected -- pure UI logic, no `utils/` behavior touched).
+
 ## Task action buttons: visual hierarchy, "Add Task" label, and task-colored Save (2026-08-13)
 
 Per explicit user direction ("better visual hierarchy (create/save is the most important)... use 'Create' or 'Add' in the label during creation... style the button after the user's task selections"), three related changes to `AddTaskScreen.tsx`'s bottom action area:

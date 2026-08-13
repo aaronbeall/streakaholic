@@ -34,7 +34,7 @@
 - [ ] Pause tasks (hidden, doesn't count towards completion percentage while paused)
 - [x] Remember dashboard selection (`dashboardLastTab`/`taskDetailLastTab` in `SettingsContext` — last-viewed Stats/Calendar/Streaks tab persists across visits; the task-filter checkboxes themselves still reset to "all tasks" each time, that's a separate thing)
 - [ ] Re-order tasks on home screen
-- [ ] Add/Edit Task: switching Frequency to "Specific Days" should default to all 7 days selected instead of carrying over whatever `daysOfWeek` the previous frequency left behind (empty for a task that was never Specific Days)
+- [x] Add/Edit Task: switching Frequency to "Specific Days" should default to all 7 days selected instead of carrying over whatever `daysOfWeek` the previous frequency left behind (empty for a task that was never Specific Days)
 - [ ] Use consistent terminology across user-facing copy -- "habit" vs "Task" (e.g. Home's empty state says "Add a Habit" while the rest of the app says "Task"/"Add Task")
 - [ ] Consistent empty state design/copy across Stats/Calendar/Streaks views (Dashboard and per-task task-detail)
 - [x] Double-wide task card is not okay (`TaskCard`'s `container` had `flex: 1`, whose implied `flexBasis: 0%` overrode the explicit `width` in `HomeScreen`'s row, stretching a lone last-row card to fill the row; fixed by dropping `flex: 1` and centering a partial last row via `justifyContent: 'center'`)

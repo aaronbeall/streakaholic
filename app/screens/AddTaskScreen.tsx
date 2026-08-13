@@ -304,6 +304,18 @@ export const AddTaskScreen: React.FC = () => {
     );
   };
 
+  // Switching to Specific Days should default to all 7 days selected, not silently carry over
+  // whatever daysOfWeek the previous frequency left behind -- an empty array for a task that was
+  // never Specific Days to begin with (its own daysOfWeek was never set/used), which rendered as
+  // no days selected at all rather than a sensible starting point. Only defaults when daysOfWeek
+  // is currently empty, though -- a real, non-empty selection (either the task's own original one,
+  // or one already chosen earlier in this same edit session) is preserved, not blown away, if the
+  // user toggles away to another frequency and back to Specific Days again.
+  const handleSelectSpecificDays = () => {
+    setFrequency('specific_days_of_week');
+    setDaysOfWeek(prev => (prev.length === 0 ? [0, 1, 2, 3, 4, 5, 6] : prev));
+  };
+
   // Archive and delete get a real confirmation modal (unlike everything else in the app) --
   // both live at the bottom of the edit form now rather than a separate read-only screen, so
   // a stray tap here is easier to make by accident. The toast afterward still offers Undo as a
@@ -500,7 +512,7 @@ export const AddTaskScreen: React.FC = () => {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.frequencyTypeButton, frequency === 'specific_days_of_week' && { backgroundColor: selectedColor }]}
-              onPress={() => setFrequency('specific_days_of_week')}
+              onPress={handleSelectSpecificDays}
               accessibilityRole="radio"
               accessibilityState={{ checked: frequency === 'specific_days_of_week' }}
             >
