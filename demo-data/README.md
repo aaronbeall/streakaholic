@@ -96,17 +96,18 @@ This one leans on it more: leaving it too long doesn't just make dates look stal
 which day is "the one gap" for New Best Streak/Comeback and cause their specific mechanics above
 to stop lining up.
 
-**Known gap (2026-08-12): this dataset predates the six achievements added that day** (Perfect
-Week, Century Club, Habit Collector, Early Bird, Night Owl, Beast Mode — see CLAUDE.md's own
-"Congratulation stingers" section for the full per-kind design) and doesn't yet have dedicated
-demo tasks/checklist rows for any of them. Each has real quirks worth engineering a deliberate
-setup for, not just leaving to chance: Perfect Week needs 7 genuinely consecutive fully-completed
-days across every active task, not just one; Century Club needs a cross-task lifetime sum near
-1,000 (hard to stage convincingly without a lot of pre-existing history); Habit Collector just
-needs the active task count to sit at 5 with one more task ready to add (no completion trigger
-needed at all — see its own "detected lazily, on the next completion after the cap-reaching task
-was added" note in achievements.ts); Early Bird/Night Owl need a real, time-of-day-stamped
-completion history (the generator would need to set specific hours on `completedAt`, which it
-doesn't do today) rather than the day-level `date` field the rest of the generator works in; Beast
-Mode needs several tasks' `completedAt` timestamps clustered within the same short window on one
-day. Worth a dedicated follow-up pass on this generator before relying on it to test these six.
+**Known gap (2026-08-12): this dataset predates the achievements added that day** (Perfect
+Week, Century Club, Habit Collector, Early Bird, Night Owl — see CLAUDE.md's own
+"Congratulation stingers" section for the full per-kind design; a sixth, Beast Mode, was added
+and then removed the same day per explicit user direction once real design gaps surfaced, so it
+was never added here either) and doesn't yet have dedicated demo tasks/checklist rows for any of
+them. Each has real quirks worth engineering a deliberate setup for, not just leaving to chance:
+Perfect Week needs 7 genuinely consecutive fully-completed days across every active task, not just
+one; Century Club needs a cross-task lifetime sum near 1,000 (hard to stage convincingly without a
+lot of pre-existing history); Habit Collector just needs the active task count to sit at 5 with one
+more task ready to add (no completion trigger needed at all — see its own "detected lazily, on the
+next completion after the cap-reaching task was added" note in achievements.ts); Early Bird/Night
+Owl need a real, time-of-day-stamped completion history (the generator would need to set specific
+hours on `completedAt`, which it doesn't do today) rather than the day-level `date` field the rest
+of the generator works in. Worth a dedicated follow-up pass on this generator before relying on it
+to test these five.

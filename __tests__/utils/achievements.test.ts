@@ -275,6 +275,12 @@ describe('detectCompletionAchievements', () => {
       expect(kindsOf(earned)).toContain('perfect-day');
     });
 
+    it('does not fire when only a single task is due, even if completed -- requires PERFECT_DAY_MIN_DUE_TASKS', () => {
+      const t1 = makeTask({ id: 't1', completions: [makeCompletion('c1', today)] }, { currentStreak: 1 });
+      const earned = detectCompletionAchievements(t1, t1, [t1], today, new Set());
+      expect(kindsOf(earned)).not.toContain('perfect-day');
+    });
+
     it('does not fire if any due, non-archived task is incomplete', () => {
       const t1 = makeTask({ id: 't1', completions: [makeCompletion('c1', today)] }, { currentStreak: 1 });
       const t2 = makeTask({ id: 't2', completions: [] }, { currentStreak: 0 });
@@ -283,9 +289,13 @@ describe('detectCompletionAchievements', () => {
     });
 
     it('ignores archived tasks', () => {
+      // Two genuinely due, non-archived, completed tasks (PERFECT_DAY_MIN_DUE_TASKS) plus the
+      // archived one this test is actually about -- an archived task with nothing due doesn't
+      // count toward, or against, the minimum.
       const t1 = makeTask({ id: 't1', completions: [makeCompletion('c1', today)] }, { currentStreak: 1 });
-      const t2 = makeTask({ id: 't2', archived: true, completions: [] }, { currentStreak: 0 });
-      const earned = detectCompletionAchievements(t1, t1, [t1, t2], today, new Set());
+      const t2 = makeTask({ id: 't2', completions: [makeCompletion('c2', today)] }, { currentStreak: 1 });
+      const archived = makeTask({ id: 't3', archived: true, completions: [] }, { currentStreak: 0 });
+      const earned = detectCompletionAchievements(t1, t1, [t1, t2, archived], today, new Set());
       expect(kindsOf(earned)).toContain('perfect-day');
     });
 
@@ -305,14 +315,16 @@ describe('detectCompletionAchievements', () => {
     it('dedupes per calendar date', () => {
       const dateString = format(today, 'yyyy-MM-dd');
       const t1 = makeTask({ id: 't1', completions: [makeCompletion('c1', today)] }, { currentStreak: 1 });
-      const earned = detectCompletionAchievements(t1, t1, [t1], today, new Set([`perfect-day:${dateString}`]));
+      const t2 = makeTask({ id: 't2', completions: [makeCompletion('c2', today)] }, { currentStreak: 1 });
+      const earned = detectCompletionAchievements(t1, t1, [t1, t2], today, new Set([`perfect-day:${dateString}`]));
       expect(kindsOf(earned)).not.toContain('perfect-day');
     });
 
     it('evaluates against the completion\'s own date, not "today", for a backfilled past completion', () => {
       const pastDate = new Date(2020, 0, 1);
       const t1 = makeTask({ id: 't1', completions: [makeCompletion('c1', pastDate)] }, { currentStreak: 1 });
-      const earned = detectCompletionAchievements(t1, t1, [t1], pastDate, new Set());
+      const t2 = makeTask({ id: 't2', completions: [makeCompletion('c2', pastDate)] }, { currentStreak: 1 });
+      const earned = detectCompletionAchievements(t1, t1, [t1, t2], pastDate, new Set());
       const perfectDay = earned.find(e => e.kind === 'perfect-day');
       expect(perfectDay?.dedupScope).toBe(format(pastDate, 'yyyy-MM-dd'));
     });
@@ -324,33 +336,39 @@ describe('detectCompletionAchievements', () => {
 
     const completionsFor = (id: string, dates: Date[]) => dates.map((d, i) => makeCompletion(`${id}-${i}`, d));
 
+    // Every test here needs at least PERFECT_DAY_MIN_DUE_TASKS due+completed tasks per day, not
+    // just one -- t2 mirrors t1's own completions exactly so both are always "perfect" together.
     it('fires on the exact day 7 consecutive perfect days is first reached', () => {
       const days = Array.from({ length: 7 }, (_, i) => new Date(today.getTime() - (6 - i) * 86400000));
       const t1 = makeDailyTask('t1', completionsFor('t1', days));
-      const earned = detectCompletionAchievements(t1, t1, [t1], today, new Set());
+      const t2 = makeDailyTask('t2', completionsFor('t2', days));
+      const earned = detectCompletionAchievements(t1, t1, [t1, t2], today, new Set());
       expect(kindsOf(earned)).toContain('perfect-week');
     });
 
     it('does not fire on day 6 of a perfect run', () => {
       const days = Array.from({ length: 6 }, (_, i) => new Date(today.getTime() - (5 - i) * 86400000));
       const t1 = makeDailyTask('t1', completionsFor('t1', days));
-      const earned = detectCompletionAchievements(t1, t1, [t1], today, new Set());
+      const t2 = makeDailyTask('t2', completionsFor('t2', days));
+      const earned = detectCompletionAchievements(t1, t1, [t1, t2], today, new Set());
       expect(kindsOf(earned)).not.toContain('perfect-week');
     });
 
     it('does not fire again on day 8, since the crossing already happened on day 7', () => {
       const days = Array.from({ length: 8 }, (_, i) => new Date(today.getTime() - (7 - i) * 86400000));
       const t1 = makeDailyTask('t1', completionsFor('t1', days));
+      const t2 = makeDailyTask('t2', completionsFor('t2', days));
       // No dedup entry needed -- the crossing check itself (today's window perfect, yesterday's
       // own trailing window already perfect too) is what prevents the re-fire here, not dedup.
-      const earned = detectCompletionAchievements(t1, t1, [t1], today, new Set());
+      const earned = detectCompletionAchievements(t1, t1, [t1, t2], today, new Set());
       expect(kindsOf(earned)).not.toContain('perfect-week');
     });
 
     it('does not fire if any of the 7 days had an incomplete due task', () => {
       const days = Array.from({ length: 7 }, (_, i) => new Date(today.getTime() - (6 - i) * 86400000));
       const t1 = makeDailyTask('t1', completionsFor('t1', days).filter((_, i) => i !== 3)); // day 4 missed
-      const earned = detectCompletionAchievements(t1, t1, [t1], today, new Set());
+      const t2 = makeDailyTask('t2', completionsFor('t2', days));
+      const earned = detectCompletionAchievements(t1, t1, [t1, t2], today, new Set());
       expect(kindsOf(earned)).not.toContain('perfect-week');
     });
   });
@@ -453,34 +471,6 @@ describe('detectCompletionAchievements', () => {
     });
   });
 
-  describe('beast-mode', () => {
-    const completionAt = (id: string, taskId: string, offsetMinutes: number): TaskCompletion => {
-      const d = new Date(today.getTime() + offsetMinutes * 60000);
-      return { ...makeCompletion(id, d), taskId };
-    };
-
-    it('fires when every due task is completed within the duration window', () => {
-      const t1 = makeTask({ id: 't1', completions: [completionAt('c1', 't1', 0)] }, { currentStreak: 1 });
-      const t2 = makeTask({ id: 't2', completions: [completionAt('c2', 't2', 5)] }, { currentStreak: 1 });
-      const earned = detectCompletionAchievements(t2, t2, [t1, t2], today, new Set());
-      expect(kindsOf(earned)).toContain('beast-mode');
-    });
-
-    it('does not fire when the completions are spread past the duration window', () => {
-      const t1 = makeTask({ id: 't1', completions: [completionAt('c1', 't1', 0)] }, { currentStreak: 1 });
-      const t2 = makeTask({ id: 't2', completions: [completionAt('c2', 't2', 45)] }, { currentStreak: 1 });
-      const earned = detectCompletionAchievements(t2, t2, [t1, t2], today, new Set());
-      expect(kindsOf(earned)).not.toContain('beast-mode');
-    });
-
-    it('does not fire if any due task is still incomplete', () => {
-      const t1 = makeTask({ id: 't1', completions: [completionAt('c1', 't1', 0)] }, { currentStreak: 1 });
-      const t2 = makeTask({ id: 't2', completions: [] }, { currentStreak: 0 });
-      const earned = detectCompletionAchievements(t2, t2, [t1, t2], today, new Set());
-      expect(kindsOf(earned)).not.toContain('beast-mode');
-    });
-  });
-
   describe('multiple achievements from one completion', () => {
     it('returns every achievement earned in a single call', () => {
       const prev = makeTask({}, { currentStreak: 9, totalCompletions: 9, bestStreak: 9 });
@@ -505,55 +495,110 @@ const makeAchievement = (kind: AchievementKind, overrides: Partial<Achievement> 
   ...overrides,
 });
 
+// detectRetroactiveAchievements (2026-08-12 rewrite) replays real completion history, in
+// completedAt order, rather than checking a single current-stats snapshot -- so, unlike every
+// test above, its own fixtures need genuine `completions` arrays (dates the underlying streak
+// math can actually walk through), not just pre-set `.stats` overrides. `daysAgo`/
+// `consecutiveCompletions` build those against a fixed reference date so the tests stay
+// deterministic regardless of when they're run. Note `completedAt` (not `date`) drives both replay
+// order and the asOfDate used for stats -- see detectRetroactiveAchievements' own comment for why
+// that distinction matters for a genuine backfill (a completion whose completedAt lands well after
+// the calendar day it's actually for).
 describe('detectRetroactiveAchievements', () => {
-  it('awards every fixed-threshold kind the task current stats already qualify for, and stops at the highest tier reached', () => {
-    const task = makeTask({ id: 't1' }, { currentStreak: 15, totalCompletions: 3 });
-    const earned = detectRetroactiveAchievements([], [task]);
+  const REF_TODAY = new Date('2026-01-20T12:00:00.000Z');
+  const daysAgo = (n: number) => new Date(REF_TODAY.getTime() - n * 86400000);
+  const consecutiveCompletions = (idPrefix: string, startDaysAgo: number, count: number): TaskCompletion[] =>
+    Array.from({ length: count }, (_, i) => makeCompletion(`${idPrefix}${i}`, daysAgo(startDaysAgo - i)));
+
+  it('replays a real unbroken streak and awards every fixed-threshold tier it actually crossed, stopping at the highest reached', () => {
+    // 15 consecutive daily completions ending today (REF_TODAY) -- a clean, unbroken streak.
+    const task = makeTask({ id: 't1', completions: consecutiveCompletions('c', 14, 15) });
+    const earned = detectRetroactiveAchievements([], [task], REF_TODAY);
     const kinds = kindsOf(earned);
     expect(kinds).toEqual(expect.arrayContaining(['first-completion', 'streak-2', 'streak-5', 'streak-10']));
     expect(kinds).not.toContain('streak-25');
   });
 
   it('never re-awards a (kind, scope) pair that already has an earned record, regardless of repeatability', () => {
-    const task = makeTask({ id: 't1' }, { currentStreak: 15 });
+    const task = makeTask({ id: 't1', completions: consecutiveCompletions('c', 14, 15) });
     const already = makeAchievement('streak-10', { taskId: 't1', dedupScope: 't1' });
-    const earned = detectRetroactiveAchievements([already], [task]);
+    const earned = detectRetroactiveAchievements([already], [task], REF_TODAY);
     expect(kindsOf(earned)).not.toContain('streak-10');
-    // Still catches the other, not-yet-earned tiers this same task also currently qualifies for.
+    // Still catches the other, not-yet-earned tiers this same task's history also crossed.
     expect(kindsOf(earned)).toEqual(expect.arrayContaining(['streak-5', 'streak-2']));
   });
 
   it('awards the global first-completion once, even with multiple currently-qualifying tasks, with no task identity attached', () => {
-    const a = makeTask({ id: 'a' }, { totalCompletions: 5 });
-    const b = makeTask({ id: 'b' }, { totalCompletions: 3 });
-    const earned = detectRetroactiveAchievements([], [a, b]);
+    const a = makeTask({ id: 'a', completions: [makeCompletion('a1', daysAgo(5))] });
+    const b = makeTask({ id: 'b', completions: [makeCompletion('b1', daysAgo(3))] });
+    const earned = detectRetroactiveAchievements([], [a, b], REF_TODAY);
     const firstCompletionEntries = earned.filter(e => e.kind === 'first-completion');
     expect(firstCompletionEntries).toHaveLength(1);
     expect(firstCompletionEntries[0].taskId).toBeUndefined();
   });
 
-  it('awards new-best-streak only for a task currently sitting right at its own record', () => {
-    const atRecord = makeTask({ id: 'a' }, { currentStreak: 8, bestStreak: 8 });
-    const belowRecord = makeTask({ id: 'b' }, { currentStreak: 3, bestStreak: 8 });
-    const earned = detectRetroactiveAchievements([], [atRecord, belowRecord]);
+  it('awards new-best-streak for a real backfill-bridged jump past an old record, and not for an unrelated task', () => {
+    // Mirrors the demo dataset's own proven "New Best Streak" construction (see
+    // generate-achievements-test-data.py): a 6-day closed run (days 8..3 ago, ordinary same-day
+    // taps) sets a bestStreak of 6; days 1..0 ago (today) form a separate, already-open 2-day run
+    // (also ordinary same-day taps). Day 2 ago is the gap -- backfilled here (`completedAt` set to
+    // REF_TODAY, well after its own `date`, simulating a real Calendar-tab backfill performed
+    // *today*) rather than left empty, which is what actually bridges the two runs into one
+    // continuous 9-day streak in a single jump. This distinction matters: live completion always
+    // evaluates stats against real "now" at press time regardless of which day the press if *for*
+    // (see detectRetroactiveAchievements' own top comment) -- an ordinary same-day completion of
+    // day 2 ago (completedAt === date) would NOT bridge anything, since by the time that day's own
+    // event replays, the not-yet-existing days 1..0 ago haven't happened yet. Only a genuine
+    // backfill, recorded after the open run already exists, produces the jump.
+    const bridgeDate = daysAgo(2);
+    const bridge: TaskCompletion = {
+      id: 'bridge', taskId: 't1', date: format(bridgeDate, 'yyyy-MM-dd'), completedAt: REF_TODAY.toISOString(), timesCompleted: 1,
+    };
+    const bridged = makeTask({
+      id: 'a',
+      completions: [...consecutiveCompletions('r1-', 8, 6), ...consecutiveCompletions('r2-', 1, 2), bridge],
+    });
+    // An unrelated task with a plain, never-broken streak -- no prior closed run to ever beat.
+    const neverBroken = makeTask({ id: 'b', completions: consecutiveCompletions('r3-', 4, 5) });
+    const earned = detectRetroactiveAchievements([], [bridged, neverBroken], REF_TODAY);
     const newBest = earned.filter(e => e.kind === 'new-best-streak');
     expect(newBest).toHaveLength(1);
     expect(newBest[0].taskId).toBe('a');
+    expect(newBest[0].value).toBe(9); // the full bridged run: 6 (old) + 1 (bridge) + 2 (open run)
   });
 
-  it('never produces comeback or perfect-day -- neither can be reconstructed from a current snapshot alone', () => {
-    const lapsed = makeTask({ id: 'a' }, { streakStatus: 'expired', currentStreak: 0 });
-    const earned = detectRetroactiveAchievements([], [lapsed]);
-    expect(kindsOf(earned)).not.toContain('comeback');
-    expect(kindsOf(earned)).not.toContain('perfect-day');
+  it('now also detects comeback retroactively -- a real capability the old snapshot-only scan could not reach', () => {
+    // A genuine 5-day run (days 6..2 ago), then EXACTLY one missed day (1 day ago -- daily
+    // frequency, so a genuine missed due day), then a reviving completion today. Exactly one
+    // trailing miss is required for streakStatus to read 'expired' rather than decaying all the
+    // way to 'never_started' (see achievements.ts's own note on this, and demo-data/README.md's
+    // "Comeback Demo" task, which works around the identical constraint).
+    const task = makeTask({
+      id: 'a',
+      completions: [...consecutiveCompletions('r1-', 6, 5), makeCompletion('revive', daysAgo(0))],
+    });
+    const earned = detectRetroactiveAchievements([], [task], REF_TODAY);
+    expect(kindsOf(earned)).toContain('comeback');
   });
 
-  it('produces nothing on a second run against the same, unchanged tasks -- duplication rules hold across repeated scans', () => {
-    const task = makeTask({ id: 't1' }, { currentStreak: 15, bestStreak: 15 });
-    const firstRun = detectRetroactiveAchievements([], [task]);
+  it('now also detects perfect-day retroactively -- same reasoning', () => {
+    // createdAt must predate REF_TODAY explicitly -- makeTask's own default (real "now" at test
+    // run time) would otherwise exclude both tasks from the replay's "did this task exist yet"
+    // filter, since REF_TODAY is a fixed date in the past relative to whenever this actually runs.
+    const createdAt = new Date('2025-01-01T00:00:00.000Z').toISOString();
+    const perfectDate = daysAgo(3);
+    const p1 = makeTask({ id: 'p1', createdAt, completions: [makeCompletion('p1c', perfectDate)] });
+    const p2 = makeTask({ id: 'p2', createdAt, completions: [makeCompletion('p2c', perfectDate)] });
+    const earned = detectRetroactiveAchievements([], [p1, p2], REF_TODAY);
+    expect(kindsOf(earned)).toContain('perfect-day');
+  });
+
+  it('produces nothing on a second run against the same, unchanged history -- duplication rules hold across repeated scans', () => {
+    const task = makeTask({ id: 't1', completions: consecutiveCompletions('c', 14, 15) });
+    const firstRun = detectRetroactiveAchievements([], [task], REF_TODAY);
     expect(firstRun.length).toBeGreaterThan(0);
     const recorded: Achievement[] = firstRun.map((a, i) => ({ ...a, id: `r${i}`, earnedAt: new Date().toISOString() }));
-    const secondRun = detectRetroactiveAchievements(recorded, [task]);
+    const secondRun = detectRetroactiveAchievements(recorded, [task], REF_TODAY);
     expect(secondRun).toEqual([]);
   });
 
@@ -699,8 +744,11 @@ describe('getAchievementCardStatus', () => {
     it('counts consecutive perfect days walking backward from today', () => {
       const days = Array.from({ length: 3 }, (_, i) => new Date(today.getTime() - (2 - i) * 86400000));
       const completions = days.map((d, i) => makeCompletion(`c${i}`, d));
+      // Two tasks (PERFECT_DAY_MIN_DUE_TASKS) sharing the exact same completion history, so every
+      // one of the 3 days is genuinely "perfect" for both, not just a single-task minimum.
       const task = makeTask({ id: 't1', completions }, { currentStreak: 3 });
-      const status = getAchievementCardStatus('perfect-week', [], [task], today);
+      const task2 = makeTask({ id: 't2', completions: completions.map(c => ({ ...c, id: `${c.id}-2` })) }, { currentStreak: 3 });
+      const status = getAchievementCardStatus('perfect-week', [], [task, task2], today);
       expect(status.progress).toEqual({ current: 3, target: 7 });
     });
 

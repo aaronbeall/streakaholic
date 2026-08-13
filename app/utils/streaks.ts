@@ -80,11 +80,16 @@ export const isDueOnDate = (task: StreakScheduleInfo, date: Date): boolean => {
 // within it) into the streak; missing it breaks the chain going forward. For 'daily', every day
 // is its own due day, so every segment is exactly one day -- this degenerates to the old
 // per-due-day behavior with no non-due days to add.
-const calculateDueDayStats = (task: StreakScheduleInfo, completions: TaskCompletion[]): TaskStats => {
+// `asOfDate` defaults to real "now" for every live call site (Task Card badges, headers, the
+// Dashboard, etc.) -- it exists so a historical replay (achievements.ts's own retroactive scan)
+// can ask "what would this task's stats have looked like on some past date," by passing that date
+// here instead of letting "today" mean the actual current moment. Every live caller is unaffected
+// since the parameter is optional and defaults identically to the old hardcoded behavior.
+const calculateDueDayStats = (task: StreakScheduleInfo, completions: TaskCompletion[], asOfDate: Date = new Date()): TaskStats => {
   const completedDates = new Set(completions.map(c => c.date));
   const sortedDates = Array.from(completedDates).sort();
   const firstDate = startOfDay(parseISO(sortedDates[0]));
-  const today = startOfDay(new Date());
+  const today = startOfDay(asOfDate);
   const todayStr = format(today, 'yyyy-MM-dd');
   const todayIsDue = isDueOnDate(task, today);
   const todayCompleted = completedDates.has(todayStr);
@@ -223,11 +228,18 @@ export const getQuotaPeriodInfo = (
 // it just doesn't link forward -- the *next* period starts fresh. The in-progress current
 // period hasn't closed yet, so its days-so-far are always provisionally included in whatever
 // streak is currently open, win or lose, until it actually closes.
-const calculateQuotaStats = (task: StreakScheduleInfo, completions: TaskCompletion[], unit: QuotaUnit, quota: number): TaskStats => {
+// See calculateDueDayStats's own comment on `asOfDate` -- same reasoning, same default.
+const calculateQuotaStats = (
+  task: StreakScheduleInfo,
+  completions: TaskCompletion[],
+  unit: QuotaUnit,
+  quota: number,
+  asOfDate: Date = new Date()
+): TaskStats => {
   const safeQuota = Math.max(1, quota || 1);
   const distinctDates = Array.from(new Set(completions.map(c => c.date))).sort();
   const firstDate = parseISO(distinctDates[0]);
-  const today = startOfDay(new Date());
+  const today = startOfDay(asOfDate);
   // `completions` here are already the caller's pre-filtered qualifying set (see
   // calculateTaskStats below), so any date present in this map already qualifies --
   // requiredTimes=1 against it is equivalent to re-checking the real timesPerDay threshold.
@@ -302,7 +314,16 @@ const calculateQuotaStats = (task: StreakScheduleInfo, completions: TaskCompleti
   };
 };
 
-export const calculateTaskStats = (task: StreakScheduleInfo, completions: TaskCompletion[]): TaskStats => {
+// `asOfDate` (optional, defaults to real "now") is what "today" means throughout this whole
+// calculation -- every live call site omits it and gets the exact same behavior as before this
+// parameter existed. It exists specifically so achievements.ts's retroactive scan can reconstruct
+// a task's stats *as they stood on some past date*, by recomputing this same function with that
+// date instead of the real current moment.
+export const calculateTaskStats = (
+  task: StreakScheduleInfo,
+  completions: TaskCompletion[],
+  asOfDate: Date = new Date()
+): TaskStats => {
   // A day only "counts" once it's hit the task's timesPerDay quota -- a completion record
   // that's only partially filled in (e.g. 2 of 8 reps) shouldn't count as a done day yet.
   const requiredTimes = Math.max(1, task.timesPerDay || 1);
@@ -312,13 +333,13 @@ export const calculateTaskStats = (task: StreakScheduleInfo, completions: TaskCo
 
   switch (task.frequency) {
     case 'days_per_week':
-      return calculateQuotaStats(task, qualifyingCompletions, 'week', task.daysPerWeek);
+      return calculateQuotaStats(task, qualifyingCompletions, 'week', task.daysPerWeek, asOfDate);
     case 'days_per_month':
-      return calculateQuotaStats(task, qualifyingCompletions, 'month', task.daysPerMonth);
+      return calculateQuotaStats(task, qualifyingCompletions, 'month', task.daysPerMonth, asOfDate);
     case 'daily':
     case 'specific_days_of_week':
     default:
-      return calculateDueDayStats(task, qualifyingCompletions);
+      return calculateDueDayStats(task, qualifyingCompletions, asOfDate);
   }
 };
 

@@ -1,6 +1,6 @@
 import { differenceInCalendarDays, format, parseISO, subDays } from 'date-fns';
-import { MaterialCommunityIconName, Task } from '../types';
-import { isDueOnDate, isTaskCompleted } from './streaks';
+import { MaterialCommunityIconName, Task, TaskCompletion } from '../types';
+import { calculateTaskStats, isDueOnDate, isTaskCompleted } from './streaks';
 import { MAX_ACTIVE_TASKS } from './taskLimits';
 
 // Achievement celebrations -- purely cosmetic collectibles for now (a future point system may
@@ -13,7 +13,6 @@ export type AchievementKind =
   | 'milestone-10' | 'milestone-50' | 'milestone-100' | 'milestone-1000'
   | 'century-club'
   | 'perfect-day' | 'perfect-week'
-  | 'beast-mode'
   | 'comeback'
   | 'habit-collector'
   | 'early-bird' | 'night-owl';
@@ -344,6 +343,12 @@ const FIRST_STREAK_THRESHOLD = 2;
 // since several are read from more than one place (both an ACHIEVEMENT_META entry's own
 // progressStrategy and the matching bespoke detection block below).
 const PERFECT_WEEK_DAYS = 7;
+// A day/week with only one due task still trivially "wins" without this -- per explicit user
+// direction (2026-08-12), a genuine "perfect" day needs a little more actually riding on it. 2 is
+// the smallest change that rules out the trivial one-task case without meaningfully raising the
+// bar for someone with a modest task list; shared by both perfect-day and perfect-week (a
+// "perfect week" is just seven perfect days in a row, so both should mean the same thing).
+const PERFECT_DAY_MIN_DUE_TASKS = 2;
 // "Century" is idiomatic here (a big round milestone number), not literal -- see century-club's
 // own ACHIEVEMENT_META comment for why 1,000 was chosen over a literal 100.
 const CENTURY_CLUB_TARGET = 1000;
@@ -355,7 +360,6 @@ const TIME_OF_DAY_WINDOW = 14;
 const TIME_OF_DAY_MIN_SAMPLES = 10;
 const EARLY_BIRD_HOUR = 7; // before 7am, local device time
 const NIGHT_OWL_HOUR = 21; // at or after 9pm, local device time
-const BEAST_MODE_DURATION_MINUTES = 10;
 
 // Single source of truth for every per-kind behavior -- icon/title/description, celebration
 // screen content, Trophy Case progress strategy and display grouping, all in one place. Adding a
@@ -608,14 +612,17 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     scope: 'global',
     flavorText: 'A clean sweep — nicely done!',
     numberBlock: { eyebrow: 'Perfect Day', unit: 'TASKS COMPLETED' },
-    // A fixed word, not a count -- the number of tasks due that day isn't really the interesting
+    // A fixed word, not a count -- the number of tasks due today isn't really the interesting
     // fact about a perfect day (it doesn't escalate/grow the way a streak or completion count
     // does, it's just whatever happened to be due), so a plain declaration reads better.
     ribbon: { kind: 'fixed', text: 'PERFECT' },
+    // "Today", not "that day" -- reads far more naturally for the overwhelmingly common case (a
+    // live, same-day completion), even though a backfilled past-date completion technically means
+    // this isn't always literally "today" in wall-clock terms. Accepted per explicit direction.
     triggerStandalone: v =>
       v !== undefined
-        ? `All ${v.toLocaleString()} tasks due that day were completed.`
-        : 'Every task due that day was completed.',
+        ? `All ${v.toLocaleString()} tasks due today were completed.`
+        : 'Every task due today was completed.',
     progressStrategy: { type: 'today-progress' },
     color: { theme: 'Emerald', base: '#00A86B', glow: '#00E676', accent: '#E8F5E9' }, // perfect-day
   },
@@ -635,15 +642,20 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
   },
 
   // ==========================================================================================
-  // Six kinds added 2026-08-12, per explicit user direction ("add these new achievements you
+  // Five kinds added 2026-08-12, per explicit user direction ("add these new achievements you
   // proposed earlier: Perfect Week, Century Club, Habit Collector, Early Bird... Night Owl...
-  // Beast Mode"). Four of these needed genuinely new ProgressStrategy variants (see that type's
-  // own comments above) since none of the existing five patterns fit a cross-task aggregate sum,
-  // an active-task count, a rolling time-of-day ratio, or a live consecutive-day lookback --
-  // exactly the "genuinely novel progress shape" case that type's own doc comment anticipated.
-  // Detection for all six is bespoke (see detectCompletionAchievements' own new blocks below),
-  // same as new-best-streak/comeback/perfect-day already are, for the same reason: each is a
-  // genuinely new *rule*, not another tier of an existing one.
+  // Beast Mode"). A sixth, Beast Mode, was added in this same batch but removed the same day
+  // (see this file's own git history / CLAUDE.md for the full reasoning) once direct testing
+  // surfaced real, un-fixable design gaps -- it fired trivially with only one due task (a single
+  // completion's own timestamp span is always 0 minutes), and its speed window didn't scale with
+  // how many tasks were actually due, making it easier on light days and harder on busy ones. Four
+  // of the five remaining kinds needed genuinely new ProgressStrategy variants (see that type's own
+  // comments above) since none of the existing five patterns fit a cross-task aggregate sum, an
+  // active-task count, a rolling time-of-day ratio, or a live consecutive-day lookback -- exactly
+  // the "genuinely novel progress shape" case that type's own doc comment anticipated. Detection
+  // for all five is bespoke (see detectCompletionAchievements' own blocks below), same as
+  // new-best-streak/comeback/perfect-day already are, for the same reason: each is a genuinely new
+  // *rule*, not another tier of an existing one.
   // ==========================================================================================
 
   // A direct escalation of perfect-day -- 7 consecutive perfect days (every due, non-archived
@@ -734,32 +746,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'fixed', text: 'NIGHT OWL' },
     triggerStandalone: v => `${(v ?? 0).toLocaleString()} of your last ${TIME_OF_DAY_WINDOW} completions landed after 9pm.`,
     progressStrategy: { type: 'time-of-day-ratio', hour: NIGHT_OWL_HOUR, direction: 'after', window: TIME_OF_DAY_WINDOW, minSamples: TIME_OF_DAY_MIN_SAMPLES },
-    color: { theme: 'Midnight', base: '#10102B', glow: '#5C6BC0', accent: '#283593' }, // night-owl
-  },
-  // Layered on top of perfect-day's own exact condition (every due, non-archived task completed
-  // that day) plus a speed constraint: the span between the day's earliest and latest completion
-  // timestamp has to fit within BEAST_MODE_DURATION_MINUTES. Global, per-day, repeatable (dedup
-  // scope is the date, same as perfect-day) -- a genuinely different day blitzing through
-  // everything again earns its own copy. Deliberately reuses perfect-day's own `today-progress`
-  // strategy for its Trophy Case progress bar rather than inventing a new strategy type just for
-  // this -- "how many of today's due tasks are done" is still a meaningful prerequisite signal
-  // even though it can't capture the speed dimension on its own; a known, accepted simplification
-  // rather than a new mechanism for one kind.
-  'beast-mode': {
-    icon: 'lightning-bolt',
-    title: 'Beast Mode!',
-    describe: () => `Completed every task for the day in under ${BEAST_MODE_DURATION_MINUTES} minutes`,
-    repeatable: true,
-    scope: 'global',
-    flavorText: 'In and out. No wasted motion.',
-    numberBlock: { eyebrow: 'Beast Mode', unit: 'MINUTES' },
-    ribbon: { kind: 'fixed', text: 'BEAST MODE' },
-    triggerStandalone: v =>
-      v !== undefined
-        ? `You blitzed through every task for the day in just ${v.toLocaleString()} minute${v === 1 ? '' : 's'}.`
-        : `You blitzed through every task for the day in under ${BEAST_MODE_DURATION_MINUTES} minutes.`,
-    progressStrategy: { type: 'today-progress' },
-    color: { theme: 'Voltage', base: '#6200EA', glow: '#B388FF', accent: '#C6FF00' }, // beast-mode
+    color: { theme: 'Midnight', base: '#10102B', glow: '#5C6BC0', accent: '#283593', useAccentText: true }, // night-owl
   },
 };
 
@@ -787,10 +774,9 @@ const ACHIEVEMENT_ORDER_INDEX: Record<AchievementKind, number> = {
   'milestone-10': 10, 'milestone-50': 11, 'milestone-100': 12, 'milestone-1000': 13,
   'century-club': 14,
   'perfect-day': 15, 'perfect-week': 16,
-  'beast-mode': 17,
-  comeback: 18,
-  'habit-collector': 19,
-  'early-bird': 20, 'night-owl': 21,
+  comeback: 17,
+  'habit-collector': 18,
+  'early-bird': 19, 'night-owl': 20,
 };
 
 export const ACHIEVEMENT_KIND_ORDER: AchievementKind[] = (Object.keys(ACHIEVEMENT_META) as AchievementKind[])
@@ -828,12 +814,10 @@ const FIXED_THRESHOLD_ENTRIES: { kind: AchievementKind; metric: 'currentStreak' 
     )
     .map(({ kind, strategy }) => ({ kind, metric: strategy.metric, target: strategy.target }));
 
-// Every ratio-to-own-best kind, derived the same way FIXED_THRESHOLD_ENTRIES is above -- currently
-// just new-best-streak, but a future kind reusing this strategy type is picked up automatically.
-const RATIO_TO_OWN_BEST_KINDS: AchievementKind[] = ACHIEVEMENT_KIND_ORDER
-  .filter(kind => ACHIEVEMENT_META[kind].progressStrategy.type === 'ratio-to-own-best');
-
-// Every task-age kind, derived the same way as the two lists above -- currently just anniversary.
+// Every task-age kind, derived the same way as FIXED_THRESHOLD_ENTRIES above -- currently just
+// anniversary. Used both by detectCompletionAchievements (live) and detectRetroactiveAchievements'
+// own standalone task-age check below (task-age isn't completion-driven, so it sits outside that
+// function's chronological replay).
 const TASK_AGE_ENTRIES: { kind: AchievementKind; days: number }[] = ACHIEVEMENT_KIND_ORDER
   .map(kind => ({ kind, strategy: ACHIEVEMENT_META[kind].progressStrategy }))
   .filter(
@@ -842,26 +826,13 @@ const TASK_AGE_ENTRIES: { kind: AchievementKind; days: number }[] = ACHIEVEMENT_
   )
   .map(({ kind, strategy }) => ({ kind, days: strategy.days }));
 
-// Four more derived lists, same pattern, for the four strategy types added 2026-08-12 -- each
-// currently backs exactly one kind (perfect-week / century-club / habit-collector, and
-// early-bird+night-owl sharing time-of-day-ratio), but a future kind reusing any of them is picked
-// up automatically with zero new code, same as every list above.
-const PERFECT_DAY_STREAK_ENTRIES: { kind: AchievementKind; days: number }[] = ACHIEVEMENT_KIND_ORDER
-  .map(kind => ({ kind, strategy: ACHIEVEMENT_META[kind].progressStrategy }))
-  .filter(
-    (entry): entry is { kind: AchievementKind; strategy: Extract<ProgressStrategy, { type: 'perfect-day-streak' }> } =>
-      entry.strategy.type === 'perfect-day-streak'
-  )
-  .map(({ kind, strategy }) => ({ kind, days: strategy.days }));
-
-const TOTAL_COMPLETIONS_SUM_ENTRIES: { kind: AchievementKind; target: number }[] = ACHIEVEMENT_KIND_ORDER
-  .map(kind => ({ kind, strategy: ACHIEVEMENT_META[kind].progressStrategy }))
-  .filter(
-    (entry): entry is { kind: AchievementKind; strategy: Extract<ProgressStrategy, { type: 'total-completions-sum' }> } =>
-      entry.strategy.type === 'total-completions-sum'
-  )
-  .map(({ kind, strategy }) => ({ kind, target: strategy.target }));
-
+// Every active-task-count kind (currently just habit-collector) -- same reasoning as
+// TASK_AGE_ENTRIES: not completion-driven, so detectRetroactiveAchievements checks it directly
+// via this list rather than as part of its chronological replay. Every OTHER strategy type
+// (ratio-to-own-best, perfect-day-streak, total-completions-sum, time-of-day-ratio) no longer
+// needs its own derived list here -- detectRetroactiveAchievements' replay drives all of those
+// straight through detectCompletionAchievements' own existing per-strategy logic instead of
+// duplicating it in a second, snapshot-only form.
 const ACTIVE_TASK_COUNT_ENTRIES: { kind: AchievementKind; target: number }[] = ACHIEVEMENT_KIND_ORDER
   .map(kind => ({ kind, strategy: ACHIEVEMENT_META[kind].progressStrategy }))
   .filter(
@@ -869,18 +840,6 @@ const ACTIVE_TASK_COUNT_ENTRIES: { kind: AchievementKind; target: number }[] = A
       entry.strategy.type === 'active-task-count'
   )
   .map(({ kind, strategy }) => ({ kind, target: strategy.target }));
-
-const TIME_OF_DAY_RATIO_ENTRIES: {
-  kind: AchievementKind; hour: number; direction: 'before' | 'after'; window: number; minSamples: number;
-}[] = ACHIEVEMENT_KIND_ORDER
-  .map(kind => ({ kind, strategy: ACHIEVEMENT_META[kind].progressStrategy }))
-  .filter(
-    (entry): entry is { kind: AchievementKind; strategy: Extract<ProgressStrategy, { type: 'time-of-day-ratio' }> } =>
-      entry.strategy.type === 'time-of-day-ratio'
-  )
-  .map(({ kind, strategy }) => ({
-    kind, hour: strategy.hour, direction: strategy.direction, window: strategy.window, minSamples: strategy.minSamples,
-  }));
 
 // Detects newly-earned achievements from a single task completion. Pure -- given the task's
 // state immediately before and after the completion (both already carrying freshly computed
@@ -962,14 +921,16 @@ export const detectCompletionAchievements = (
 
   // Perfect day -- global, evaluated against `date` (the day this completion was actually *for*),
   // not "today" -- a backfilled past-date completion should be judged against whether *that* day
-  // was perfect, not today. A day with nothing due for anyone doesn't trivially count as
-  // "perfect". Bespoke -- the only kind whose detection spans every task rather than just the one
-  // that was just completed. Repeatable (per ACHIEVEMENT_META), so `isFirstEarn` is really just a
-  // same-date re-entrancy guard here rather than a true one-time gate.
+  // was perfect, not today. Requires at least PERFECT_DAY_MIN_DUE_TASKS due tasks (2026-08-12, per
+  // explicit user direction) -- a day with nothing due for anyone was already excluded, but a day
+  // with exactly one due task used to trivially "win" too, with nothing genuinely riding on it.
+  // Bespoke -- the only kind whose detection spans every task rather than just the one that was
+  // just completed. Repeatable (per ACHIEVEMENT_META), so `isFirstEarn` is really just a same-date
+  // re-entrancy guard here rather than a true one-time gate.
   const dateString = format(date, 'yyyy-MM-dd');
   if (isFirstEarn('perfect-day', dateString)) {
     const dueTasks = allTasksAfter.filter(t => !t.archived && isDueOnDate(t, date));
-    if (dueTasks.length > 0 && dueTasks.every(t => isTaskCompleted(t, date))) {
+    if (dueTasks.length >= PERFECT_DAY_MIN_DUE_TASKS && dueTasks.every(t => isTaskCompleted(t, date))) {
       earned.push({ kind: 'perfect-day', value: dueTasks.length, dedupScope: dateString });
     }
   }
@@ -992,7 +953,7 @@ export const detectCompletionAchievements = (
   // just once when it first reaches 7.
   const isPerfectDayOn = (checkDate: Date): boolean => {
     const due = activeTasksAfter.filter(t => isDueOnDate(t, checkDate));
-    return due.length > 0 && due.every(t => isTaskCompleted(t, checkDate));
+    return due.length >= PERFECT_DAY_MIN_DUE_TASKS && due.every(t => isTaskCompleted(t, checkDate));
   };
   const isPerfectWeekEndingOn = (endDate: Date): boolean => {
     for (let i = 0; i < PERFECT_WEEK_DAYS; i++) {
@@ -1061,146 +1022,162 @@ export const detectCompletionAchievements = (
     }
   }
 
-  // Beast mode -- perfect-day's own exact condition (recomputed fresh here rather than sharing
-  // the block above, since that block's own `isFirstEarn('perfect-day', ...)` guard could skip
-  // recomputing dueTasks on a day perfect-day itself was already recorded, even though beast-mode
-  // still needs to evaluate independently), plus a speed constraint: the span between the day's
-  // earliest and latest completion timestamp has to fit within BEAST_MODE_DURATION_MINUTES.
-  if (isFirstEarn('beast-mode', dateString)) {
-    const dueTasksToday = activeTasksAfter.filter(t => isDueOnDate(t, date));
-    if (dueTasksToday.length > 0 && dueTasksToday.every(t => isTaskCompleted(t, date))) {
-      const todaysCompletions = dueTasksToday
-        .map(t => t.completions?.find(c => c.date === dateString))
-        .filter((c): c is NonNullable<typeof c> => !!c);
-      if (todaysCompletions.length === dueTasksToday.length) {
-        const timestamps = todaysCompletions.map(c => new Date(c.completedAt).getTime());
-        const spanMinutes = (Math.max(...timestamps) - Math.min(...timestamps)) / 60000;
-        if (spanMinutes <= BEAST_MODE_DURATION_MINUTES) {
-          earned.push({ kind: 'beast-mode', value: Math.round(spanMinutes), dedupScope: dateString });
-        }
-      }
-    }
-  }
-
   return earned;
 };
 
-// Retroactively evaluates every currently-qualifying, not-yet-earned achievement against the
-// task list's *current* stats snapshot -- a deliberate, narrower sibling of
-// detectCompletionAchievements above (which only ever looks at a single completion's own
-// prev/next transition). Powers TrophiesScreen's manual "catch up" scan for tasks whose history
-// predates this feature (or was imported, or just never happened to trigger detection at the
-// right moment) -- per this file's own long-standing "no historical backfill" decision, this is
-// deliberately opt-in and explicit, not automatic.
+// Repeatable, task-scoped kinds whose dedupScope is fixed (the task's own id) regardless of which
+// specific historical crossing produced a given record -- e.g. every "Streak Started!" a task has
+// ever earned shares the identical scope, so plain "have I already seen this scope" dedup can't
+// tell an already-recorded crossing apart from a genuinely new one for these specifically. Handled
+// below via a per-(kind,taskId) *count* instead of set membership (see detectRetroactiveAchievements'
+// own comment for how).
+const REPEATABLE_TASK_SCOPED_KINDS = new Set<AchievementKind>(
+  (Object.keys(ACHIEVEMENT_META) as AchievementKind[])
+    .filter(kind => ACHIEVEMENT_META[kind].repeatable && ACHIEVEMENT_META[kind].scope === 'task')
+);
+
+// Retroactively evaluates every achievement a task list's *history* actually earned, not just
+// whatever its current stats happen to show -- a genuine chronological replay, not a one-shot
+// snapshot check. Powers TrophiesScreen's/Settings' manual "catch up" scan for history that
+// predates this feature, was imported, or just never happened to trigger live detection at the
+// right moment.
 //
-// `fixed-threshold`, `ratio-to-own-best`, and `task-age` strategies are evaluated -- `readiness`
-// (comeback) needs to know the task was genuinely lapsed *immediately before* this moment, and
-// `today-progress` (perfect-day) needs a specific day's own due-state, neither of which a single
-// current snapshot can reconstruct. Both are silently skipped rather than guessed at.
+// Why replay instead of a snapshot: a repeatable kind's *current* state can only ever reveal its
+// most recent crossing. A task whose streak has broken and restarted three times only shows one
+// live "Streak Started!" moment in a plain snapshot of `currentStreak`, even though it genuinely
+// earned that moment three separate times across its real history. Completion records already
+// carry what's needed to reconstruct that whole history -- this walks every completion across
+// every active task, in the exact order they were actually *recorded*, replaying each one through
+// the same detectCompletionAchievements the live completion path already uses.
 //
-// Dedup here is deliberately stricter than the live detector's own ONE_TIME_KINDS-only check:
-// with no transition to detect a fresh "just crossed" moment from, a repeatable kind that's
-// already been earned once for a given scope is skipped too here -- otherwise re-running this
-// scan with nothing having changed would re-award every already-qualifying kind again and again.
+// Two distinct dates matter per completion, for two different reasons -- getting this right is
+// what makes the replay actually match live behavior:
+//   - `completion.completedAt` -- the real-world moment the press happened. Live completion
+//     (taskStore.completeTask, via withUpdatedStats) always computes stats against real "now" at
+//     press time, *regardless* of which day the press was actually *for* -- so a genuine backfill
+//     (completing a past day via the Calendar tab well after the fact) evaluates currentStreak/
+//     bestStreak/streakStatus as of the backfill's own real moment, not the backfilled day. This
+//     is what lets a backfill "bridge" an old closed run and an already-open one into a single
+//     jump past a prior record in one step (see achievements.ts's own `new-best-streak` comment,
+//     and this function's own tests) -- replaying by *completedAt* order, and using it as
+//     calculateTaskStats' asOfDate, reproduces that exactly. For an ordinary same-day tap,
+//     completedAt's date always equals `date`, so this is a no-op difference for the common case.
+//   - `completion.date` -- which calendar day the completion actually counts *for*. Used
+//     unchanged as detectCompletionAchievements' own `date` parameter, driving perfect-day/
+//     perfect-week/anniversary's date-scoped logic exactly as it already does live.
+//
+// Two kinds are deliberately NOT part of this replay, and keep their own simple current-snapshot
+// check instead, since replay wouldn't add anything: `task-age` (anniversary -- pure calendar
+// time, unaffected by completion history, and one-time regardless) and `active-task-count`
+// (habit-collector -- driven by task *existence*, not completions, and also one-time).
+//
+// A real, inherent limitation shared with the old snapshot-only version: this can only see each
+// task's *current* configuration (frequency, schedule, archived state) -- there's no historical
+// record of e.g. when a task was archived or had its schedule changed, so every replayed moment
+// assumes today's task list and settings held constant throughout. Good enough for the common
+// case (a task's schedule rarely changes), not a perfect reconstruction.
 export const detectRetroactiveAchievements = (
   achievements: Achievement[],
   activeTasks: Task[],
   today: Date = new Date(),
 ): EarnedAchievement[] => {
-  const earnedScopes = new Set(achievements.map(a => dedupKey(a.kind, a.dedupScope)));
   const earned: EarnedAchievement[] = [];
 
-  for (const { kind, metric, target } of FIXED_THRESHOLD_ENTRIES) {
-    const isGlobal = ACHIEVEMENT_META[kind].scope === 'global';
-    if (isGlobal) {
-      if (earnedScopes.has(dedupKey(kind, 'global'))) continue;
-      if (activeTasks.some(t => (t.stats?.[metric] ?? 0) >= target)) {
-        earned.push({ kind, value: target, dedupScope: 'global' });
-      }
-      continue;
-    }
-    for (const task of activeTasks) {
-      if (earnedScopes.has(dedupKey(kind, task.id))) continue;
-      if ((task.stats?.[metric] ?? 0) >= target) {
-        earned.push({ kind, ...taskMeta(task), value: target, dedupScope: task.id });
-      }
-    }
+  // Ordinary exact-scope dedup -- correct as-is for every kind EXCEPT the repeatable/task-scoped
+  // ones (see REPEATABLE_TASK_SCOPED_KINDS' own comment), which get the counting-based guard
+  // below instead. Mutated as the replay discovers new one-time/date-scoped achievements, exactly
+  // mirroring how the live store's own alreadyEarnedScopes accumulates across real completions.
+  const alreadyEarnedScopes = new Set(
+    achievements
+      .filter(a => !REPEATABLE_TASK_SCOPED_KINDS.has(a.kind))
+      .map(a => dedupKey(a.kind, a.dedupScope))
+  );
+
+  // How many times each (kind, taskId) pair has ALREADY been recorded, for the repeatable
+  // task-scoped kinds. Their scope is deliberately never added to alreadyEarnedScopes (that would
+  // permanently block every future crossing for that task, not just the ones already on record),
+  // so the replay is free to rediscover every genuine historical crossing -- the first N it finds,
+  // in chronological order, are skipped here as already-accounted-for; only a crossing beyond
+  // what's already on record actually counts as newly earned.
+  const alreadyRecordedCounts = new Map<string, number>();
+  for (const a of achievements) {
+    if (!REPEATABLE_TASK_SCOPED_KINDS.has(a.kind)) continue;
+    const key = dedupKey(a.kind, a.dedupScope);
+    alreadyRecordedCounts.set(key, (alreadyRecordedCounts.get(key) ?? 0) + 1);
   }
 
-  for (const kind of RATIO_TO_OWN_BEST_KINDS) {
-    for (const task of activeTasks) {
-      if (earnedScopes.has(dedupKey(kind, task.id))) continue;
-      const stats = task.stats;
-      if (stats && stats.bestStreak >= FIRST_STREAK_THRESHOLD && stats.currentStreak >= stats.bestStreak) {
-        earned.push({ kind, ...taskMeta(task), value: stats.currentStreak, dedupScope: task.id });
-      }
-    }
-  }
-
+  // Task-age (anniversary) -- not completion-driven, so not part of the replay below; see this
+  // function's own top comment for why.
   for (const { kind, days } of TASK_AGE_ENTRIES) {
     for (const task of activeTasks) {
-      if (earnedScopes.has(dedupKey(kind, task.id))) continue;
+      if (alreadyEarnedScopes.has(dedupKey(kind, task.id))) continue;
       if (differenceInCalendarDays(today, parseISO(task.createdAt)) >= days) {
         earned.push({ kind, ...taskMeta(task), value: days, dedupScope: task.id });
       }
     }
   }
 
-  // Perfect week -- global, evaluated against `today`'s own trailing 7-day window via the same
-  // per-day due/completed check the live detector uses, just without the "only on the exact
-  // crossing day" restriction (there's no prev/next transition to check a crossing against here).
-  for (const { kind, days } of PERFECT_DAY_STREAK_ENTRIES) {
-    if (earnedScopes.has(dedupKey(kind, 'global'))) continue;
-    let allPerfect = true;
-    for (let i = 0; i < days; i++) {
-      const checkDate = subDays(today, i);
-      const due = activeTasks.filter(t => isDueOnDate(t, checkDate));
-      if (due.length === 0 || !due.every(t => isTaskCompleted(t, checkDate))) {
-        allPerfect = false;
-        break;
-      }
-    }
-    if (allPerfect) earned.push({ kind, value: days, dedupScope: 'global' });
-  }
-
-  // Century club -- global lifetime sum across every active task, same target check the live
-  // detector's own crossing logic uses, just against the current total directly.
-  for (const { kind, target } of TOTAL_COMPLETIONS_SUM_ENTRIES) {
-    if (earnedScopes.has(dedupKey(kind, 'global'))) continue;
-    const sum = activeTasks.reduce((s, t) => s + (t.stats?.totalCompletions ?? 0), 0);
-    if (sum >= target) earned.push({ kind, value: target, dedupScope: 'global' });
-  }
-
-  // Habit collector -- global active-task count, same as the live detector's own check.
+  // Habit collector (active-task-count) -- also not completion-driven; same reasoning.
   for (const { kind, target } of ACTIVE_TASK_COUNT_ENTRIES) {
-    if (earnedScopes.has(dedupKey(kind, 'global'))) continue;
+    if (alreadyEarnedScopes.has(dedupKey(kind, 'global'))) continue;
     if (activeTasks.length >= target) earned.push({ kind, value: target, dedupScope: 'global' });
   }
 
-  // Early bird / night owl -- global, same trailing-completions-window ratio check the live
-  // detector uses, evaluated once against the current completion pool.
-  if (TIME_OF_DAY_RATIO_ENTRIES.length > 0) {
-    const allCompletions = activeTasks.flatMap(t => t.completions ?? []);
-    for (const { kind, hour, direction, window, minSamples } of TIME_OF_DAY_RATIO_ENTRIES) {
-      if (earnedScopes.has(dedupKey(kind, 'global'))) continue;
-      if (allCompletions.length < minSamples) continue;
-      const recent = [...allCompletions]
-        .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
-        .slice(0, window);
-      const qualifying = recent.filter(c => {
-        const h = new Date(c.completedAt).getHours();
-        return direction === 'before' ? h < hour : h >= hour;
-      }).length;
-      if (qualifying / recent.length >= 0.5) {
-        earned.push({ kind, value: qualifying, dedupScope: 'global' });
-      }
+  // The chronological replay itself -- one event per (task, completion), ordered by completedAt
+  // (see this function's own top comment for why that's the correct order, not completion.date).
+  const events: { task: Task; completion: TaskCompletion }[] = [];
+  for (const task of activeTasks) {
+    for (const completion of task.completions ?? []) {
+      events.push({ task, completion });
     }
   }
+  events.sort((a, b) => a.completion.completedAt.localeCompare(b.completion.completedAt));
 
-  // Beast mode is deliberately excluded here, same reasoning as perfect-day above: it needs a
-  // specific day's own due-state and completion timestamps (which day, and how tightly clustered
-  // that day's completions were), neither of which a single current-state snapshot can
-  // reconstruct -- there's no "current" day to retroactively evaluate it against.
+  // Each task's own completions, accumulated in completedAt order as the replay proceeds -- "what
+  // this task's own record looked like at the real moment we've replayed up through so far".
+  const runningCompletions = new Map<string, TaskCompletion[]>();
+
+  for (const { task, completion } of events) {
+    const recordedAt = new Date(completion.completedAt);
+    const forDate = parseISO(completion.date);
+
+    const priorCompletions = runningCompletions.get(task.id) ?? [];
+    const prevTask: Task = { ...task, completions: priorCompletions, stats: calculateTaskStats(task, priorCompletions, recordedAt) };
+
+    const nextCompletions = [...priorCompletions, completion];
+    runningCompletions.set(task.id, nextCompletions);
+    const nextTask: Task = { ...task, completions: nextCompletions, stats: calculateTaskStats(task, nextCompletions, recordedAt) };
+
+    // Every active task's own completions as accumulated up through this same real moment --
+    // `.stats` isn't recomputed for tasks other than the one completing right now, since nothing
+    // detectCompletionAchievements' own cross-task logic reads (perfect-day/perfect-week read raw
+    // completions via isDueOnDate/isTaskCompleted, not `.stats`; century-club's sum reads
+    // totalCompletions, which is just `completions.length` and so isn't asOfDate-sensitive at all)
+    // actually needs it. A task that didn't exist yet as of this moment (createdAt still in the
+    // future) is excluded entirely, the same way a real historical moment wouldn't have known
+    // about it either.
+    const allTasksAsOfNow = activeTasks
+      .filter(t => differenceInCalendarDays(recordedAt, parseISO(t.createdAt)) >= 0)
+      .map(t => (t.id === task.id ? nextTask : { ...t, completions: runningCompletions.get(t.id) ?? [] }));
+
+    const newlyEarnedNow = detectCompletionAchievements(prevTask, nextTask, allTasksAsOfNow, forDate, alreadyEarnedScopes);
+
+    for (const item of newlyEarnedNow) {
+      const key = dedupKey(item.kind, item.dedupScope);
+      if (REPEATABLE_TASK_SCOPED_KINDS.has(item.kind)) {
+        const remaining = alreadyRecordedCounts.get(key) ?? 0;
+        if (remaining > 0) {
+          alreadyRecordedCounts.set(key, remaining - 1);
+          continue; // already accounted for by an existing record -- not a new find
+        }
+      } else {
+        // Block this exact scope from firing again later in the same replay -- mirrors how the
+        // live store's own alreadyEarnedScopes grows across real completions.
+        alreadyEarnedScopes.add(key);
+      }
+      earned.push(item);
+    }
+  }
 
   return earned;
 };
@@ -1340,7 +1317,9 @@ export const getAchievementCardStatus = (
       const doneCount = dueTasks.filter(t => isTaskCompleted(t, today)).length;
       return {
         ...base,
-        progress: dueTasks.length > 0 ? { current: doneCount, target: dueTasks.length } : undefined,
+        // Below PERFECT_DAY_MIN_DUE_TASKS, today can never actually become "perfect" regardless
+        // of doneCount -- no progress to show, same as a day with nothing due at all.
+        progress: dueTasks.length >= PERFECT_DAY_MIN_DUE_TASKS ? { current: doneCount, target: dueTasks.length } : undefined,
       };
     }
 
@@ -1373,7 +1352,7 @@ export const getAchievementCardStatus = (
       for (let i = 0; i < days; i++) {
         const checkDate = subDays(today, i);
         const due = activeTasks.filter(t => isDueOnDate(t, checkDate));
-        if (due.length === 0 || !due.every(t => isTaskCompleted(t, checkDate))) break;
+        if (due.length < PERFECT_DAY_MIN_DUE_TASKS || !due.every(t => isTaskCompleted(t, checkDate))) break;
         count++;
       }
       return { ...base, progress: { current: count, target: days } };

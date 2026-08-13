@@ -461,24 +461,36 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
           </RevealSlot>
 
           {/* "The record" -- a thin rule marks the shift from the celebratory moment above to
-              plain metadata below, then the original "Unlocked {date}" label for *this* specific
-              celebrated instance (restored per explicit user direction -- an earlier pass had
-              replaced it outright with a generic "Unlock History" caption once the scrollable list
-              below was added, but the per-instance date is worth keeping regardless of whether a
-              list follows it). The list itself only renders when this kind has actually been
-              earned more than once (see showHistoryList above) -- a single unlock has nothing
-              further to show. This used to be followed by a "Tap anywhere to continue" hint
-              anchored to the bottom of the screen -- removed along with the tap-anywhere dismiss
-              behavior itself (see the top-of-file comment); the close button is now the only
-              dismiss affordance, and it doesn't need a hint pointing at it. */}
+              plain metadata below. For a single unlock, the original "Unlocked {date}" label for
+              *this* specific celebrated instance (restored per explicit user direction -- an
+              earlier pass had replaced it outright with a generic "Unlock History" caption once
+              the scrollable list below was added, but the per-instance date is worth keeping when
+              there's nothing further to show). Once this kind has genuinely been earned more than
+              once (showHistoryList above), the label switches to "Unlock History" with an inline
+              times-counter bubble instead -- a single date would be misleading once there's a
+              whole list of them below, and the bubble gives an at-a-glance count without needing
+              to actually scroll the list. This used to be followed by a "Tap anywhere to continue"
+              hint anchored to the bottom of the screen -- removed along with the tap-anywhere
+              dismiss behavior itself (see the top-of-file comment); the close button is now the
+              only dismiss affordance, and it doesn't need a hint pointing at it. */}
           <RevealSlot revealed={showHint} minHeight={64 + historyListHeight} style={styles.metaBlock}>
             <View style={styles.metaDivider} />
-            {/* A locked card's preview replay (see TrophiesScreen.tsx's own buildPreviewAchievement)
-                has no real earnedAt to show -- it's a synthetic, never-persisted Achievement built
-                purely to demo the celebration, flagged by its own dedupScope: 'preview'. */}
-            <Text style={styles.unlockedLabel}>
-              {achievement.dedupScope === 'preview' ? 'Locked' : `Unlocked ${format(parseISO(achievement.earnedAt), 'MMM d, yyyy')}`}
-            </Text>
+            {showHistoryList ? (
+              <View style={styles.unlockedHistoryHeader}>
+                <Text style={styles.unlockedLabel}>Unlock History</Text>
+                <View style={styles.unlockCountBadge}>
+                  <Text style={styles.unlockCountBadgeText}>{kindInstanceCount}×</Text>
+                </View>
+              </View>
+            ) : (
+              // A locked card's preview replay (see TrophiesScreen.tsx's own
+              // buildPreviewAchievement) has no real earnedAt to show -- it's a synthetic,
+              // never-persisted Achievement built purely to demo the celebration, flagged by its
+              // own dedupScope: 'preview'.
+              <Text style={styles.unlockedLabel}>
+                {achievement.dedupScope === 'preview' ? 'Locked' : `Unlocked ${format(parseISO(achievement.earnedAt), 'MMM d, yyyy')}`}
+              </Text>
+            )}
             {showHistoryList && (
               <UnlockHistoryList
                 kind={achievement.kind}
@@ -657,6 +669,40 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1.2,
     textAlign: 'center',
+  },
+  // Wraps unlockedLabel + the times-counter bubble on one row, only used once showHistoryList is
+  // true (a single unlock's label stays a bare, unwrapped Text -- see the JSX above).
+  unlockedHistoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  // Same solid-dark/white-text language TrophiesScreen's own countBadge uses (deliberately
+  // theme-independent, matching ToastBanner/OnboardingHint's bubble elsewhere in this app) -- an
+  // ordinary inline pill here, not absolutely positioned, since it sits in a normal text row
+  // rather than overlaying a card's corner.
+  // A visible border, not just a dark fill -- the flat #1C1C1E background (matching
+  // TrophiesScreen's own countBadge) has no separation from this screen's own near-black backdrop
+  // without one, reading as nearly invisible ("black on black", per direct report). The border
+  // gives it definition regardless of backdrop shade, without needing to reason about contrast
+  // against any specific kind's own accent color (which spans everything from near-white to
+  // near-black across the catalog, so tinting the fill itself isn't a reliably safe fix).
+  unlockCountBadge: {
+    minWidth: 22,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 6,
+    backgroundColor: '#1C1C1E',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unlockCountBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#fff',
   },
   // Fixed pixel `width` (HISTORY_LIST_WIDTH, not a percentage) -- see UnlockHistoryList's own
   // comment for why. Applied directly to the ScrollView itself (its `style` prop targets the
