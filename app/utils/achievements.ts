@@ -779,7 +779,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
   // riser" personality trait, not something to re-celebrate every time a rolling window happens
   // to qualify again -- see night-owl's own identical reasoning).
   'early-bird': {
-    icon: 'weather-sunset-up',
+    icon: 'weather-sunny',
     title: 'Early Bird!',
     describe: () => 'Most of your recent habits were done before sunrise',
     repeatable: false,
