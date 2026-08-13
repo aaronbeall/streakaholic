@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { PersistStorage, persist } from 'zustand/middleware';
 import { Task, TaskCompletion } from '../types';
 import { mergeTaskLists } from '../utils/importExport';
-import { calculateTaskStats } from '../utils/streaks';
+import { buildCompletionCountsByDate, calculateTaskStats } from '../utils/streaks';
 import { useAchievementsStore } from './achievementsStore';
 import { useLastImportStore } from './lastImportStore';
 
@@ -169,7 +169,34 @@ export const useTaskStore = create<TaskStore>()(
         // triggers this -- restoreCompletion/uncompleteTask/undoCompleteTask/importTasks are
         // corrections or bulk data operations, not a user completing a task right now.
         if (prevTask && nextTask) {
-          useAchievementsStore.getState().recordCompletionAchievements(prevTask, nextTask, get().tasks, date);
+          const allTasksNow = get().tasks;
+          // A performance-review finding (2026-08-13): perfect-day's own check (which runs
+          // unconditionally on every single completion) and perfect-week's (up to 12 more day
+          // checks, whenever perfect-day happens to pass) both look up "is task T done on date D"
+          // for several tasks/dates per call. Without this map, that falls through to
+          // isTaskCompleted's plain linear .find() over a task's *entire* completions array, from
+          // the start -- the worst-case access pattern for finding a *recent* date in an
+          // array that's appended in chronological order. This was already fixed for the
+          // retroactive scan (see detectRetroactiveAchievements' own completionCountsByTaskId
+          // usage) but never wired into this, the app's single most frequent interaction. Built
+          // once per completion, scoped to non-archived tasks only (the same universe
+          // detectCompletionAchievements' own perfect-day/perfect-week checks already restrict
+          // themselves to) -- costs the same O(total completions) as the linear scans it replaces
+          // would have cost anyway for a single lookup, but turns every *additional* lookup within
+          // this same call (there can be well over a dozen, across perfect-day and perfect-week
+          // together) into an O(1) map read instead of another full rescan.
+          const completionCountsByTaskId = new Map(
+            allTasksNow
+              .filter(t => !t.archived)
+              .map(t => [t.id, buildCompletionCountsByDate(t.completions || [])] as const)
+          );
+          useAchievementsStore.getState().recordCompletionAchievements(
+            prevTask,
+            nextTask,
+            allTasksNow,
+            date,
+            completionCountsByTaskId
+          );
         }
       },
 

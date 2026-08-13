@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Reanimated, {
   Easing,
@@ -521,10 +521,24 @@ interface TrophyBadgeProps {
   ribbonText: string;
 }
 
-export const TrophyBadge: React.FC<TrophyBadgeProps> = ({ icon, color, glowColor, accentColor, ribbonText }) => {
+// Wrapped in React.memo (2026-08-13, a performance-review finding) -- every prop here is a plain
+// string, stable across re-renders unless the achievement itself actually changes, so this alone
+// stops CelebrationContent's own count-up-driven re-renders (see AchievementCelebration.tsx's
+// useCountUp, which ticks up to ~60/sec for 1-3s) from cascading into this component's own large,
+// deeply-nested animation tree (frame rings, halo, shockwave, pulse rings, ribbon, sparkles) --
+// none of which actually needs to re-render on every tick, since nothing here reads `count` at
+// all. The underlying Reanimated animations were never at risk of glitching either way (they run
+// on the UI thread via shared values, unaffected by JS-thread re-renders), this was purely wasted
+// reconciliation work.
+export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({ icon, color, glowColor, accentColor, ribbonText }) => {
   const glow = glowColor ?? color;
   const accent = accentColor ?? color;
-  const sparkleConfig = getSparkleConfig(accent);
+  // Memoized (2026-08-13) -- previously a fresh object every render, which defeated
+  // ParticleSystem's own React.memo (a new `particles` prop reference always reads as "changed"
+  // to its shallow comparison, regardless of the actual field values). Low-impact now that
+  // TrophyBadge itself is memoized above (it won't spuriously re-render in the first place), but
+  // kept as a direct, cheap belt-and-suspenders fix at the actual point of the object allocation.
+  const sparkleConfig = useMemo(() => getSparkleConfig(accent), [accent]);
   // The "shaded half" color for each of the two flat-shadowed shapes -- the ring is now
   // `accent`-colored (its own "circle border" role, see AchievementMeta.color's own comment) and
   // the face/ribbon banner both share `color` (base), so each gets its own darkened shadow tint
@@ -737,7 +751,8 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = ({ icon, color, glowColor
       </View>
     </Reanimated.View>
   );
-};
+});
+TrophyBadge.displayName = 'TrophyBadge';
 
 const styles = StyleSheet.create({
   stack: {

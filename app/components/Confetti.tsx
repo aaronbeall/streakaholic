@@ -123,7 +123,13 @@ interface ConfettiProps {
 // Mounted fresh per celebration (the caller keys it by achievement id), full-screen, non-
 // interactive -- pointerEvents is left to the caller's wrapping host since this component only
 // ever renders the pieces themselves.
-export const Confetti: React.FC<ConfettiProps> = ({ count = 60, baseColor = '#FFD700', glowColor, accentColor }) => {
+//
+// Wrapped in React.memo (2026-08-13, a performance-review finding) -- same reasoning as
+// TrophyBadge's own identical change: every prop here is a primitive, stable across re-renders
+// unless the achievement itself changes, so this stops AchievementCelebration's count-up-driven
+// re-renders from needlessly re-diffing all 60 (already mount-only-animated, so visually
+// unaffected either way) confetti pieces on every tick.
+export const Confetti: React.FC<ConfettiProps> = React.memo(({ count = 60, baseColor = '#FFD700', glowColor, accentColor }) => {
   const { width, height } = useWindowDimensions();
 
   const pieces = useMemo<ConfettiPiece[]>(() => {
@@ -158,4 +164,5 @@ export const Confetti: React.FC<ConfettiProps> = ({ count = 60, baseColor = '#FF
       ))}
     </>
   );
-};
+});
+Confetti.displayName = 'Confetti';

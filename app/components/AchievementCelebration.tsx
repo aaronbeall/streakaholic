@@ -184,7 +184,12 @@ const RevealSlot: React.FC<{ revealed: boolean; minHeight: number; style?: objec
 // else on this screen (badge/rings/confetti/hero number) now uses -- per explicit user direction,
 // a task's own brand is meant to surface only here, inside the inline task name/icon, not as the
 // achievement's overall identity.
-const DescriptionText: React.FC<{ achievement: Achievement; taskColor: string }> = ({ achievement, taskColor }) => {
+// Wrapped in React.memo (2026-08-13, a performance-review finding) -- `achievement` is a stable
+// reference here (passed down unchanged from CelebrationContent's own props, which only change
+// when the pending achievement itself does) and `taskColor` is a primitive string, so this stops
+// needless re-renders during CelebrationContent's own count-up-driven re-render churn (see
+// useCountUp above).
+const DescriptionText: React.FC<{ achievement: Achievement; taskColor: string }> = React.memo(({ achievement, taskColor }) => {
   const meta = ACHIEVEMENT_META[achievement.kind];
   const flavor = meta.flavorText;
 
@@ -205,7 +210,8 @@ const DescriptionText: React.FC<{ achievement: Achievement; taskColor: string }>
       {standalone} {flavor}
     </Text>
   );
-};
+});
+DescriptionText.displayName = 'DescriptionText';
 
 // "A little scrollable list that shows the actual date and task of each unlock" -- per explicit
 // user direction, supplements (not replaces -- see the always-shown "Unlocked {date}" label at
@@ -256,13 +262,17 @@ const DescriptionText: React.FC<{ achievement: Achievement; taskColor: string }>
 // ancestor Pressable to negotiate against), and the raw responder `View` wrapper is gone
 // entirely -- `historyList`'s own styling moved directly onto the `ScrollView` again, now with
 // nothing else needed around it.
+// Wrapped in React.memo (2026-08-13, a performance-review finding) -- `allAchievements` is a
+// stable store reference here (only changes when an achievement is actually earned, unrelated to
+// CelebrationContent's own count-up ticking) and every other prop is a primitive, so this avoids
+// needlessly re-filtering/re-sorting/re-rendering this list on every count-up frame.
 const UnlockHistoryList: React.FC<{
   kind: AchievementKind;
   allAchievements: Achievement[];
   kindIcon: MaterialCommunityIconName;
   kindColor: string;
   maxHeight: number;
-}> = ({ kind, allAchievements, kindIcon, kindColor, maxHeight }) => {
+}> = React.memo(({ kind, allAchievements, kindIcon, kindColor, maxHeight }) => {
   const instances = allAchievements
     .filter(a => a.kind === kind)
     .sort((a, b) => b.earnedAt.localeCompare(a.earnedAt));
@@ -305,7 +315,8 @@ const UnlockHistoryList: React.FC<{
       ))}
     </ScrollView>
   );
-};
+});
+UnlockHistoryList.displayName = 'UnlockHistoryList';
 
 const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => void }> = ({ achievement, onDismiss }) => {
   const insets = useSafeAreaInsets();

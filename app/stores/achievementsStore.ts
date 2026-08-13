@@ -30,8 +30,17 @@ interface AchievementsStore {
   setHasHydrated: (value: boolean) => void;
   // Called right after a real completion (see taskStore.completeTask) -- detects whatever this
   // one completion newly earned, records it into history, and queues it for celebration. A
-  // complete no-op if nothing new was earned.
-  recordCompletionAchievements: (prevTask: Task, nextTask: Task, allTasks: Task[], date: Date) => void;
+  // complete no-op if nothing new was earned. `completionCountsByTaskId` is optional (and, per a
+  // 2026-08-13 performance-review fix, always supplied by the real taskStore.completeTask call
+  // site) -- see detectCompletionAchievements' own comment on its identically-named `options`
+  // field for what it's for; simply forwarded through here rather than duplicated.
+  recordCompletionAchievements: (
+    prevTask: Task,
+    nextTask: Task,
+    allTasks: Task[],
+    date: Date,
+    completionCountsByTaskId?: Map<string, Map<string, number>>
+  ) => void;
   dismissCurrentCelebration: () => void;
   // Replays an already-earned achievement's celebration on demand (TrophiesScreen -- tapping an
   // unlocked card) -- just re-queues the exact same record, no new id/earnedAt assigned and
@@ -71,13 +80,20 @@ export const useAchievementsStore = create<AchievementsStore>()(
       hasHydrated: false,
       setHasHydrated: (value) => set({ hasHydrated: value }),
 
-      recordCompletionAchievements: (prevTask, nextTask, allTasks, date) => {
+      recordCompletionAchievements: (prevTask, nextTask, allTasks, date, completionCountsByTaskId) => {
         const alreadyEarnedScopes = new Set(
           get().achievements
             .filter(a => ONE_TIME_KINDS.includes(a.kind))
             .map(a => dedupKey(a.kind, a.dedupScope))
         );
-        const newlyEarned = detectCompletionAchievements(prevTask, nextTask, allTasks, date, alreadyEarnedScopes);
+        const newlyEarned = detectCompletionAchievements(
+          prevTask,
+          nextTask,
+          allTasks,
+          date,
+          alreadyEarnedScopes,
+          completionCountsByTaskId ? { completionCountsByTaskId } : undefined
+        );
         if (newlyEarned.length === 0) return;
 
         // Index-suffixed, not bare Date.now() -- a single completion can legitimately earn more

@@ -101,14 +101,14 @@ export const SettingsScreen: React.FC = () => {
     });
   };
 
-  // A single kind can also be un-muted directly from its own celebration screen (the bell toggle
+  // A single kind can also be un-snoozed directly from its own celebration screen (the bell toggle
   // under the close button, AchievementCelebration.tsx) -- this is the bulk equivalent for
   // restoring several at once without having to re-trigger and toggle each one individually. The
-  // row itself only renders when there's actually something to restore (see its own call site) --
-  // no point offering a reset with nothing to reset.
+  // row itself only renders when there's actually something snoozed (see its own call site) -- no
+  // point offering a reset with nothing to reset.
   const handleRestoreFullCelebrations = () => {
     unmuteAllKinds();
-    showToast({ message: 'Full celebrations are back for every achievement.' });
+    showToast({ message: 'Every achievement is unsnoozed -- full congratulations are back.' });
   };
 
   const handleExport = async () => {
@@ -286,15 +286,15 @@ export const SettingsScreen: React.FC = () => {
             <Text style={styles.rowValue}>{achievementCount}</Text>
             <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
           </TouchableOpacity>
-          {/* Only shown once there's actually something muted -- a bulk reset alongside the
+          {/* Only shown once there's actually something snoozed -- a bulk reset alongside the
               per-kind bell toggle each celebration screen already offers (see mutedKinds' own
               comment in achievementsStore.ts). */}
           {mutedAchievementCount > 0 && (
             <>
               <View style={styles.divider} />
-              <TouchableOpacity style={styles.row} onPress={handleRestoreFullCelebrations} accessibilityRole="button" accessibilityHint="Brings back the full celebration for every achievement you've muted">
-                <MaterialCommunityIcons name="party-popper" size={22} color={colors.textSecondary} />
-                <Text style={styles.rowLabel}>Restore Full Celebrations</Text>
+              <TouchableOpacity style={styles.row} onPress={handleRestoreFullCelebrations} accessibilityRole="button" accessibilityHint="Turns full congratulations back on for every achievement you've snoozed">
+                <MaterialCommunityIcons name="bell-off-outline" size={22} color={colors.textSecondary} />
+                <Text style={styles.rowLabel}>Snoozed Achievements</Text>
                 <Text style={styles.rowValue}>{mutedAchievementCount}</Text>
               </TouchableOpacity>
             </>
