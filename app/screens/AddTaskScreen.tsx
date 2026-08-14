@@ -246,6 +246,15 @@ export const AddTaskScreen: React.FC = () => {
   const atTaskLimit = useMemo(() => !isEditing && hasReachedActiveTaskLimit(tasks), [isEditing, tasks]);
 
   const handleSave = async () => {
+    // Editing with nothing actually changed -- the button itself already reads "Done" instead of
+    // "Save Changes" for this same case (see the Text below), so this just closes the screen
+    // directly rather than running validation/permission requests/updateTask for a no-op write.
+    if (isEditing && !isDirty) {
+      bypassLeaveGuardRef.current = true;
+      router.back();
+      return;
+    }
+
     if (atTaskLimit) {
       showToast({ message: ACTIVE_TASK_LIMIT_MESSAGE });
       return;
@@ -780,7 +789,7 @@ export const AddTaskScreen: React.FC = () => {
         accessibilityRole="button"
       >
         <Text style={[styles.saveButtonText, (!isNameValid || atTaskLimit) && styles.saveButtonTextDisabled]}>
-          {isEditing ? 'Save Changes' : 'Add Habit'}
+          {isEditing ? (isDirty ? 'Save Changes' : 'Done') : 'Add Habit'}
         </Text>
       </TouchableOpacity>
 

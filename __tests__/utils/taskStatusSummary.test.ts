@@ -82,13 +82,22 @@ describe('getTaskStatusInfo', () => {
   });
 
   describe('status text', () => {
-    it('reads as "nothing needed" on a non-due, non-completed day', () => {
+    it('names the current streak length on a non-due, non-completed day, reassuring it is safe', () => {
       const task = makeTask(
         { frequency: 'specific_days_of_week', daysOfWeek: [1, 2, 3, 4, 5] }, // weekdays
         { currentStreak: 5, streakStatus: 'up_to_date' }
       );
       const sunday = new Date('2026-08-16T12:00:00.000Z');
-      expect(getTaskStatusInfo(task, sunday).status.text).toContain('nothing needed right now');
+      expect(getTaskStatusInfo(task, sunday).status.text).toBe('Not scheduled for today — your 5-day streak is safe.');
+    });
+
+    it('reads as plain "nothing needed" on a non-due day when there is no streak yet to report', () => {
+      const task = makeTask(
+        { frequency: 'specific_days_of_week', daysOfWeek: [1, 2, 3, 4, 5] }, // weekdays
+        { currentStreak: 0, streakStatus: 'never_started' }
+      );
+      const sunday = new Date('2026-08-16T12:00:00.000Z');
+      expect(getTaskStatusInfo(task, sunday).status.text).toBe('Not scheduled for today — nothing needed right now.');
     });
 
     it('acknowledges a bonus completion on a non-due day as a freshly-started streak', () => {
@@ -123,7 +132,7 @@ describe('getTaskStatusInfo', () => {
         { currentStreak: 5, streakStatus: 'up_to_date' }
       );
       task.completions = [{ id: 'c1', taskId: 't1', date: sundayStr, completedAt: sunday.toISOString(), timesCompleted: 1 }];
-      expect(getTaskStatusInfo(task, sunday).status.text).toBe('Not scheduled for today — nothing needed right now.');
+      expect(getTaskStatusInfo(task, sunday).status.text).toBe('Not scheduled for today — your 5-day streak is safe.');
     });
 
     it('reports the streak when completed for a single-rep task, with the streak icon', () => {
@@ -166,14 +175,24 @@ describe('getTaskStatusInfo', () => {
       expect(getTaskStatusInfo(task, today).status.text).toBe('1 of 3 done today — keep going.');
     });
 
-    it('"expiring" reads as an actionable call to complete today', () => {
+    it('"expiring" reads as an actionable call to complete today, naming the streak length at risk', () => {
       const task = makeTask({}, { currentStreak: 7, streakStatus: 'expiring' });
+      expect(getTaskStatusInfo(task, today).status.text).toBe('Complete today to keep your 7-day streak alive!');
+    });
+
+    it('"expiring" falls back to generic wording for the (unrealistic) zero-streak edge case', () => {
+      const task = makeTask({}, { currentStreak: 0, streakStatus: 'expiring' });
       expect(getTaskStatusInfo(task, today).status.text).toBe('Complete today to keep your streak alive!');
     });
 
-    it('"expired" reads as lapsed', () => {
-      const task = makeTask({}, { currentStreak: 0, bestStreak: 12, streakStatus: 'expired' });
-      expect(getTaskStatusInfo(task, today).status.text).toContain('lapsed');
+    it('"expired" reads as lapsed, naming the length of the streak that just ended', () => {
+      const task = makeTask({}, { currentStreak: 0, lastStreak: 9, bestStreak: 12, streakStatus: 'expired' });
+      expect(getTaskStatusInfo(task, today).status.text).toBe('Your 9-day streak has lapsed — complete today to start fresh.');
+    });
+
+    it('"expired" falls back to generic wording when there is no prior streak length to name', () => {
+      const task = makeTask({}, { currentStreak: 0, lastStreak: 0, streakStatus: 'expired' });
+      expect(getTaskStatusInfo(task, today).status.text).toBe('Your streak has lapsed — complete today to start fresh.');
     });
 
     it('"never_started" invites getting going', () => {

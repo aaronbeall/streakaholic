@@ -77,7 +77,13 @@ const buildStatusBadge = (task: Task, today: Date): TaskStatusBadge => {
     if (isCompletedToday) {
       return describeCompletedToday('Not due today, but you completed it anyway', currentStreak);
     }
-    return { icon: 'calendar-blank-outline', color: NEUTRAL_COLOR, text: 'Not scheduled for today — nothing needed right now.' };
+    // A live streak isn't at risk on a non-due day (see above -- only a missed *due* day breaks
+    // it), but naming its length here still reassures that skipping today is genuinely safe,
+    // rather than leaving the reader to wonder. Falls back to the plain original wording when
+    // there's no streak yet to report.
+    return currentStreak > 0
+      ? { icon: 'calendar-blank-outline', color: NEUTRAL_COLOR, text: `Not scheduled for today — your ${currentStreak}-day streak is safe.` }
+      : { icon: 'calendar-blank-outline', color: NEUTRAL_COLOR, text: 'Not scheduled for today — nothing needed right now.' };
   }
 
   if (isCompletedToday) {
@@ -101,7 +107,17 @@ const buildStatusBadge = (task: Task, today: Date): TaskStatusBadge => {
 
   switch (streakStatus) {
     case 'expiring':
-      return { icon: 'clock-outline', color: AT_RISK_COLOR, text: 'Complete today to keep your streak alive!' };
+      // `currentStreak` is realistically always > 0 whenever the engine reports 'expiring' (there
+      // has to be a live streak at risk for it to be "expiring" at all) -- the `<= 0` fallback is
+      // just defensive, matching describeCompletedToday's own zero-streak edge case above, so this
+      // never renders an odd "keep your 0-day streak alive" if that assumption is ever wrong.
+      return {
+        icon: 'clock-outline',
+        color: AT_RISK_COLOR,
+        text: currentStreak > 0
+          ? `Complete today to keep your ${currentStreak}-day streak alive!`
+          : 'Complete today to keep your streak alive!',
+      };
     case 'up_to_date':
       // A due, incomplete day on a daily/specific-days task always reads 'expiring' by the streak
       // engine's own design (calculateDueDayStats), not 'up_to_date' -- this branch is really only
@@ -110,8 +126,19 @@ const buildStatusBadge = (task: Task, today: Date): TaskStatusBadge => {
       return isQuotaBased
         ? { icon: 'calendar-check-outline', color: NEUTRAL_COLOR, text: 'Already met this period’s goal — today is optional.' }
         : { icon: 'calendar-check-outline', color: NEUTRAL_COLOR, text: 'No rush yet today.' };
-    case 'expired':
-      return { icon: 'sleep', color: NEUTRAL_COLOR, text: 'Your streak has lapsed — complete today to start fresh.' };
+    case 'expired': {
+      // `lastStreak` (streaks.ts) is the length of whichever streak most recently closed -- the
+      // same field getStreakBadgeStyle already reads for its own gray "sleep" badge state -- rather
+      // than `bestStreak`, which could be an much older, unrelated record.
+      const lastStreak = task.stats?.lastStreak ?? 0;
+      return {
+        icon: 'sleep',
+        color: NEUTRAL_COLOR,
+        text: lastStreak > 0
+          ? `Your ${lastStreak}-day streak has lapsed — complete today to start fresh.`
+          : 'Your streak has lapsed — complete today to start fresh.',
+      };
+    }
     case 'never_started':
     default:
       return { icon: 'flag-outline', color: NEUTRAL_COLOR, text: 'Haven’t started a streak yet — today’s a great day to begin.' };
