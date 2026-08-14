@@ -65,6 +65,7 @@
 - [ ] Sounds
   - [ ] Completion and streak
   - [ ] Congratulations
+- [ ] Add a day status summary on task details screen
 
 ## MMP
 
