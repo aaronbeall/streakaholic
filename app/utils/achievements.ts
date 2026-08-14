@@ -912,6 +912,17 @@ const TASK_AGE_ENTRIES: { kind: AchievementKind; days: number }[] = ACHIEVEMENT_
   )
   .map(({ kind, strategy }) => ({ kind, days: strategy.days }));
 
+// Shared by detectCompletionAchievements and detectRetroactiveAchievements -- both need "has this
+// task's own age crossed this many days," just evaluated against a different reference point (the
+// completion's own date vs. "today") and a different task scope (the one just-completed task vs.
+// every active task in a loop). Extracted 2026-08-14 so the two can't independently drift on the
+// underlying date math -- simple enough that they hadn't actually disagreed yet, but matches this
+// file's own established bias toward one shared predicate over two hand-typed copies of the same
+// condition (see getTimeOfDayWindow's own extraction, same day, for the more consequential version
+// of this same fix).
+const hasReachedTaskAge = (task: Task, days: number, referenceDate: Date): boolean =>
+  differenceInCalendarDays(referenceDate, parseISO(task.createdAt)) >= days;
+
 // Every active-task-count kind (currently just habit-collector) -- same reasoning as
 // TASK_AGE_ENTRIES: not completion-driven, so detectRetroactiveAchievements checks it directly
 // via this list rather than as part of its chronological replay. Every OTHER strategy type
@@ -1099,8 +1110,7 @@ export const detectCompletionAchievements = (
   // guard is sufficient, because `repeatable: false` means the store's own dedup set already
   // blocks this from ever firing a second time for the same task once recorded.
   for (const { kind, days } of TASK_AGE_ENTRIES) {
-    const ageDays = differenceInCalendarDays(date, parseISO(nextTask.createdAt));
-    if (ageDays < days) continue;
+    if (!hasReachedTaskAge(nextTask, days, date)) continue;
     if (!isFirstEarn(kind, nextTask.id)) continue;
     earned.push({ kind, ...meta, value: days, dedupScope: nextTask.id });
   }
@@ -1208,14 +1218,23 @@ export const detectCompletionAchievements = (
     earned.push({ kind, value: target, dedupScope: 'global' });
   }
 
-  // Habit collector -- reaching the active-task cap. Evaluated fresh on every completion, not as
-  // a crossing check, since there's no real "before/after" transition to diff here -- completing
-  // a task doesn't itself change how many tasks exist. This means it's only ever detected on the
-  // *next* completion after the cap-reaching task was actually added, not the instant it was
-  // added -- an accepted tradeoff of this feature's single trigger point (completeTask only, see
-  // taskStore.ts), not a new one introduced here.
-  if (isFirstEarn('habit-collector', 'global') && activeTasksAfter.length >= MAX_ACTIVE_TASKS) {
-    earned.push({ kind: 'habit-collector', value: MAX_ACTIVE_TASKS, dedupScope: 'global' });
+  // Active-task-count kinds (currently just habit-collector) -- reaching some active-task cap.
+  // Evaluated fresh on every completion, not as a crossing check, since there's no real
+  // "before/after" transition to diff here -- completing a task doesn't itself change how many
+  // tasks exist. This means it's only ever detected on the *next* completion after the
+  // cap-reaching task was actually added, not the instant it was added -- an accepted tradeoff of
+  // this feature's single trigger point (completeTask only, see taskStore.ts), not a new one
+  // introduced here. Loops over ACTIVE_TASK_COUNT_ENTRIES generically (2026-08-14, replacing a
+  // single hardcoded `if` that only ever checked 'habit-collector' against MAX_ACTIVE_TASKS
+  // directly) -- matching every other multi-kind family in this function (FIXED_THRESHOLD_ENTRIES,
+  // TASK_AGE_ENTRIES, TOTAL_COMPLETIONS_SUM_ENTRIES): a future second active-task-count kind now
+  // needs only its own ACHIEVEMENT_META entry to be detected live, same as detectRetroactiveAchievements'
+  // own already-generic loop over this same list.
+  for (const { kind, target } of ACTIVE_TASK_COUNT_ENTRIES) {
+    if (!isFirstEarn(kind, 'global')) continue;
+    if (activeTasksAfter.length >= target) {
+      earned.push({ kind, value: target, dedupScope: 'global' });
+    }
   }
 
   // Early bird / night owl -- the first two kinds in this file to read raw completion
@@ -1335,7 +1354,7 @@ export const detectRetroactiveAchievements = (
   for (const { kind, days } of TASK_AGE_ENTRIES) {
     for (const task of activeTasks) {
       if (alreadyEarnedScopes.has(dedupKey(kind, task.id))) continue;
-      if (differenceInCalendarDays(today, parseISO(task.createdAt)) >= days) {
+      if (hasReachedTaskAge(task, days, today)) {
         earned.push({ kind, ...taskMeta(task), value: days, dedupScope: task.id });
       }
     }
