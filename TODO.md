@@ -47,7 +47,7 @@
   - [x] Milestone completions (10, 50, 100, 1000)
   - [x] Trophy Case: filter by task (a radio-style "All" + per-task icon chip row, shown once there's more than one active task; selecting one scopes the grid to that task's own earned/in-progress kinds, dropping global-scoped kinds like Century Club/Perfect Day entirely since they aren't attributable to a single task -- see CLAUDE.md)
   - [x] Integrate achievements on Stats screens (a shared `AchievementsPreviewCard` -- unlocked badges + closest-next progress + a "View Trophy Case" link -- on both `TaskStatsScreen` (this task's own earned/in-progress achievements, deep-linking into the Trophy Case pre-filtered to it) and `DashboardStatsView` (the full app-wide trophy status, unfiltered by Dashboard's own task-selection bubbles); see CLAUDE.md)
-  - [ ] Achievement spam via undo/redo -- a repeatable kind's threshold-crossing check (e.g. `streak-10`, `new-best-streak`, `perfect-day`) can re-fire every time the same single completion is undone then redone, since each redo is a fresh prev/next transition crossing the same threshold again with nothing genuinely new earned; one-time kinds are already safe via dedup, this is scoped to the repeatable ones
+  - [x] Achievement spam via undo/redo (see CLAUDE.md, 2026-08-13 -- date-qualified dedup scope for repeatable, task-scoped kinds)
 - [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
 - [x] Performance optimizations
   - [x] Performance pass (audited Context re-render fan-out, memoization/referential-stability gaps, and common RN FlatList traps — see CLAUDE.md's "State management" section)

@@ -4,6 +4,7 @@ import {
   Achievement,
   AchievementKind,
   ACHIEVEMENT_KIND_ORDER,
+  EarnedAchievement,
   ONE_TIME_KINDS,
   dedupKey,
   detectCompletionAchievements,
@@ -90,7 +91,9 @@ describe('detectCompletionAchievements', () => {
       expect(firstCompletion?.taskId).toBeUndefined();
       expect(firstCompletion?.dedupScope).toBe('global');
       expect(streakTwo?.taskId).toBe('t1');
-      expect(streakTwo?.dedupScope).toBe('t1');
+      // Date-qualified (2026-08-13 fix for "achievement spam via undo/redo") -- see
+      // dedupScopeFor's own comment in achievements.ts.
+      expect(streakTwo?.dedupScope).toBe(`t1:${format(today, 'yyyy-MM-dd')}`);
     });
   });
 
@@ -221,7 +224,10 @@ describe('detectCompletionAchievements', () => {
     it('does not re-fire a tier already recorded', () => {
       const prev = makeTask({}, { currentStreak: 9 });
       const next = makeTask({}, { currentStreak: 10 });
-      const earned = detectCompletionAchievements(prev, next, [next], today, new Set(['streak-10:t1']));
+      // Date-qualified scope (2026-08-13 fix) -- see dedupScopeFor's own comment.
+      const earned = detectCompletionAchievements(
+        prev, next, [next], today, new Set([`streak-10:t1:${format(today, 'yyyy-MM-dd')}`])
+      );
       expect(kindsOf(earned)).not.toContain('streak-10');
     });
 
@@ -231,6 +237,72 @@ describe('detectCompletionAchievements', () => {
       const next = makeTask({}, { currentStreak: 10, totalCompletions: 10 });
       const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
       expect(kindsOf(earned)).toEqual(expect.arrayContaining(['streak-10', 'milestone-10']));
+    });
+  });
+
+  // Regression coverage for "achievement spam via undo/redo" (2026-08-13 fix): a repeatable
+  // task-scoped kind's threshold crossing (streak-N, new-best-streak, comeback) used to re-fire
+  // every time the exact same completion was undone then redone, since each redo is a fresh
+  // prev/next transition crossing the identical threshold with nothing genuinely new earned, and
+  // the old bare-taskId dedup scope couldn't tell that apart from a real future crossing. Fixed by
+  // date-qualifying these kinds' own dedupScope (dedupScopeFor in achievements.ts) plus dropping
+  // achievementsStore.ts's own ONE_TIME_KINDS-only filter, so every existing achievement --
+  // including these now-date-scoped ones -- genuinely blocks an exact repeat. These tests exercise
+  // both halves together by simulating what the store actually does: accumulate every emitted
+  // achievement's own dedupScope into the set passed to the *next* call, exactly as
+  // achievementsStore.recordCompletionAchievements does across real completions.
+  describe('undo/redo replay does not spam a repeatable task-scoped kind', () => {
+    const asStore = (earned: EarnedAchievement[]) => new Set(earned.map(e => dedupKey(e.kind, e.dedupScope)));
+
+    it('streak-N: redoing the identical crossing on the same date does not re-record it', () => {
+      const prev = makeTask({}, { currentStreak: 9 });
+      const next = makeTask({}, { currentStreak: 10 });
+
+      // First press: genuinely earns streak-10.
+      const firstPress = detectCompletionAchievements(prev, next, [next], today, new Set());
+      expect(kindsOf(firstPress)).toContain('streak-10');
+
+      // Undo, then redo -- the exact same prev/next transition, same date, replayed again. The
+      // store would have recorded firstPress's own achievement(s) into `achievements` by now, so
+      // the redo's alreadyEarnedScopes set includes their dedupScope(s), same as a real second call.
+      const redo = detectCompletionAchievements(prev, next, [next], today, asStore(firstPress));
+      expect(kindsOf(redo)).not.toContain('streak-10');
+    });
+
+    it('streak-N: a genuine new crossing on a later date still fires, even with an older same-tier record on file', () => {
+      const laterDate = new Date(today.getTime() + 2 * 86400000);
+      // A different task's streak-10 was already recorded on an earlier date -- should never block
+      // an unrelated task's own genuine crossing.
+      const already = new Set([`streak-10:other-task:${format(today, 'yyyy-MM-dd')}`]);
+      const prev = makeTask({}, { currentStreak: 9 });
+      const next = makeTask({}, { currentStreak: 10 });
+      const earned = detectCompletionAchievements(prev, next, [next], laterDate, already);
+      expect(kindsOf(earned)).toContain('streak-10');
+    });
+
+    it('comeback: redoing the identical revival on the same date does not re-record it', () => {
+      const prev = makeTask({}, { streakStatus: 'expired' });
+      const next = makeTask({}, { currentStreak: 1 });
+      const firstPress = detectCompletionAchievements(prev, next, [next], today, new Set());
+      expect(kindsOf(firstPress)).toContain('comeback');
+
+      const redo = detectCompletionAchievements(prev, next, [next], today, asStore(firstPress));
+      expect(kindsOf(redo)).not.toContain('comeback');
+    });
+
+    it('perfect-day: redoing a completion that keeps the day perfect does not re-record it for the same date', () => {
+      // isDueOnDate/isCompletedOnDate read real completions/frequency directly, so this needs a
+      // genuine two-task, both-completed setup (matching PERFECT_DAY_MIN_DUE_TASKS's own >= 2
+      // requirement) rather than pre-set .stats overrides.
+      const a = makeTask({ id: 'a', completions: [makeCompletion('a1', today)] });
+      const b = makeTask({ id: 'b', completions: [makeCompletion('b1', today)] });
+      const firstPress = detectCompletionAchievements(a, a, [a, b], today, new Set());
+      expect(kindsOf(firstPress)).toContain('perfect-day');
+
+      // A later completion that same day (e.g. undo+redo of one of the two, or a multi-rep bump)
+      // re-evaluates the same already-perfect day -- should not record a second perfect-day.
+      const redo = detectCompletionAchievements(b, b, [a, b], today, asStore(firstPress));
+      expect(kindsOf(redo)).not.toContain('perfect-day');
     });
   });
 

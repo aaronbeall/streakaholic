@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { Achievement, AchievementKind, dedupKey, detectCompletionAchievements, detectRetroactiveAchievements, ONE_TIME_KINDS } from '../utils/achievements';
+import { Achievement, AchievementKind, dedupKey, detectCompletionAchievements, detectRetroactiveAchievements } from '../utils/achievements';
 import { Task } from '../types';
 
 interface AchievementsStore {
@@ -81,10 +81,20 @@ export const useAchievementsStore = create<AchievementsStore>()(
       setHasHydrated: (value) => set({ hasHydrated: value }),
 
       recordCompletionAchievements: (prevTask, nextTask, allTasks, date, completionCountsByTaskId) => {
+        // Unconditional over every existing achievement, not just ONE_TIME_KINDS -- previously this
+        // excluded every repeatable kind (streak-N, new-best-streak, comeback, perfect-day,
+        // perfect-week) entirely, which was the root cause of "achievement spam via undo/redo":
+        // redoing the same completion re-crossed the same threshold with nothing genuinely new
+        // earned, and with no matching key in this set to block it, detectCompletionAchievements'
+        // own isFirstEarn happily recorded a duplicate every time. Now that those kinds' own
+        // dedupScope is date-qualified (see REPEATABLE_TASK_SCOPED_KINDS' and dedupScopeFor's own
+        // comments in achievements.ts -- e.g. `${taskId}:${dateString}` instead of bare `taskId`),
+        // including them here is safe: a same-date replay hits the exact same key and is correctly
+        // blocked, while a genuine new crossing on a later date gets its own distinct key and still
+        // fires. This also incidentally closes an identical latent gap for perfect-day/perfect-week
+        // (both date-scoped already, but previously excluded from this set the same way).
         const alreadyEarnedScopes = new Set(
-          get().achievements
-            .filter(a => ONE_TIME_KINDS.includes(a.kind))
-            .map(a => dedupKey(a.kind, a.dedupScope))
+          get().achievements.map(a => dedupKey(a.kind, a.dedupScope))
         );
         const newlyEarned = detectCompletionAchievements(
           prevTask,

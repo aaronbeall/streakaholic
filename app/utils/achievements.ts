@@ -920,6 +920,35 @@ const ACTIVE_TASK_COUNT_ENTRIES: { kind: AchievementKind; target: number }[] = A
   )
   .map(({ kind, strategy }) => ({ kind, target: strategy.target }));
 
+// Repeatable, task-scoped kinds (streak-N tiers, new-best-streak, comeback) -- the ones where the
+// *same* task can legitimately earn the *same* kind again after a genuine reset (a streak breaks
+// and climbs back to 10, a task lapses and revives a second time). Their dedupScope gets
+// date-qualified below (see detectCompletionAchievements' own `dedupScopeFor`) rather than staying
+// a bare taskId, closing a real bug: `undoCompleteTask` deliberately never retracts an
+// already-recorded achievement (see "No revocation on Undo" elsewhere in this codebase), so
+// undoing a completion and immediately redoing it reproduces the *identical* prev/next crossing --
+// a bare taskId-scoped dedup key can't tell that apart from a genuinely new crossing weeks later,
+// so it fired a duplicate every time. Date-qualifying fixes this because a specific calendar date
+// can only ever be "the day this task's streak crossed threshold X" once, by definition -- an
+// undo+redo replay recomputes the *same* date, correctly blocked, while a real new crossing lands
+// on a *different* date, correctly allowed.
+//
+// Exported so achievementsStore.ts's own live dedup-set builder can apply the identical
+// "everything except these needs simple one-time-per-scope dedup" rule detectRetroactiveAchievements'
+// own replay already made -- these three were the one place the two were checking different things
+// (the live path used to exclude every *repeatable* kind from dedup entirely via `ONE_TIME_KINDS`,
+// which wrongly caught perfect-day/perfect-week too, even though those are global-scoped and their
+// own date-scoped dedupScope should never repeat regardless of the `repeatable` flag on their
+// `ACHIEVEMENT_META` entry, which exists so *different* dates can each still be earned separately).
+// detectRetroactiveAchievements still needs its own separate counting-based guard for these three
+// specifically (a chronological replay can legitimately encounter the same (kind, taskId) many
+// times across real history, and has to tell "already accounted for" apart from "a new one") --
+// this set is what tells that function which kinds need that treatment instead of simple dedup.
+export const REPEATABLE_TASK_SCOPED_KINDS = new Set<AchievementKind>(
+  (Object.keys(ACHIEVEMENT_META) as AchievementKind[])
+    .filter(kind => ACHIEVEMENT_META[kind].repeatable && ACHIEVEMENT_META[kind].scope === 'task')
+);
+
 // Detects newly-earned achievements from a single task completion. Pure -- given the task's
 // state immediately before and after the completion (both already carrying freshly computed
 // `.stats`), the full task list *after* the completion (needed for perfect-day, which spans every
@@ -962,8 +991,18 @@ export const detectCompletionAchievements = (
   const prevBest = prevStats?.bestStreak ?? 0;
   const meta = taskMeta(nextTask);
   const earned: EarnedAchievement[] = [];
+  // Computed once up front (previously only computed partway through, right before the perfect-day
+  // check) since REPEATABLE_TASK_SCOPED_KINDS' own dedupScope-qualifying below now needs it too.
+  const dateString = format(date, 'yyyy-MM-dd');
 
   const isFirstEarn = (kind: AchievementKind, scope: string) => !alreadyEarnedScopes.has(dedupKey(kind, scope));
+  // For REPEATABLE_TASK_SCOPED_KINDS (see that set's own comment for the full "why"), a bare
+  // taskId scope can't distinguish an undo-then-redo replay of the identical crossing from a
+  // genuine new one -- qualifying by the date this crossing happened on fixes that, since a
+  // specific calendar date can only ever be "the day this task crossed threshold X" once. Every
+  // other kind keeps its existing bare-taskId (or 'global') scope unchanged.
+  const dedupScopeFor = (kind: AchievementKind, taskId: string): string =>
+    REPEATABLE_TASK_SCOPED_KINDS.has(kind) ? `${taskId}:${dateString}` : taskId;
 
   // Same formula isTaskCompleted itself uses (getCompletionCount(t, date) >= its own timesPerDay)
   // -- this doesn't reimplement that rule, it just sources the count from the caller's own
@@ -986,7 +1025,7 @@ export const detectCompletionAchievements = (
     const nextValue = nextStats[metric];
     if (prevValue >= target || nextValue < target) continue;
     const isGlobal = ACHIEVEMENT_META[kind].scope === 'global';
-    const dedupScope = isGlobal ? 'global' : nextTask.id;
+    const dedupScope = isGlobal ? 'global' : dedupScopeFor(kind, nextTask.id);
     if (!isFirstEarn(kind, dedupScope)) continue;
     earned.push({ kind, ...(isGlobal ? {} : meta), value: target, dedupScope });
   }
@@ -1017,16 +1056,27 @@ export const detectCompletionAchievements = (
     nextStats.currentStreak > prevBest &&
     nextStats.currentStreak >= FIRST_STREAK_THRESHOLD
   ) {
-    earned.push({ kind: 'new-best-streak', ...meta, value: nextStats.currentStreak, dedupScope: nextTask.id });
+    earned.push({ kind: 'new-best-streak', ...meta, value: nextStats.currentStreak, dedupScope: dedupScopeFor('new-best-streak', nextTask.id) });
   }
 
   // Comeback -- repeatable; the task had genuinely lapsed (not just "not yet due today") right
   // before this completion revived it. Also bespoke -- reuses the same `isReady` predicate its
   // own ACHIEVEMENT_META entry already declares for Trophy Case progress, so the "what counts as
   // lapsed" definition can't drift between the two.
+  //
+  // Unlike new-best-streak (deliberately never gated -- see that block's own comment on why its
+  // condition is already self-protecting against a redo), comeback's condition is NOT
+  // self-protecting: `prevTask.stats.streakStatus === 'expired'` is exactly the state an undo
+  // reverts back to, so a redo of the identical completion sees the identical "was expired" prev
+  // state again and would otherwise re-fire every time -- this was the actual undo/redo-spam bug
+  // for this kind. Gated behind isFirstEarn using the same date-qualified scope the value is
+  // recorded with, so a same-date replay is blocked while a genuine future revival still fires.
   const comebackStrategy = ACHIEVEMENT_META.comeback.progressStrategy;
   if (comebackStrategy.type === 'readiness' && comebackStrategy.isReady(prevTask) && nextStats.currentStreak > 0) {
-    earned.push({ kind: 'comeback', ...meta, value: nextStats.currentStreak, dedupScope: nextTask.id });
+    const comebackScope = dedupScopeFor('comeback', nextTask.id);
+    if (isFirstEarn('comeback', comebackScope)) {
+      earned.push({ kind: 'comeback', ...meta, value: nextStats.currentStreak, dedupScope: comebackScope });
+    }
   }
 
   // Perfect day -- global, evaluated against `date` (the day this completion was actually *for*),
@@ -1035,9 +1085,10 @@ export const detectCompletionAchievements = (
   // explicit user direction) -- a day with nothing due for anyone was already excluded, but a day
   // with exactly one due task used to trivially "win" too, with nothing genuinely riding on it.
   // Bespoke -- the only kind whose detection spans every task rather than just the one that was
-  // just completed. Repeatable (per ACHIEVEMENT_META), so `isFirstEarn` is really just a same-date
-  // re-entrancy guard here rather than a true one-time gate.
-  const dateString = format(date, 'yyyy-MM-dd');
+  // just completed. `repeatable: true` here means "a different date can still be earned
+  // separately," not "the same date can repeat" -- achievementsStore.ts's own dedup-set builder
+  // now protects the latter directly (see REPEATABLE_TASK_SCOPED_KINDS' own comment), so
+  // `isFirstEarn` is a genuine same-date guard across calls, not just within this one.
   if (isFirstEarn('perfect-day', dateString)) {
     const dueTasks = allTasksAfter.filter(t => !t.archived && isDueOnDate(t, date));
     if (dueTasks.length >= PERFECT_DAY_MIN_DUE_TASKS && dueTasks.every(t => isCompletedOnDate(t, date))) {
@@ -1137,17 +1188,6 @@ export const detectCompletionAchievements = (
   return earned;
 };
 
-// Repeatable, task-scoped kinds whose dedupScope is fixed (the task's own id) regardless of which
-// specific historical crossing produced a given record -- e.g. every "Streak Started!" a task has
-// ever earned shares the identical scope, so plain "have I already seen this scope" dedup can't
-// tell an already-recorded crossing apart from a genuinely new one for these specifically. Handled
-// below via a per-(kind,taskId) *count* instead of set membership (see detectRetroactiveAchievements'
-// own comment for how).
-const REPEATABLE_TASK_SCOPED_KINDS = new Set<AchievementKind>(
-  (Object.keys(ACHIEVEMENT_META) as AchievementKind[])
-    .filter(kind => ACHIEVEMENT_META[kind].repeatable && ACHIEVEMENT_META[kind].scope === 'task')
-);
-
 // Retroactively evaluates every achievement a task list's *history* actually earned, not just
 // whatever its current stats happen to show -- a genuine chronological replay, not a one-shot
 // snapshot check. Powers TrophiesScreen's/Settings' manual "catch up" scan for history that
@@ -1211,10 +1251,21 @@ export const detectRetroactiveAchievements = (
   // so the replay is free to rediscover every genuine historical crossing -- the first N it finds,
   // in chronological order, are skipped here as already-accounted-for; only a crossing beyond
   // what's already on record actually counts as newly earned.
+  //
+  // Keyed on plain `${kind}:${taskId}`, deliberately NOT the record's own literal `dedupScope` --
+  // dedupScopeFor (see its own comment) now date-qualifies these kinds' dedupScope (e.g.
+  // `t1:2026-01-06` instead of bare `t1`), so the *exact* scope string genuinely differs between
+  // two real, separate crossings of the same tier for the same task. A count keyed on that literal
+  // string would only ever match a crossing that happened to land on the identical date, silently
+  // treating every other already-recorded crossing as "never happened" -- including every record
+  // that predates this date-qualification change entirely (all sharing the old, bare-taskId
+  // format). `taskId` alone is stable regardless of which dedupScope format produced it, so this
+  // is what actually answers "how many times has this task already earned this kind," independent
+  // of the string shape any individual record happens to carry.
   const alreadyRecordedCounts = new Map<string, number>();
   for (const a of achievements) {
-    if (!REPEATABLE_TASK_SCOPED_KINDS.has(a.kind)) continue;
-    const key = dedupKey(a.kind, a.dedupScope);
+    if (!REPEATABLE_TASK_SCOPED_KINDS.has(a.kind) || !a.taskId) continue;
+    const key = `${a.kind}:${a.taskId}`;
     alreadyRecordedCounts.set(key, (alreadyRecordedCounts.get(key) ?? 0) + 1);
   }
 
@@ -1302,17 +1353,19 @@ export const detectRetroactiveAchievements = (
     });
 
     for (const item of newlyEarnedNow) {
-      const key = dedupKey(item.kind, item.dedupScope);
-      if (REPEATABLE_TASK_SCOPED_KINDS.has(item.kind)) {
-        const remaining = alreadyRecordedCounts.get(key) ?? 0;
+      if (REPEATABLE_TASK_SCOPED_KINDS.has(item.kind) && item.taskId) {
+        // Same taskId-only key as alreadyRecordedCounts' own build-up above -- see that map's
+        // comment for why this can't be the item's own (now date-qualified) dedupScope string.
+        const countKey = `${item.kind}:${item.taskId}`;
+        const remaining = alreadyRecordedCounts.get(countKey) ?? 0;
         if (remaining > 0) {
-          alreadyRecordedCounts.set(key, remaining - 1);
+          alreadyRecordedCounts.set(countKey, remaining - 1);
           continue; // already accounted for by an existing record -- not a new find
         }
       } else {
         // Block this exact scope from firing again later in the same replay -- mirrors how the
         // live store's own alreadyEarnedScopes grows across real completions.
-        alreadyEarnedScopes.add(key);
+        alreadyEarnedScopes.add(dedupKey(item.kind, item.dedupScope));
       }
       earned.push(item);
     }
