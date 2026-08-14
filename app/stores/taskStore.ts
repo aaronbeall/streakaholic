@@ -44,6 +44,9 @@ interface TaskStore {
   restoreCompletion: (taskId: string, completion: TaskCompletion) => void;
   archiveTask: (taskId: string) => void;
   restoreTask: (taskId: string) => void;
+  // Receives the complete active-task id order. Archived tasks retain their slots, so reordering
+  // Home never unexpectedly changes the Archived Habits list.
+  reorderTasks: (orderedActiveTaskIds: string[]) => void;
   importTasks: (tasks: Task[], options?: ImportOptions) => void;
   // Not persisted (excluded by `partialize` below, same as `hasHydrated`) -- purely an in-memory
   // guard, for one running process, against redundant same-day recomputes (see
@@ -297,6 +300,31 @@ export const useTaskStore = create<TaskStore>()(
           }),
         });
         if (updatedTask) rescheduleFor(updatedTask);
+      },
+
+      reorderTasks: (orderedActiveTaskIds) => {
+        const currentTasks = get().tasks;
+        const activeTasks = currentTasks.filter(task => !task.archived);
+        const currentIds = new Set(activeTasks.map(task => task.id));
+
+        // Keep this action deliberately strict: callers must provide every active task exactly
+        // once. That prevents a stale UI from accidentally dropping or duplicating a task in the
+        // persisted list, while still making a valid reorder a single atomic store update.
+        if (
+          orderedActiveTaskIds.length !== activeTasks.length ||
+          new Set(orderedActiveTaskIds).size !== orderedActiveTaskIds.length ||
+          orderedActiveTaskIds.some(id => !currentIds.has(id))
+        ) return;
+
+        const tasksById = new Map(activeTasks.map(task => [task.id, task]));
+        let nextActiveIndex = 0;
+        const reorderedTasks = currentTasks.map(task =>
+          task.archived ? task : tasksById.get(orderedActiveTaskIds[nextActiveIndex++])!
+        );
+
+        // Avoid a needless persistence write and re-render when a button at either end is used.
+        if (reorderedTasks.every((task, index) => task === currentTasks[index])) return;
+        set({ tasks: reorderedTasks });
       },
 
       importTasks: (importedTasks, options = {}) => {

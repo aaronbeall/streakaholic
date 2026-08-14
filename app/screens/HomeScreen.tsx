@@ -10,15 +10,17 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import DraggableFlatList, { RenderItemParams, ScaleDecorator, ShadowDecorator } from 'react-native-draggable-flatlist';
 import Reanimated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import tinycolor from 'tinycolor2';
 import { OnboardingHint, TargetLayout } from '../components/OnboardingHint';
 import { CardSide, TaskCard } from '../components/TaskCard';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useTaskStore } from '../stores/taskStore';
-import { Task } from '../types';
+import { MaterialCommunityIconName, Task } from '../types';
 import { getStreakStats } from '../utils/data';
 import { isTaskCompleted } from '../utils/streaks';
 import { ACTIVE_TASK_LIMIT_MESSAGE, hasReachedActiveTaskLimit } from '../utils/taskLimits';
@@ -40,8 +42,102 @@ const FAB_SIZE = 56;
 const FAB_OFFSET = 24;
 
 type FilterType = 'up_to_date' | 'expiring' | null;
+type SortOption = 'created' | 'most-used' | 'color' | 'time';
+const SORT_OPTIONS: readonly (readonly [SortOption, string, MaterialCommunityIconName])[] = [
+  ['created', 'Created', 'calendar-clock-outline'],
+  ['most-used', 'Most Used', 'chart-line'],
+  ['color', 'Color', 'palette-outline'],
+  ['time', 'Time of Day', 'clock-outline'],
+];
 
-const HomeHeader = React.memo(({ activeFilter, onFilterChange }: { activeFilter: FilterType; onFilterChange: (filter: FilterType) => void }) => {
+const REORDER_ROW_HEIGHT = 64;
+const REORDER_ROW_GAP = 12;
+// The list's defaults favour a fairly soft spring. A firmer, clamped settle makes the release
+// feel deliberate: the lifted row lands at its placeholder without a visible bounce.
+const REORDER_ANIMATION_CONFIG = {
+  damping: 24,
+  mass: 0.35,
+  stiffness: 220,
+  overshootClamping: true,
+  restDisplacementThreshold: 0.01,
+  restSpeedThreshold: 2,
+};
+
+const getReminderTime = (task: Task): string | null =>
+  task.notifications?.level && task.notifications.level > 0 && /^\d{2}:\d{2}$/.test(task.notifications.time)
+    ? task.notifications.time
+    : null;
+
+// Include the current index as a tie-breaker. This makes every preset stable: habits that have
+// the same timestamp, usage count, color, or reminder time retain their existing relative order.
+const orderTasksBy = (tasks: Task[], sort: SortOption): Task[] =>
+  tasks
+    .map((task, index) => ({ task, index }))
+    .sort((a, b) => {
+      if (sort === 'created') {
+        return a.task.createdAt.localeCompare(b.task.createdAt) || a.index - b.index;
+      }
+      if (sort === 'most-used') {
+        return (b.task.stats?.totalCompletions ?? 0) - (a.task.stats?.totalCompletions ?? 0) || a.index - b.index;
+      }
+      if (sort === 'color') {
+        return tinycolor(a.task.color).toHsv().h - tinycolor(b.task.color).toHsv().h || a.index - b.index;
+      }
+
+      const aTime = getReminderTime(a.task);
+      const bTime = getReminderTime(b.task);
+      if (!aTime && !bTime) return a.index - b.index;
+      if (!aTime) return 1;
+      if (!bTime) return -1;
+      return aTime.localeCompare(bTime) || a.index - b.index;
+    })
+    .map(({ task }) => task);
+
+const ReorderableTaskRow: React.FC<{
+  task: Task;
+  drag: () => void;
+  isActive: boolean;
+}> = ({ task, drag, isActive }) => {
+  const colors = useThemeColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  return (
+    <ScaleDecorator activeScale={1.02}>
+      <ShadowDecorator elevation={isActive ? 6 : 0} opacity={isActive ? 0.2 : 0}>
+        <TouchableOpacity
+          style={[styles.reorderRow, isActive && styles.reorderRowActive]}
+          // Start the draggable-list state as soon as any part of the row is touched. Its parent
+          // pan recognizer still requires vertical movement (`activationDistance` below), so a
+          // regular tap cannot reorder a habit.
+          onPressIn={drag}
+          disabled={isActive}
+          activeOpacity={1}
+          accessibilityRole="button"
+          accessibilityLabel={`Drag ${task.name} to reorder`}
+          accessibilityHint="Touch and drag to a new position"
+        >
+          <View style={[styles.reorderIcon, { backgroundColor: task.color }]}>
+            <MaterialCommunityIcons name={task.icon} size={20} color="#fff" />
+          </View>
+          <Text style={styles.reorderName} numberOfLines={1}>{task.name}</Text>
+          <MaterialCommunityIcons name="drag-vertical" size={22} color={colors.textTertiary} />
+        </TouchableOpacity>
+      </ShadowDecorator>
+    </ScaleDecorator>
+  );
+};
+
+const HomeHeader = React.memo(({
+  activeFilter,
+  onFilterChange,
+  isReordering,
+  onToggleReordering,
+}: {
+  activeFilter: FilterType;
+  onFilterChange: (filter: FilterType) => void;
+  isReordering: boolean;
+  onToggleReordering: () => void;
+}) => {
   const router = useRouter();
   const tasks = useTaskStore(state => state.tasks);
   const colors = useThemeColors();
@@ -53,6 +149,23 @@ const HomeHeader = React.memo(({ activeFilter, onFilterChange }: { activeFilter:
   const handleFilterPress = (filter: FilterType) => {
     onFilterChange(activeFilter === filter ? null : filter);
   };
+
+  if (isReordering) {
+    return (
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <View style={styles.headerSpacer} />
+        <Text style={styles.reorderTitle}>Reorder Habits</Text>
+        <TouchableOpacity
+          style={styles.doneButton}
+          onPress={onToggleReordering}
+          accessibilityRole="button"
+          accessibilityLabel="Done reordering habits"
+        >
+          <Text style={styles.doneButtonText}>Done</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -120,14 +233,25 @@ const HomeHeader = React.memo(({ activeFilter, onFilterChange }: { activeFilter:
         )}
       </View>
 
-      <TouchableOpacity
-        style={styles.headerButton}
-        onPress={() => router.push('/settings')}
-        accessibilityRole="button"
-        accessibilityLabel="Settings"
-      >
-        <MaterialCommunityIcons name="cog" size={24} color={colors.text} />
-      </TouchableOpacity>
+      <View style={styles.headerActions}>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={onToggleReordering}
+          accessibilityRole="button"
+          accessibilityLabel="Reorder habits"
+          accessibilityHint="Opens controls to change the habit order"
+        >
+          <MaterialCommunityIcons name="sort-variant" size={22} color={colors.text} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => router.push('/settings')}
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+        >
+          <MaterialCommunityIcons name="cog" size={24} color={colors.text} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 });
@@ -139,12 +263,15 @@ export const HomeScreen: React.FC = () => {
   const tasks = useTaskStore(state => state.tasks);
   const completeTask = useTaskStore(state => state.completeTask);
   const undoCompleteTask = useTaskStore(state => state.undoCompleteTask);
+  const reorderTasks = useTaskStore(state => state.reorderTasks);
   const { showToast } = useToast();
   const onboardingHintsSeen = useSettingsStore(state => state.onboardingHintsSeen);
   const setOnboardingHintSeen = useSettingsStore(state => state.setOnboardingHintSeen);
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<FilterType>(null);
+  const [isReordering, setIsReordering] = useState(false);
+  const [appliedSort, setAppliedSort] = useState<SortOption | null>(null);
   const [onboardingTargetLayout, setOnboardingTargetLayout] = useState<TargetLayout | null>(null);
   const [onboardingTargetFace, setOnboardingTargetFace] = useState<CardSide>('task');
   const onboardingTargetRef = useRef<View>(null);
@@ -165,7 +292,14 @@ export const HomeScreen: React.FC = () => {
   }), [tasks, filter]);
 
   const hasAnyTasks = useMemo(() => tasks.some(task => !task.archived), [tasks]);
+  const activeTasks = useMemo(() => tasks.filter(task => !task.archived), [tasks]);
   const atTaskLimit = useMemo(() => hasReachedActiveTaskLimit(tasks), [tasks]);
+
+  const applySort = useCallback((sort: SortOption) => {
+    reorderTasks(orderTasksBy(activeTasks, sort).map(task => task.id));
+    setAppliedSort(sort);
+    Haptics.selectionAsync();
+  }, [activeTasks, reorderTasks]);
 
   const handleAddTask = useCallback(() => {
     if (atTaskLimit) {
@@ -367,7 +501,56 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <View style={styles.container} ref={onboardingContainerRef}>
-      <HomeHeader activeFilter={filter} onFilterChange={setFilter} />
+      <HomeHeader
+        activeFilter={filter}
+        onFilterChange={setFilter}
+        isReordering={isReordering}
+        onToggleReordering={() => setIsReordering(value => !value)}
+      />
+      {isReordering ? (
+        <DraggableFlatList
+          data={activeTasks}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[styles.reorderListContent, { paddingBottom: 16 + insets.bottom }]}
+          ListHeaderComponent={
+            <View style={styles.reorderHeader}>
+              <Text style={styles.sortOptionsTitle}>Order by</Text>
+              <View style={styles.sortOptions} accessibilityLabel="Sort habits">
+                {SORT_OPTIONS.map(([sort, label, icon]) => (
+                  <TouchableOpacity
+                    key={sort}
+                    style={[styles.sortOption, appliedSort === sort && styles.sortOptionSelected]}
+                    onPress={() => applySort(sort)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Sort by ${label.toLowerCase()}`}
+                    accessibilityState={{ selected: appliedSort === sort }}
+                  >
+                    <MaterialCommunityIcons
+                      name={icon}
+                      size={18}
+                      color={appliedSort === sort ? '#fff' : colors.textSecondary}
+                    />
+                    <Text style={[styles.sortOptionText, appliedSort === sort && styles.sortOptionTextSelected]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.reorderDescription}>Or touch and drag any habit to place it exactly where you want.</Text>
+            </View>
+          }
+          renderItem={({ item, drag, isActive }: RenderItemParams<Task>) => (
+            <ReorderableTaskRow task={item} drag={drag} isActive={isActive} />
+          )}
+          onDragEnd={({ data }) => {
+            reorderTasks(data.map(task => task.id));
+            setAppliedSort(null);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }}
+          onDragBegin={() => Haptics.selectionAsync()}
+          animationConfig={REORDER_ANIMATION_CONFIG}
+          activationDistance={8}
+          dragItemOverflow={false}
+        />
+      ) : (
       <FlatList
         key={columnCount}
         data={filteredTasks}
@@ -425,15 +608,16 @@ export const HomeScreen: React.FC = () => {
           </View>
         }
       />
-      <TouchableOpacity
+      )}
+      {!isReordering && <TouchableOpacity
         style={[styles.addButton, { bottom: FAB_OFFSET + insets.bottom }]}
         onPress={handleAddTask}
         accessibilityRole="button"
         accessibilityLabel="Add habit"
       >
         <MaterialCommunityIcons name="plus" size={32} color="#fff" />
-      </TouchableOpacity>
-      {onboardingHintKey && onboardingTargetLayout && (
+      </TouchableOpacity>}
+      {!isReordering && onboardingHintKey && onboardingTargetLayout && (
         <OnboardingHint
           key={onboardingHintKey}
           text={ONBOARDING_HINT_TEXT[onboardingHintKey]}
@@ -468,6 +652,30 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  headerSpacer: {
+    width: 40,
+    height: 40,
+  },
+  reorderTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  doneButton: {
+    minWidth: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  doneButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
   streakBubbles: {
     flexDirection: 'row',
     gap: 8,
@@ -492,6 +700,78 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   emptyListContent: {
     flexGrow: 1,
+  },
+  reorderListContent: {
+    padding: 16,
+    gap: REORDER_ROW_GAP,
+  },
+  reorderHeader: {
+    gap: 10,
+    marginBottom: 4,
+  },
+  sortOptionsTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  reorderDescription: {
+    color: colors.textTertiary,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  sortOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  sortOption: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: colors.iconButtonBackground,
+  },
+  sortOptionSelected: {
+    backgroundColor: '#007AFF',
+  },
+  sortOptionText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  sortOptionTextSelected: {
+    color: '#fff',
+  },
+  reorderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: REORDER_ROW_HEIGHT,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+  },
+  reorderRowActive: {
+    backgroundColor: colors.surfaceSecondary,
+  },
+  reorderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reorderName: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '600',
   },
   emptyState: {
     flex: 1,
@@ -611,4 +891,4 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   filterButtonTextActive: {
     color: '#fff',
   },
-}); 
+});
