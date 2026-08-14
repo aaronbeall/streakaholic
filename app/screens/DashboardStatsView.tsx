@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Dimensions, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AchievementsPreviewCard } from '../components/AchievementsPreviewCard';
+import { EmptyState } from '../components/EmptyState';
 import { LazyMount } from '../components/LazyMount';
 import { CompletionsOverTimeChartCard, HistogramChartCard } from '../components/StatsCharts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -178,6 +179,15 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
     labels: hourOfDayLabels,
     datasets: [{ data: hourOfDayData }],
   }), [hourOfDayData]);
+
+  // Placed after every hook above (rules-of-hooks) -- previously a filtered-to-nothing view fell
+  // through to the full stats layout below, rendering a wall of zeroed/NaN-adjacent stats (0
+  // completions, an empty "0/0" streak ratio, "—" for Best Day) instead of a clear signal that
+  // there's simply nothing selected. Matches DashboardStreaksView/DashboardCalendarView's own
+  // identical "no habits selected" treatment -- see EmptyState.tsx.
+  if (tasks.length === 0) {
+    return <EmptyState icon="chart-line" title="No habits selected" />;
+  }
 
   return (
     <ScrollView

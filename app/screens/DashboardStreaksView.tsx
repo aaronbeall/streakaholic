@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EmptyState } from '../components/EmptyState';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getRecentStreaks, TaskStreakChain } from '../utils/reports';
@@ -99,21 +100,16 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
   };
 
   if (tasks.length === 0) {
-    return (
-      <View style={styles.emptyContainer}>
-        <MaterialCommunityIcons name="fire" size={48} color={colors.textTertiary} />
-        <Text style={styles.emptyTitle}>No habits selected</Text>
-      </View>
-    );
+    return <EmptyState icon="fire" title="No habits selected" />;
   }
 
   if (allStreaks.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
-        <MaterialCommunityIcons name="fire" size={48} color={colors.textTertiary} />
-        <Text style={styles.emptyTitle}>No streaks yet</Text>
-        <Text style={styles.emptySubtitle}>Complete a habit on its due days to start one.</Text>
-      </View>
+      <EmptyState
+        icon="fire"
+        title="No streaks yet"
+        subtitle="Complete a habit on its due days to start one."
+      />
     );
   }
 
@@ -214,23 +210,6 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   content: {
     flex: 1,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: 24,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    textAlign: 'center',
   },
   heroBlock: {
     alignItems: 'center',

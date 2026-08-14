@@ -6,6 +6,7 @@ import { FlatList, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, P
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Reanimated, { EntryAnimationsValues, LayoutAnimation, withTiming } from 'react-native-reanimated';
 import Svg, { Line, Path } from 'react-native-svg';
+import { EmptyState } from '../components/EmptyState';
 import { MissedDayMark } from '../components/MissedDayMark';
 import { PartialDayPie } from '../components/PartialDayPie';
 import { StreakCountBadge } from '../components/StreakCountBadge';
@@ -387,39 +388,43 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
     }
   };
 
+  // Placed after every hook above (React's rules-of-hooks require them to run unconditionally,
+  // same as DashboardStreaksView/DashboardStatsView's identical early-return placement) -- styled
+  // to match those two views' own "no habits selected" treatment exactly (see EmptyState.tsx),
+  // rather than this screen's previous plain, unstyled fallback line.
+  if (tasks.length === 0) {
+    return <EmptyState icon="calendar-blank-outline" title="No habits selected" />;
+  }
+
   return (
     <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom }}>
-      {tasks.length > 0 && (
-        <View style={styles.timelineHeaderRow}>
-          {/* Reuses visibleMonth -- already tracked reactively via onViewableItemsChanged for
-              the mini month grids below -- as a large, prominent label right above the grid
-              itself, rather than trying to cram "MMMM yyyy" into a single 32px day column (the
-              old per-column abbreviation this replaced could only ever fit "MMM yy" at 8px). */}
-          <Text style={styles.timelineMonthLabel} numberOfLines={1}>{format(visibleMonth, 'MMMM yyyy')}</Text>
-          <View style={styles.mainGridModeToggle}>
-            {([
-              { mode: 'grid' as const, icon: 'view-grid-outline' as const, label: 'Grid view' },
-              { mode: 'bars' as const, icon: 'chart-bar' as const, label: 'Bars view' },
-              { mode: 'streamgraph' as const, icon: 'chart-areaspline-variant' as const, label: 'Streamgraph view' },
-            ]).map(({ mode, icon, label }) => (
-              <TouchableOpacity
-                key={mode}
-                style={[styles.mainGridModeButton, mainGridMode === mode && styles.mainGridModeButtonActive]}
-                onPress={() => setMainGridMode(mode)}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: mainGridMode === mode }}
-                accessibilityLabel={label}
-              >
-                <MaterialCommunityIcons name={icon} size={18} color={mainGridMode === mode ? '#fff' : colors.textSecondary} />
-              </TouchableOpacity>
-            ))}
-          </View>
+      <View style={styles.timelineHeaderRow}>
+        {/* Reuses visibleMonth -- already tracked reactively via onViewableItemsChanged for
+            the mini month grids below -- as a large, prominent label right above the grid
+            itself, rather than trying to cram "MMMM yyyy" into a single 32px day column (the
+            old per-column abbreviation this replaced could only ever fit "MMM yy" at 8px). */}
+        <Text style={styles.timelineMonthLabel} numberOfLines={1}>{format(visibleMonth, 'MMMM yyyy')}</Text>
+        <View style={styles.mainGridModeToggle}>
+          {([
+            { mode: 'grid' as const, icon: 'view-grid-outline' as const, label: 'Grid view' },
+            { mode: 'bars' as const, icon: 'chart-bar' as const, label: 'Bars view' },
+            { mode: 'streamgraph' as const, icon: 'chart-areaspline-variant' as const, label: 'Streamgraph view' },
+          ]).map(({ mode, icon, label }) => (
+            <TouchableOpacity
+              key={mode}
+              style={[styles.mainGridModeButton, mainGridMode === mode && styles.mainGridModeButtonActive]}
+              onPress={() => setMainGridMode(mode)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: mainGridMode === mode }}
+              accessibilityLabel={label}
+            >
+              <MaterialCommunityIcons name={icon} size={18} color={mainGridMode === mode ? '#fff' : colors.textSecondary} />
+            </TouchableOpacity>
+          ))}
         </View>
-      )}
+      </View>
 
-      {tasks.length === 0 ? (
-        <Text style={styles.emptyText}>No habits selected.</Text>
-      ) : mainGridMode === 'streamgraph' ? (
+      {mainGridMode === 'streamgraph' ? (
         <View style={styles.streamWrapper}>
           <YAxisColumn ticks={yAxisTicks} max={yAxisMax} height={streamHeight} mirrored styles={styles} />
           <ScrollView
@@ -787,11 +792,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
-  },
-  emptyText: {
-    fontSize: 13,
-    color: colors.textTertiary,
-    marginBottom: 20,
   },
   timelineHeaderRow: {
     flexDirection: 'row',
