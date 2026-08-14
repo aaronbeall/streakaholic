@@ -4,6 +4,7 @@ import Reanimated, {
   interpolateColor,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withTiming,
 } from "react-native-reanimated";
 import tinycolor from "tinycolor2";
@@ -104,21 +105,30 @@ const COLOR_SHIFT_SPEED = 1.6;
 const ParticleComponent = React.memo(({ particle }: { particle: Particle }) => {
   const progress = useSharedValue(1);
   // Independent of `progress` (which drives the whole drift/shrink/fade/color countdown) --
-  // this only ramps the particle's *scale* in from 0, in parallel with `progress`'s own decay
-  // starting immediately. Since `GROWTH_DURATION` is a small fraction of `life`, drift/swirl are
-  // still negligible (`t` is still tiny) by the time growth finishes, so visually the particle
-  // reads as "grow in, then drift off and die out" without needing to delay the main countdown.
+  // this only ramps the particle's *scale* in from 0, in parallel with `progress`'s own decay.
+  // Both timelines begin after the same UI-thread spawn delay. Since `GROWTH_DURATION` is a small
+  // fraction of `life`, drift/swirl are still negligible (`t` is still tiny) by the time growth
+  // finishes, so visually the particle reads as "grow in, then drift off and die out."
   const growth = useSharedValue(0);
 
   React.useEffect(() => {
-    growth.value = withTiming(1, {
-      duration: GROWTH_DURATION,
-      easing: Easing.out(Easing.cubic),
-    });
-    progress.value = withTiming(0, {
-      duration: particle.life,
-      easing: Easing.bezier(0.4, 0, 0.2, 1),
-    });
+    // Every particle is mounted with the burst, but remains at scale 0 until its UI-thread
+    // delay expires. Keeping the stagger inside Reanimated avoids the former JS setTimeout +
+    // React state update for every particle while preserving the same randomized spawn timing.
+    growth.value = withDelay(
+      particle.spawnDelay,
+      withTiming(1, {
+        duration: GROWTH_DURATION,
+        easing: Easing.out(Easing.cubic),
+      }),
+    );
+    progress.value = withDelay(
+      particle.spawnDelay,
+      withTiming(0, {
+        duration: particle.life,
+        easing: Easing.bezier(0.4, 0, 0.2, 1),
+      }),
+    );
     // Deliberately fires once per mount only -- `particle` is a stable object created once by
     // `createParticle`, and re-running this on every parent re-render (it used to depend on a
     // `life` value recomputed fresh in the parent's `.map()` each time) restarted the fade/drift
@@ -441,28 +451,13 @@ export const ParticleSystem = React.memo(
     // `if (particleState.length === 0) setParticleState(...)` check forced a wasted extra render
     // pass on every mount, and (combined with `ParticleSystem` never actually calling `onComplete`,
     // fixed below) meant a still-mounted instance from an earlier celebration never regenerated
-    // fresh particles for a later one. Sorted by `spawnDelay` once here so the staggering effect
-    // below can just walk the array in order rather than re-sorting on every run.
+    // fresh particles for a later one. Sorting by `spawnDelay` preserves the burst's existing
+    // visual stacking order: particles that appear later are also rendered above earlier ones.
     const [particleState] = useState<Particle[]>(() =>
       Array.from({ length: count }, createParticle).sort(
         (a, b) => a.spawnDelay - b.spawnDelay,
       ),
     );
-
-    // Particles don't all render on the first frame -- each is revealed at its own `spawnDelay`,
-    // giving a short generation burst instead of the whole shape popping in at once. `particleState`
-    // is already sorted by `spawnDelay`, so revealing "the first N" as their timers fire is enough;
-    // no per-particle visibility set needed.
-    const [visibleCount, setVisibleCount] = useState(0);
-    useEffect(() => {
-      const timeouts = particleState.map((particle, index) =>
-        setTimeout(
-          () => setVisibleCount((v) => Math.max(v, index + 1)),
-          particle.spawnDelay,
-        ),
-      );
-      return () => timeouts.forEach(clearTimeout);
-    }, [particleState]);
 
     // Reanimated's own animation-completion callbacks aren't reliable enough to drive real control
     // flow on Android (the same lesson `TaskCard`'s completion-pop animation learned the hard way --
@@ -481,7 +476,7 @@ export const ParticleSystem = React.memo(
 
     return (
       <>
-        {particleState.slice(0, visibleCount).map((particle) => (
+        {particleState.map((particle) => (
           <ParticleComponent key={particle.id} particle={particle} />
         ))}
       </>
