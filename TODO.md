@@ -81,6 +81,7 @@
 - [ ] Widgets
 - [ ] Sync (Drive or Dropbox)
 - [x] About (privacy, ToS, credits, etc) (`app/about.tsx` → `AboutScreen` — app identity/version/icon, a Privacy Policy and Terms of Service reflecting the app's actual local-only/no-tracking architecture, and an Open Source credits list of the libraries actually used; linked from Settings' About row, which now navigates instead of just displaying name/version inline. Placeholder legal-style text — review/replace before an actual store submission)
+- [ ] Marketting website (streakaholic.app)
 
 ## Future
 
