@@ -203,7 +203,7 @@ Do not replace mount-triggered celebrations with completion-only events as part 
 
 Particle reveal is staggered by scheduling an individual JavaScript `setTimeout` for each particle and updating React state as each timeout fires. This creates a burst of timers, JS callbacks, state updates, reconciliations, and native handoffs during an animation that should largely stay on the UI thread.
 
-**Impact:** High when combined with the mount-trigger issue; Medium in a correctly scoped single-card celebration. Timer storms can interrupt gesture handling and other JS work even when the visual transforms themselves use Reanimated.
+**Impact:** High during dense simultaneous mount celebrations; Medium in a single-card celebration. Timer storms could interrupt gesture handling and other JS work even when the visual transforms themselves used Reanimated.
 
 **Complexity:** Small to Medium.
 
