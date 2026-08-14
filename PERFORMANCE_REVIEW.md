@@ -11,14 +11,15 @@ Streakaholic already has a sound performance foundation: React Native's new arch
 The most important remaining problems are concentrated in a few paths rather than spread throughout the app:
 
 1. Completing a habit synchronously recalculates history, evaluates achievements, and persists the full task store while the completion animation is in progress.
-2. Every task card initially mounts both its visible task face and its hidden calendar face.
-3. Screens beneath the active native-stack screen can remain subscribed and render work that the user cannot see.
-4. Startup and foreground handling repeats broad stats and notification work even when nothing changed.
-5. Dashboard calendar work grows with the full loaded history and is not incrementally computed.
+2. Screens beneath the active native-stack screen can remain subscribed and render work that the user cannot see.
+3. Startup and foreground handling repeats broad stats and notification work even when nothing changed.
+4. Dashboard calendar work grows with the full loaded history and is not incrementally computed.
 
-Those issues should be addressed before bundle-size cleanup and smaller render refinements. The first two are the most likely to improve animation smoothness and perceived responsiveness on typical Android devices.
+Those issues should be addressed before bundle-size cleanup and smaller render refinements. The completion path is the most likely to improve animation smoothness and perceived responsiveness on typical Android devices.
 
 Fire particles intentionally play when qualifying task cards mount. This is desired product behavior, even when several cards celebrate together. A deferred safeguard (`PERF-001`) proposes a shared particle budget that preserves the behavior while reducing particle counts for lower-priority systems during unusually dense simultaneous bursts.
+
+Task cards also intentionally pre-render their hidden calendar face. This shifts work into Home mounting so the first tap-to-flip remains smooth; a prior lazy version visibly lagged while creating the calendar. `PERF-004` now records lower-risk alternatives for future consideration rather than recommending that eager rendering simply be removed.
 
 This review targets the native Android app. React Native Web behavior and browser profiling are intentionally out of scope because web is only a quick functional-testing environment for this project.
 
@@ -74,16 +75,16 @@ When addressing an issue, check off its concrete subtasks as they land, check th
 
 ### P1 — Invisible work, startup, and scale
 
-- [ ] **PERF-004 — Lazy-mount hidden task-card faces**
-  - [ ] Mount only the initially visible card face.
-  - [ ] Prepare the destination face early enough for a seamless flip.
-  - [ ] Avoid rebuilding hidden calendars for unrelated task updates.
-  - [ ] Verify first flip, repeated flips, and state preservation on Android.
-- [ ] **PERF-005 — Freeze blurred native-stack screens**
-  - [ ] Enable the supported native-screen freezing configuration.
-  - [ ] Confirm hidden Home does not render or animate under detail/settings screens.
-  - [ ] Verify state catches up immediately when a screen regains focus.
-  - [ ] Regression-test back navigation, modals, deep links, themes, and achievements.
+- [x] **PERF-005 — Freeze blurred native-stack screens**
+  - [x] Enable `freezeOnBlur` explicitly on the root native Stack.
+  - [x] Keep the setting scoped to the existing root Stack rather than globally changing future navigators.
+  - [x] Pass TypeScript, lint, Jest, and Android production-export validation.
+  - Native follow-up: confirm hidden Home does not rerender or start new render-driven celebrations under detail/settings screens.
+  - Native follow-up: confirm a hidden Dashboard does not recompute its active stats/calendar/streaks view after task changes in a pushed detail screen.
+  - Native follow-up: confirm task detail does not rerender behind its Add/Edit Habit modal.
+  - Native follow-up: verify state catches up immediately when a screen regains focus.
+  - Native follow-up: check whether already-running Reanimated worklets, timers, or effects continue while frozen; handle those separately if measurements justify it.
+  - Native follow-up: regression-test back navigation, modal dismissal, multi-screen stacks, deep links, theme changes, and achievements.
 - [ ] **PERF-006 — Reduce startup and foreground reconciliation**
   - [ ] Persist the local date for which derived task stats were last refreshed.
   - [ ] Skip same-day task-history recalculation when data is unchanged.
@@ -121,7 +122,7 @@ When addressing an issue, check off its concrete subtasks as they land, check th
   - [ ] Keep lazy mounting one-way after a chart becomes visible.
   - [ ] Confirm scrolling and chart interaction on a lower-end Android device.
 
-### P3 — Follow-up animation safeguards
+### P3 — Deferred animation and rendering safeguards
 
 - [ ] **PERF-001 — Add a global concurrent-particle budget (deferred)**
   - [ ] Preserve the intentional behavior where qualifying task cards celebrate on mount.
@@ -131,6 +132,15 @@ When addressing an issue, check off its concrete subtasks as they land, check th
   - [ ] Define a sensible minimum count so lower-priority celebrations still read as celebrations.
   - [ ] Avoid mid-animation particle removal, visual popping, or unstable count rebalancing.
   - [ ] Validate Home mounts with approximately 1, 5, 10, and 20 simultaneous fire systems on Android.
+- [ ] **PERF-004 — Reduce hidden-calendar pre-render cost without regressing first-flip responsiveness (deferred)**
+  - [ ] Keep the current eager calendar rendering unless native Home measurements justify a change.
+  - [ ] Measure Home mount cost separately from first-flip latency on representative Android devices.
+  - [ ] Consider delayed, top-to-bottom batched prewarming after the first Home paint.
+  - [ ] Consider promoting a card's calendar prewarm on touch-down so it is ready before the flip midpoint.
+  - [ ] Consider caching/precomputing the calendar model while leaving native cell mounting just-in-time.
+  - [ ] Consider viewport-aware prewarming for visible and near-visible cards.
+  - [ ] Consider flattening the noninteractive mini calendar into a lighter SVG rendering while retaining eager mounting.
+  - [ ] Reject any alternative that restores the previously observed first-flip hitch or displays a blank destination face.
 - [ ] **PERF-012 — Move achievement count-up off JS state if profiling justifies it**
   - [ ] Measure JS contention during single and queued achievement celebrations.
   - [ ] Keep the current implementation if it stays within the native frame budget.
@@ -146,7 +156,6 @@ When addressing an issue, check off its concrete subtasks as they land, check th
 | --- | --- | --- | --- | --- | --- |
 | PERF-002 | P0 | Particle creation schedules one JavaScript timer per particle | High | S–M | Animation |
 | PERF-003 | P0 | Habit completion performs history-wide calculation and full-store persistence synchronously | High | L | Updates/state |
-| PERF-004 | P1 | Task cards mount their hidden calendar face immediately | High | M | Rendering |
 | PERF-005 | P1 | Inactive native-stack screens are not frozen | Medium–High | S | Rendering/navigation |
 | PERF-006 | P1 | Startup/foreground stats refreshes and notification rescheduling repeat broad work | High | M–L | Startup/native APIs |
 | PERF-007 | P1 | Dashboard calendar and streamgraph cost grows with all loaded history | High at scale | L | Rendering/calculation |
@@ -155,6 +164,7 @@ When addressing an issue, check off its concrete subtasks as they land, check th
 | PERF-010 | P2 | Non-route modules live under Expo Router's `app/` directory | Medium | L | Project structure |
 | PERF-011 | P2 | Stats screens update React state repeatedly while scrolling | Medium | M | Rendering |
 | PERF-001 | P3 | Add a shared particle budget for dense simultaneous mount celebrations | Medium in dense bursts | M | Animation |
+| PERF-004 | P3 | Reduce hidden-calendar pre-render cost without regressing first-flip responsiveness | Medium if Home mount becomes costly | M–L | Rendering |
 | PERF-012 | P3 | Achievement count-up uses JS-thread frame updates | Low–Medium | M | Animation |
 | PERF-013 | P3 | Continuous achievement animation does not account for reduced motion or app state | Low | S–M | Animation/accessibility |
 
@@ -262,52 +272,109 @@ A `WeakMap` keyed by the exact immutable completions array or task object is app
 - JS frame stalls around completion decrease in a native release build.
 - Large-history persistence cost is measured before and after the storage change.
 
-### PERF-004 (P1): Every task card mounts its hidden calendar face
+### PERF-004 (P3): Reduce hidden-calendar pre-render cost without regressing first-flip responsiveness
 
 **Area:** `app/components/TaskCard.tsx`, calendar components and streak-chain utilities
 
-**Observed behavior**
+**Status:** Deferred by product decision on 2026-08-14. Keep the current eager calendar rendering unless native measurements show that its Home-mount cost warrants another approach.
+
+**Current behavior and rationale**
 
 The initial card-side collection includes both `task` and `calendar`, and both faces render even though only one is visible. The hidden calendar still builds completion maps, derives streak-chain information, creates its day grid, and mounts its component tree for every visible task card.
 
-**Impact:** High on Home mount and task updates. The hidden work multiplies by the number of visible cards and makes unrelated completion updates more expensive.
+This is intentional pre-rendering. An earlier lazy implementation produced a noticeable hitch when the user tapped to flip because the calendar had to calculate and mount at that moment. Paying the cost during Home rendering makes the first flip immediate and visually complete.
 
-**Complexity:** Medium.
+`CardCalendar` is already wrapped in `React.memo`, and its completion map and streak chains use `useMemo`. The remaining tradeoff is initial calculation/native-view mounting for each mounted card versus guaranteed first-flip responsiveness.
 
-**Recommended fix**
+**Impact:** Medium and situational. Eager mounting increases Home's initial work and memory, but removing it would regress a confirmed interaction-quality problem. Treat it as a future optimization only if native Home measurements reveal meaningful cost.
 
-Mount only the visible face initially. When a flip begins, prepare the destination face early enough that it is ready before it becomes visible, then optionally unmount the old expensive face after the transition.
+**Complexity:** Medium to Large, depending on the alternative.
 
-Shared immutable-reference caches for completion-count maps and streak chains will further reduce work where both faces legitimately need the same derived data.
+**Alternatives for future consideration**
+
+| Alternative | Home-mount cost | First-flip behavior | Complexity | Main tradeoff |
+| --- | --- | --- | --- | --- |
+| Keep eager rendering | Highest | Best and deterministic | None | Current choice; acceptable while Home performs well |
+| Delayed, batched prewarming | Lower first paint | Usually instant | M | A very early tap could arrive before that card is ready |
+| Prewarm/promote on touch-down | Low | Potentially smooth | S–M | Calendar work can still compete with the beginning of the gesture/animation |
+| Precompute the calendar model only | Medium–Low | Better, but not guaranteed | M | Removes history calculations from the flip; native cells still mount just-in-time |
+| Viewport-aware prewarming | Scales best for long lists | Best for visible cards | M–L | Requires visibility/order coordination and careful FlatList lifecycle handling |
+| Flatten the mini calendar into SVG | Lower even when eager | Best | M–L | Preserves pre-rendering but requires a rendering rewrite and visual regression testing |
+
+A promising hybrid would render task faces first, precompute/mount visible calendars in top-to-bottom batches after the first paint, and immediately promote a touched card to the front of that queue. Another conservative option is to retain eager mounting while flattening the mini calendar's many native Views into a lighter, noninteractive SVG.
+
+Any experiment should separately measure initial Home work, first-flip latency, JS/UI frames, and memory. Optimizing only the mount metric would be a regression if it restores the interaction hitch.
 
 **Acceptance checks**
 
-- Initial Home render mounts no calendar grids for cards showing their task face.
-- The first flip remains visually seamless with no blank frame.
-- Flipping repeatedly does not reset user-visible card state unexpectedly.
-- Completing one task does not rebuild hidden calendars for unrelated cards.
+- First flip remains visually seamless, with no blank frame or calculation hitch.
+- Home's native mount/frame measurements improve enough to justify the added lifecycle complexity.
+- Visible and higher-on-screen cards receive prewarming priority when applicable.
+- Rapid taps, long presses, repeated flips, task completions, and FlatList recycling do not expose stale calendar data.
+- The current eager implementation remains the fallback if an alternative cannot beat both mount and flip behavior.
 
 ### PERF-005 (P1): Inactive stack screens remain active
 
 **Area:** `app/_layout.tsx`, Expo Router/native-stack configuration
 
-**Observed behavior**
+**Status:** Addressed 2026-08-14. The root native Stack now sets `freezeOnBlur: true`. The setting is deliberately local to this Stack rather than enabled globally. Automated validation passed; the native navigation scenarios below remain the device QA checklist.
 
-The root Stack does not freeze blurred screens. When task detail, settings, or another stack screen covers Home, the underlying Home screen can remain subscribed to stores and process renders/animations that the user cannot see. A completion initiated from a detail header can therefore update both the visible detail screen and hidden Home cards.
+**Previous behavior**
+
+The root Stack did not set `freezeOnBlur`. Native-stack screens normally remain mounted so their local state and scroll position survive navigation. Detaching or covering a native screen does not by itself unsubscribe its React tree from Zustand. A task, settings, or achievement mutation could therefore schedule React work in every mounted route that selected the changed state, even when only the top route was visible.
+
+Freezing is narrower than unmounting. It suspends React rendering for the blurred route and preserves its last rendered native view/state until focus returns. It does not stop the Zustand action itself, persistence, notification scheduling, root-level UI, or necessarily every timer/effect/UI-thread worklet that was already running.
+
+**Routes in scope**
+
+Every route declared in the root native Stack can be affected when another route is pushed above it:
+
+| Underlying route | Common covering route | Relative opportunity | Why |
+| --- | --- | --- | --- |
+| Home (`/`) | Dashboard, Settings, Trophy Case, Add Habit, or task detail | High | Home selects the full task array; its header derives streak counts and its visible cards contain pre-rendered calendars and fire-celebration logic |
+| Dashboard (`/dashboard`) | Trophy Case or task detail | High | Dashboard selects all tasks and its active tab can contain aggregate charts, long-history calendar calculations, or streak lists |
+| Task detail (`/task-detail`) | Add/Edit Habit or Trophy Case | Medium–High | Detail selects all tasks and renders a task header plus the active Calendar/Stats/Streaks subtree |
+| Settings (`/settings`) | Archived Habits, About, or notification debug | Medium | Settings subscribes to tasks, settings, import state, and achievement counts |
+| Archived Habits (`/archived-tasks`) | Add/Edit Habit | Medium | The archived list selects the full task array and derives its filtered list |
+| Trophy Case (`/trophies`) | Any subsequently pushed route | Medium | It selects tasks and achievements and derives filtered trophy state |
+| Add/Edit, About, and notification debug | Any subsequently pushed route | Low in current navigation | These are either forms or relatively light screens, and currently have few routes pushed above them |
+
+The opportunity depends on the actual stack, not just the route name. A route at the bottom of a deeper stack can remain mounted under multiple screens.
+
+**Concrete examples**
+
+1. **Home → task detail → complete a habit.** Task detail commits to `taskStore` and visibly updates its header. Without freezing, hidden Home also receives the new task array. Home recomputes filtered task data and streak summaries; the changed `TaskCard` rerenders its task and pre-rendered calendar faces, and `useFireCelebration` can start another fire burst behind the modal. Freezing prevents that hidden consumer work and lets Home catch up once it is focused.
+2. **Home → Settings → toggle card name/counter/background.** Every mounted `TaskCard` subscribes to these display settings. Without freezing, changing the option can restyle/rerender the covered Home grid while Settings is still on top. A theme change is broader still because most screens derive themed styles. Freezing should prevent blurred screen trees from reconciling until they return, while the visible Settings screen and root Stack still update normally.
+3. **Home → Dashboard → task detail → complete a habit.** Both Home and Dashboard sit underneath the modal. Without freezing, the single task mutation can update the visible detail screen, the hidden Dashboard task selector and active aggregate view, and the hidden Home grid. This is the strongest multiplicative example because a Dashboard calendar or stats tab can be much heavier than a basic settings screen.
+4. **Home → task detail → Edit Habit → save.** The Add/Edit modal updates the task before navigating away. The covered task-detail screen and Home can both react to that mutation even though the edit form is the only visible route. Freezing avoids intermediate hidden renders; both screens must still show the saved data when they become visible.
+5. **Home → Settings → Archived Habits → edit or restore.** This can leave Home, Settings, and Archived Habits mounted in one stack. A task mutation can notify all three route trees. Freezing limits rendering to the top/active route and defers catch-up for the others.
+6. **Dashboard Stats → Trophy Case → change achievement state.** Dashboard Stats subscribes to achievements for its preview. Without freezing, achievement mutations in the Trophy Case can update the hidden stats screen as well as the visible trophy grid.
+
+**Not affected by this setting**
+
+- Switching Calendar/Stats/Streaks inside Dashboard or task detail is local conditional rendering, not native-stack navigation; `freezeOnBlur` does not apply to those internal tabs.
+- `AppGate`, `ToastBanner`, and `AchievementCelebration` live outside the Stack and remain active.
+- Store calculations, AsyncStorage persistence, and notification reconciliation still execute when an action is dispatched; freezing only avoids blurred route consumers rendering the result immediately.
+- An animation, timer, or effect that started before blur may continue because the screen remains mounted. `PERF-013` covers explicit animation lifecycle guards.
 
 **Impact:** Medium to High during navigation and completion flows.
 
 **Complexity:** Small, with navigation lifecycle verification required.
 
-**Recommended fix**
+**Implemented fix**
 
-Enable native-screen freezing for blurred screens using the supported React Navigation/react-native-screens configuration (`freezeOnBlur` and, if needed for this version, global freeze enablement). Verify screens correctly catch up when focused again.
+The root native Stack now enables `freezeOnBlur` in its own `screenOptions`. The installed navigation/screens versions support that option directly, so global `enableFreeze()` was intentionally not used. This gives the current Stack the desired lifecycle while leaving any future navigator's choice explicit. Screens must still be verified to catch up correctly when focused again.
+
+This is a broad, low-code optimization but should be measured before and after. Its main risk is shifting a deferred catch-up render onto the back transition: a frozen screen may hold its old visual snapshot and then reconcile several store changes as it regains focus. If that produces a visible stale frame or return-navigation hitch, a more targeted alternative is to make only the heaviest routes focus-aware or pause specific subscriptions/derivations while blurred.
 
 **Acceptance checks**
 
-- Hidden Home cards do not render or animate while a covering stack screen is active.
-- Returning to Home immediately shows current store state.
-- Modal dismissal, deep links, back navigation, theme changes, and queued achievement UI still work.
+- Hidden Home and Dashboard trees do not rerender in response to covered task/settings/achievement mutations.
+- Covered screens do not start new fire celebrations or other effects while blurred as a consequence of those deferred renders.
+- Returning to Home, Dashboard, task detail, Settings, or Archived Habits immediately shows current store state without a stale frame or transition hitch.
+- Local screen state—selected Dashboard tasks/tab, scroll positions, edit form contents, and task-detail tab—remains intact.
+- Modal dismissal, deep links, multi-level back navigation, theme changes, and queued achievement UI still work.
+- Any already-running animation/timer behavior is explicitly measured rather than assumed to stop.
 
 ### PERF-006 (P1): Startup and foreground work is broader than necessary
 
@@ -535,11 +602,10 @@ The app uses stable list keys, `getItemLayout` where appropriate, memoized chart
 
 ### Phase 2: Remove invisible render work
 
-- PERF-004: Lazy-mount task-card faces.
-- PERF-003/PERF-004: Add immutable-reference caches for shared completion maps/streak chains.
+- PERF-003: Add immutable-reference caches for shared completion maps/streak chains where completion updates reuse them.
 - PERF-005: Freeze blurred native-stack screens.
 
-**Expected outcome:** lower Home mount/update cost and no hidden-screen animation/render work.
+**Expected outcome:** less repeated calculation and no hidden-screen animation/render work, without changing the deliberately pre-rendered task-card calendar.
 
 ### Phase 3: Reduce startup and persistence work
 
@@ -565,9 +631,10 @@ The app uses stable list keys, `getItemLayout` where appropriate, memoized chart
 
 **Expected outcome:** smaller startup/bundle overhead and cleaner route discovery, after interaction bottlenecks are addressed.
 
-### Deferred follow-up: Animation safeguards
+### Deferred follow-up: Animation and rendering safeguards
 
 - PERF-001: Add a global concurrent-particle budget only if native traces show dense Home-mount bursts need it.
+- PERF-004: Explore staged prewarming, cached calendar models, viewport priority, or flattened rendering only if native Home measurements justify changing the current eager calendar.
 - PERF-012: Move achievement count-up off JS state only if profiling justifies it.
 - PERF-013: Add reduced-motion and background lifecycle handling to continuous celebration loops.
 

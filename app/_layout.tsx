@@ -36,7 +36,19 @@ function RootStack() {
     // screen underneath during a pop -- or the brief moment before a pushed screen's own content
     // has painted -- shows a flash of white through the gap in dark mode. Themed per render since
     // `colors` already reacts to the current theme.
-    <Stack screenOptions={{ animation: 'slide_from_right', contentStyle: { backgroundColor: colors.background } }}>
+    <Stack
+      screenOptions={{
+        animation: 'slide_from_right',
+        // Keep routes mounted so their local state/scroll position survives navigation, but
+        // suspend their React trees once another native-stack route covers them. Without this,
+        // a task/settings/achievement mutation on the visible route can also reconcile Home,
+        // Dashboard, or task detail underneath it. Scoped to this Stack instead of calling
+        // react-native-screens' global enableFreeze(), so any future navigator can make its own
+        // lifecycle choice explicitly. Native-only; web remains unaffected.
+        freezeOnBlur: true,
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
       <Stack.Screen
         name="index"
         options={{
