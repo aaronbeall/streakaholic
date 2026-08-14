@@ -60,12 +60,11 @@
 - [ ] Swipe next/prev on task detail header (task) and calendar (month/year) — task cycling itself landed (`TaskHeader`'s prev/next chevron buttons, wraps around the active task list via `router.setParams`), but as tap targets, not a swipe gesture; calendar month/year navigation is still tap-only too
 - [x] Min streak history width to fit icon + 2 digits
 - [x] Streamgraph
-- [ ] Duration based tasks
 - [ ] Landscape mode
 - [ ] Sounds
   - [ ] Completion and streak
   - [ ] Congratulations
-- [ ] Add a day status summary on task details screen
+- [ ] Add a day status summary/explainer on task details screen
 
 ## MMP
 
@@ -94,3 +93,4 @@
 - [ ] Task groups (swipe left/right on home, etc)
 - [ ] Home screen customization (default=icons, calendar, timeline, list)
 - [ ] Ironman mode (can't change past day completions)
+- [ ] Duration based tasks
