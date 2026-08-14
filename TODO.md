@@ -34,7 +34,7 @@
 - [ ] Pause tasks (hidden, doesn't count towards completion percentage while paused)
 - [x] Remember dashboard selection (`dashboardLastTab`/`taskDetailLastTab` in `SettingsContext` — last-viewed Stats/Calendar/Streaks tab persists across visits; the task-filter checkboxes themselves still reset to "all tasks" each time, that's a separate thing)
 - [ ] Re-order tasks on home screen
-- [ ] Auto-suggest an icon based on the habit name typed into Add/Edit Task (e.g. typing "Run" suggests the running-shoe/run icon) -- a convenience default, should still leave the icon freely overridable via the existing picker
+- [x] Auto-suggest an icon based on the habit name typed into Add/Edit Task (`app/utils/iconSuggestions.ts`'s `suggestIconForName` -- a word-stem keyword table, e.g. "Run"/"Running" both suggest the running-shoe icon; new tasks only, never overrides an existing task's icon, and stops suggesting the moment the user picks an icon themselves via the picker -- see CLAUDE.md)
 - [x] Add/Edit Task: switching Frequency to "Specific Days" should default to all 7 days selected instead of carrying over whatever `daysOfWeek` the previous frequency left behind (empty for a task that was never Specific Days)
 - [x] Use consistent terminology across user-facing copy -- standardized on "Habit" everywhere a user reads it (per explicit user direction: "Calling it 'habit' is purely a user facing term" -- the data model/code stays `Task` throughout, unchanged)
 - [ ] Consistent empty state design/copy across Stats/Calendar/Streaks views (Dashboard and per-task task-detail)

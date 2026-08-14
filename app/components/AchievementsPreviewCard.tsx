@@ -63,16 +63,10 @@ export const AchievementsPreviewCard: React.FC<AchievementsPreviewCardProps> = (
   // order) -- see getGroupedAchievementCardStatuses's own doc comment -- so its first entry is
   // exactly "the single most relevant thing to work toward next," no extra sorting needed here.
   const nextUp = groups.find(g => g.group === 'locked')?.statuses[0];
-  const totalCount = unlocked.length + (groups.find(g => g.group === 'locked')?.statuses.length ?? 0);
 
   const visibleUnlocked = unlocked.slice(0, MAX_VISIBLE_CARDS);
   const nextUpMeta = nextUp ? ACHIEVEMENT_META[nextUp.kind] : undefined;
   const nextUpProgressPct = nextUp?.progress ? Math.min(1, nextUp.progress.current / nextUp.progress.target) * 100 : 0;
-  // Everything the Trophy Case has beyond what's already visible right here -- both further
-  // unlocked kinds past the top MAX_VISIBLE_CARDS and every still-locked one, since either kind is
-  // equally "more to see" once you tap through. Omitted entirely once there's nothing left to
-  // reveal (a small task/fresh install where every achievable kind already fits in the preview).
-  const remainingCount = totalCount - visibleUnlocked.length;
 
   if (visibleUnlocked.length === 0 && !nextUp) {
     return (
@@ -86,7 +80,10 @@ export const AchievementsPreviewCard: React.FC<AchievementsPreviewCardProps> = (
       >
         <View style={styles.headerRow}>
           <Text style={styles.title}>Achievements</Text>
-          <MaterialCommunityIcons name="chevron-right" size={18} color={accentColor} />
+          <View style={styles.viewAllRow}>
+            <Text style={[styles.viewAllText, { color: accentColor }]}>View All</Text>
+            <MaterialCommunityIcons name="chevron-right" size={18} color={accentColor} />
+          </View>
         </View>
         <Text style={styles.emptyText}>No trophies yet -- keep it up!</Text>
       </TouchableOpacity>
@@ -105,9 +102,7 @@ export const AchievementsPreviewCard: React.FC<AchievementsPreviewCardProps> = (
       >
         <Text style={styles.title}>Achievements</Text>
         <View style={styles.viewAllRow}>
-          {remainingCount > 0 && (
-            <Text style={[styles.viewAllText, { color: accentColor }]}>+{remainingCount}</Text>
-          )}
+          <Text style={[styles.viewAllText, { color: accentColor }]}>View All</Text>
           <MaterialCommunityIcons name="chevron-right" size={18} color={accentColor} />
         </View>
       </TouchableOpacity>

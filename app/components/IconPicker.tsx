@@ -5,6 +5,7 @@ import { useDebounce } from 'use-debounce';
 import { ALL_ICONS, DEFAULT_ICONS } from '../constants/task';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { MaterialCommunityIconName } from '../types';
+import { searchIcons } from '../utils/iconSearch';
 
 const PAGE_SIZE = 12;
 
@@ -34,23 +35,38 @@ export const IconPicker: React.FC<IconPickerProps> = ({
   const [debouncedQuery] = useDebounce(searchQuery, 300);
   const [icons, setIcons] = useState<MaterialCommunityIconName[]>(() => getInitialIcons(selectedIcon));
   const [showingCount, setShowingCount] = useState(PAGE_SIZE);
-  const [searchIcons, setSearchIcons] = useState<MaterialCommunityIconName[]>([]);
+  const [searchResults, setSearchResults] = useState<MaterialCommunityIconName[]>([]);
   const searchInputRef = useRef<TextInput>(null);
   const searchHeight = useRef(new Animated.Value(0)).current;
 
-  // Handle search results
+  // Keeps the selected icon visible even when it's changed *after* mount by something other than
+  // tapping a tile here -- `icons`' own initial value already does this once via getInitialIcons,
+  // but that's a useState lazy initializer, which only ever runs on mount. It doesn't re-fire just
+  // because the `selectedIcon` *prop* changes later, which is exactly what AddTaskScreen's own
+  // name-based icon auto-suggestion does (it updates `selectedIcon` well after this component has
+  // already mounted) -- without this, an auto-suggested icon outside the currently-shown page
+  // would silently apply with no visible selected tile anywhere in the grid. Skipped while a
+  // search is active (`debouncedQuery`), since `icons` holds search results in that mode, not the
+  // "always show the current pick" browse list, and splicing an unrelated icon to the front of
+  // search results would read as a stray, unexplained result.
+  useEffect(() => {
+    if (debouncedQuery) return;
+    setIcons(prev => (prev.includes(selectedIcon) ? prev : [selectedIcon, ...prev]));
+  }, [selectedIcon, debouncedQuery]);
+
+  // Handle search results -- stem matches (a curated word-stem -> icon table, shared with
+  // AddTaskScreen's own name-based icon auto-suggestion so both features agree on what counts as
+  // a match) come first, followed by a plain substring match against every icon's own literal MDI
+  // name for anything the stems don't cover. See iconSearch.ts's own doc comment for the full
+  // rationale.
   useEffect(() => {
     if (!debouncedQuery) {
-      setSearchIcons([]);
+      setSearchResults([]);
       return;
     }
 
-    const searchTerms = debouncedQuery.toLowerCase().split(/\s+/).filter(Boolean);
-    const results = ALL_ICONS.filter(icon => {
-      const iconName = icon.toLowerCase();
-      return searchTerms.every(term => iconName.includes(term));
-    });
-    setSearchIcons(results);
+    const results = searchIcons(debouncedQuery, ALL_ICONS);
+    setSearchResults(results);
     setIcons(results.slice(0, PAGE_SIZE));
     setShowingCount(PAGE_SIZE);
   }, [debouncedQuery]);
@@ -71,11 +87,11 @@ export const IconPicker: React.FC<IconPickerProps> = ({
   }, [showSearch]);
 
   const handleShowMore = useCallback(() => {
-    const sourceIcons = debouncedQuery ? searchIcons : DEFAULT_ICONS;
+    const sourceIcons = debouncedQuery ? searchResults : DEFAULT_ICONS;
     const newIcons = sourceIcons.slice(showingCount, showingCount + PAGE_SIZE);
     setIcons(prev => [...new Set([...prev, ...newIcons])]);
     setShowingCount(prev => prev + PAGE_SIZE);
-  }, [debouncedQuery, searchIcons, showingCount]);
+  }, [debouncedQuery, searchResults, showingCount]);
 
   const handleShowLess = useCallback(() => {
     setShowSearch(false);
@@ -85,7 +101,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
   }, [selectedIcon]);
 
   const hasMoreIcons = debouncedQuery
-    ? searchIcons.length > showingCount
+    ? searchResults.length > showingCount
     : DEFAULT_ICONS.length > showingCount;
 
   return (

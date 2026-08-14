@@ -4,7 +4,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Platform,
@@ -26,6 +26,7 @@ import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useTaskStore } from '../stores/taskStore';
 import { FrequencyType, MaterialCommunityIconName, NotificationLevel } from '../types';
 import { formatFrequencyLabel } from '../utils/formatFrequency';
+import { suggestIconForName } from '../utils/iconSearch';
 import { DEFAULT_NAG_INTERVAL_MINUTES, ensureNotificationPermissions } from '../utils/notifications';
 import { ACTIVE_TASK_LIMIT_MESSAGE, hasReachedActiveTaskLimit } from '../utils/taskLimits';
 
@@ -102,6 +103,11 @@ export const AddTaskScreen: React.FC = () => {
 
   const [name, setName] = useState(editingTask?.name ?? '');
   const [selectedIcon, setSelectedIcon] = useState<MaterialCommunityIconName>(initialIcon);
+  // Gates the name-based icon auto-suggestion below -- true immediately when editing (an existing
+  // task's icon is always a deliberate choice already, typing a new name should never silently
+  // swap it out from under the user), and flips true on a *new* task the moment they pick an icon
+  // themselves via the picker, so the suggestion stops fighting a choice they've already made.
+  const [iconManuallySet, setIconManuallySet] = useState(isEditing);
   const [selectedColor, setSelectedColor] = useState(initialColor);
   const [frequency, setFrequency] = useState<FrequencyType>(editingTask?.frequency ?? 'daily');
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>(editingTask?.daysOfWeek ?? [0, 1, 2, 3, 4, 5, 6]);
@@ -120,6 +126,25 @@ export const AddTaskScreen: React.FC = () => {
   );
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [notificationPermissionDenied, setNotificationPermissionDenied] = useState(false);
+
+  // Auto-suggests an icon as the name is typed, e.g. "Run" -> the running-shoe icon -- a
+  // convenience default for a brand-new task only (never edits, per `iconManuallySet`'s own
+  // comment above), and only ever a *suggestion*: the moment the user opens the picker and picks
+  // one themselves, `iconManuallySet` flips true and this effect stops touching `selectedIcon` for
+  // the rest of the session, so it can never fight a choice they've already made.
+  useEffect(() => {
+    if (iconManuallySet) return;
+    const suggested = suggestIconForName(name);
+    if (suggested && suggested !== selectedIcon) setSelectedIcon(suggested);
+    // selectedIcon is deliberately excluded -- including it would refire this effect every time
+    // it sets selectedIcon itself, and the suggestion should only ever react to the name changing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, iconManuallySet]);
+
+  const handleIconSelect = (icon: MaterialCommunityIconName) => {
+    setSelectedIcon(icon);
+    setIconManuallySet(true);
+  };
 
   // Snapshot of every field's own starting value, captured once (mirrors each useState above
   // exactly) -- compared against current state below to detect unsaved changes. A ref, not state,
@@ -471,7 +496,7 @@ export const AddTaskScreen: React.FC = () => {
           <IconPicker
             selectedIcon={selectedIcon}
             selectedColor={selectedColor}
-            onIconSelect={setSelectedIcon}
+            onIconSelect={handleIconSelect}
           />
         </View>
       </CollapsibleSection>
