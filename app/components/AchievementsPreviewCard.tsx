@@ -8,8 +8,8 @@ import { Task } from '../types';
 import {
   ACHIEVEMENT_META,
   Achievement,
+  TASK_SCOPED_KIND_ORDER,
   getGroupedAchievementCardStatuses,
-  isTaskScopedKind,
 } from '../utils/achievements';
 
 // Up to this many of the most-recently-unlocked cards get the full dressed-up treatment; the
@@ -50,13 +50,14 @@ export const AchievementsPreviewCard: React.FC<AchievementsPreviewCardProps> = (
   const queueCelebration = useAchievementsStore(state => state.queueCelebration);
   const mutedKinds = useAchievementsStore(state => state.mutedKinds);
 
-  const groups = useMemo(() => {
-    const raw = getGroupedAchievementCardStatuses(achievements, activeTasks);
-    if (!taskScoped) return raw;
-    return raw
-      .map(g => ({ ...g, statuses: g.statuses.filter(s => isTaskScopedKind(s.kind)) }))
-      .filter(g => g.statuses.length > 0);
-  }, [achievements, activeTasks, taskScoped]);
+  // `kinds` (not a post-filter) is what actually keeps this cheap on every task switch -- see
+  // getAllAchievementCardStatuses' own comment on why computing, then discarding, the global
+  // kinds' status isn't free (`time-of-day-ratio` in particular sorts the whole task's completion
+  // history twice, unbounded, for a status that was only ever going to be filtered back out here).
+  const groups = useMemo(
+    () => getGroupedAchievementCardStatuses(achievements, activeTasks, undefined, taskScoped ? TASK_SCOPED_KIND_ORDER : undefined),
+    [achievements, activeTasks, taskScoped]
+  );
 
   const unlocked = groups.find(g => g.group === 'unlocked')?.statuses ?? [];
   // `locked` is already sorted in-progress-first (by closeness), then not-started (by catalog

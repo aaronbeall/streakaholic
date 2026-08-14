@@ -861,6 +861,13 @@ export const dedupKey = (kind: AchievementKind, scope: string): string => `${kin
 // AchievementsPreviewCard) so they can't drift on what counts as task-scoped.
 export const isTaskScopedKind = (kind: AchievementKind): boolean => ACHIEVEMENT_META[kind].scope === 'task';
 
+// Precomputed once, not re-filtered on every call -- the task-scoped subset of ACHIEVEMENT_KIND_ORDER,
+// in the same catalog order. Passed as `getAllAchievementCardStatuses`/`getGroupedAchievementCardStatuses`'s
+// own optional `kinds` param by every UI-layer surface that's already scoped to one task (see that
+// param's own comment for why computing, then discarding, the global kinds' own status was a real
+// performance problem worth avoiding rather than just filtering the *result*).
+export const TASK_SCOPED_KIND_ORDER: AchievementKind[] = ACHIEVEMENT_KIND_ORDER.filter(isTaskScopedKind);
+
 const taskMeta = (task: Task) => ({
   taskId: task.id,
   taskName: task.name,
@@ -948,6 +955,61 @@ export const REPEATABLE_TASK_SCOPED_KINDS = new Set<AchievementKind>(
   (Object.keys(ACHIEVEMENT_META) as AchievementKind[])
     .filter(kind => ACHIEVEMENT_META[kind].repeatable && ACHIEVEMENT_META[kind].scope === 'task')
 );
+
+// Selects the `n` most-recent items from `items` (by `completedAt`, newest first) without sorting
+// the whole list -- a single linear pass maintaining a small ascending-by-completedAt buffer
+// (`buffer[0]` is always the current oldest, so evicting it is O(1)) costs O(n) overall instead of
+// a full O(n log n) sort, since `n` here is always tiny (TIME_OF_DAY_WINDOW, 14) -- inserting into
+// an n-sized array is effectively a constant-time step relative to the size of `items`, which can
+// be a task's *entire* completion history. Extracted 2026-08-14 alongside getTimeOfDayWindow below,
+// replacing a plain `[...all].sort(...).slice(0, n)` that scaled with total lifetime history just
+// to answer a "top 14" question.
+const selectMostRecentByCompletedAt = (items: TaskCompletion[], n: number): TaskCompletion[] => {
+  const buffer: TaskCompletion[] = [];
+  for (const item of items) {
+    if (buffer.length < n) {
+      insertSortedAscending(buffer, item);
+    } else if (item.completedAt > buffer[0].completedAt) {
+      buffer.shift();
+      insertSortedAscending(buffer, item);
+    }
+  }
+  return buffer.reverse(); // ascending -> newest-first, matching the convention every caller expects
+};
+
+const insertSortedAscending = (buffer: TaskCompletion[], item: TaskCompletion): void => {
+  let i = buffer.length;
+  buffer.push(item);
+  while (i > 0 && buffer[i - 1].completedAt > buffer[i].completedAt) {
+    [buffer[i - 1], buffer[i]] = [buffer[i], buffer[i - 1]];
+    i--;
+  }
+};
+
+// Shared by detectCompletionAchievements (checking whether early-bird/night-owl just crossed) and
+// getAchievementCardStatus's own `time-of-day-ratio` case (showing live progress toward them) --
+// previously two independent implementations of "gather the trailing window across active tasks,
+// see if there are enough samples to even consider it," which had already drifted apart by the
+// time this was extracted: the display side never enforced the same `minSamples` floor detection
+// did, so a locked card's progress bar could show a misleadingly "close" or "done"-looking number
+// (e.g. "1/1") from a tiny handful of completions detection wouldn't yet consider eligible at all.
+// Both callers now share one gate, so they can't disagree on that again. `override` preserves
+// detectRetroactiveAchievements' own already-sorted-and-windowed slice (see its own comment) so the
+// replay loop still avoids re-deriving this per historical event.
+interface TimeOfDayWindow {
+  recent: TaskCompletion[]; // newest-first, capped at `window`
+  meetsMinSamples: boolean;
+}
+
+const getTimeOfDayWindow = (
+  activeTasks: Task[],
+  window: number,
+  minSamples: number,
+  override?: TaskCompletion[],
+): TimeOfDayWindow => {
+  const recent = override ?? selectMostRecentByCompletedAt(activeTasks.flatMap(t => t.completions ?? []), window);
+  return { recent, meetsMinSamples: recent.length >= minSamples };
+};
 
 // Detects newly-earned achievements from a single task completion. Pure -- given the task's
 // state immediately before and after the completion (both already carrying freshly computed
@@ -1169,11 +1231,10 @@ export const detectCompletionAchievements = (
     nightOwlStrategy.type === 'time-of-day-ratio' &&
     (isFirstEarn('early-bird', 'global') || isFirstEarn('night-owl', 'global'))
   ) {
-    const recent = options?.recentCompletionsOverride ?? (() => {
-      const allCompletions = activeTasksAfter.flatMap(t => t.completions ?? []);
-      return [...allCompletions].sort((a, b) => b.completedAt.localeCompare(a.completedAt)).slice(0, TIME_OF_DAY_WINDOW);
-    })();
-    if (recent.length >= TIME_OF_DAY_MIN_SAMPLES) {
+    const { recent, meetsMinSamples } = getTimeOfDayWindow(
+      activeTasksAfter, TIME_OF_DAY_WINDOW, TIME_OF_DAY_MIN_SAMPLES, options?.recentCompletionsOverride
+    );
+    if (meetsMinSamples) {
       const earlyCount = recent.filter(c => new Date(c.completedAt).getHours() < earlyBirdStrategy.hour).length;
       const lateCount = recent.filter(c => new Date(c.completedAt).getHours() >= nightOwlStrategy.hour).length;
       if (isFirstEarn('early-bird', 'global') && earlyCount / recent.length >= 0.5) {
@@ -1564,15 +1625,15 @@ export const getAchievementCardStatus = (
     case 'time-of-day-ratio': {
       // "How close" here is a fraction of the same trailing window the detector itself reads --
       // qualifying completions out of the window, against half the window as the target (matching
-      // the >= 50% rule detectCompletionAchievements applies). No progress at all until there's at
-      // least one completion to look at, matching every other strategy's "nothing to show yet"
-      // treatment (undefined, not a 0/0 progress bar).
-      const { hour, direction, window } = strategy;
-      const allCompletions = activeTasks.flatMap(t => t.completions ?? []);
-      if (allCompletions.length === 0) return { ...base, progress: undefined };
-      const recent = [...allCompletions]
-        .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
-        .slice(0, window);
+      // the >= 50% rule detectCompletionAchievements applies). Now genuinely the *same* window via
+      // getTimeOfDayWindow (shared with the detector, see that function's own comment) -- no
+      // progress shown until `minSamples` is met, matching detection's own eligibility floor
+      // exactly, rather than this branch's own previous, looser "at least one completion" check
+      // (which could show a misleadingly close/complete-looking bar from a tiny sample detection
+      // wouldn't yet consider eligible at all).
+      const { hour, direction, window, minSamples } = strategy;
+      const { recent, meetsMinSamples } = getTimeOfDayWindow(activeTasks, window, minSamples);
+      if (!meetsMinSamples) return { ...base, progress: undefined };
       const qualifying = recent.filter(c => {
         const h = new Date(c.completedAt).getHours();
         return direction === 'before' ? h < hour : h >= hour;
@@ -1586,8 +1647,16 @@ export const getAllAchievementCardStatuses = (
   achievements: Achievement[],
   activeTasks: Task[],
   today: Date = new Date(),
+  // Defaults to the full catalog; a caller already scoped to one task (TrophiesScreen's own task
+  // filter, AchievementsPreviewCard's `taskScoped` mode) passes TASK_SCOPED_KIND_ORDER instead --
+  // see that constant's own comment. Computing (then discarding) a global kind's status here isn't
+  // free: `time-of-day-ratio` (early-bird/night-owl) in particular flattens and sorts *all* of
+  // `activeTasks`' completions from scratch, twice, unbounded by how much history a task has --
+  // a real, measurable cost on every single task switch when `activeTasks` is just the one
+  // just-switched-to task, for two kinds that were only ever going to be filtered back out.
+  kinds: AchievementKind[] = ACHIEVEMENT_KIND_ORDER,
 ): AchievementCardStatus[] =>
-  ACHIEVEMENT_KIND_ORDER.map(kind => getAchievementCardStatus(kind, achievements, activeTasks, today));
+  kinds.map(kind => getAchievementCardStatus(kind, achievements, activeTasks, today));
 
 // Trophy Case display grouping -- per explicit user direction ("I just meant to visually group
 // based on existing meta data. So it's just a multi-sort: first group by [unlocked, in progress,
@@ -1630,8 +1699,10 @@ export const getGroupedAchievementCardStatuses = (
   achievements: Achievement[],
   activeTasks: Task[],
   today: Date = new Date(),
+  // See getAllAchievementCardStatuses' own comment on this same param -- forwarded straight through.
+  kinds: AchievementKind[] = ACHIEVEMENT_KIND_ORDER,
 ): GroupedAchievementCardStatuses[] => {
-  const statuses = getAllAchievementCardStatuses(achievements, activeTasks, today);
+  const statuses = getAllAchievementCardStatuses(achievements, activeTasks, today, kinds);
 
   const unlocked = statuses
     .filter(s => s.unlocked)

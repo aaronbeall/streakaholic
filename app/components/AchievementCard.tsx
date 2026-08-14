@@ -251,7 +251,16 @@ interface AchievementBadgeCardProps {
 // to N x (active task count) cards, most of them locked/irrelevant to any one task. Showing one
 // card per kind, unlocked the moment *any* task has earned it, keeps a grid of these a fixed,
 // scannable size regardless of how many tasks exist.
-export const AchievementBadgeCard: React.FC<AchievementBadgeCardProps> = ({
+//
+// React.memo'd (2026-08-13, performance review) -- every prop here is already referentially stable
+// across a re-render that doesn't actually concern this card (`status` objects are reused as-is by
+// AchievementsPreviewCard/TrophiesScreen's own memoized `groups`; `onPlay` is a stable Zustand
+// action; the rest are primitives) -- but without memoizing the component itself, React still
+// re-executes its full body (including TrophyEmblem's own `tinycolor(...).darken(...)` calls) on
+// every parent re-render regardless. This matters in practice: TaskStatsView's `onScroll` handler
+// (driving LazyMount's own visibility tracking) re-renders the whole screen on every scroll tick,
+// which previously re-rendered every visible achievement card along with it for no reason.
+export const AchievementBadgeCard: React.FC<AchievementBadgeCardProps> = React.memo(({
   status,
   cardWidth,
   onPlay,
@@ -370,7 +379,8 @@ export const AchievementBadgeCard: React.FC<AchievementBadgeCardProps> = ({
       </TouchableOpacity>
     </View>
   );
-};
+});
+AchievementBadgeCard.displayName = 'AchievementBadgeCard';
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   cardFlexWrap: {

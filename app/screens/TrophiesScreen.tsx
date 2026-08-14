@@ -9,8 +9,8 @@ import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useTaskStore } from '../stores/taskStore';
 import {
   AchievementCardStatus,
+  TASK_SCOPED_KIND_ORDER,
   getGroupedAchievementCardStatuses,
-  isTaskScopedKind,
 } from '../utils/achievements';
 import { useAchievementsStore } from '../stores/achievementsStore';
 
@@ -114,17 +114,25 @@ export const TrophiesScreen: React.FC = () => {
   );
 
   const groups = useMemo(() => {
-    const raw = getGroupedAchievementCardStatuses(filteredAchievements, activeTasksForGroups);
-    if (!selectedTask) return raw;
     // Global-scoped kinds (first-completion, perfect-day, century-club, habit-collector, ...)
     // aren't attributable to any single task -- their own condition genuinely spans every task
     // (or none in particular), so scoping their progress down to one task would either always
     // read as "not yet started" or show a number that doesn't mean what it looks like it means
     // (e.g. Century Club's cross-task completion sum, computed against just this one task).
-    // Excluded outright rather than shown misleadingly once a task filter is active.
-    return raw
-      .map(g => ({ ...g, statuses: g.statuses.filter(s => isTaskScopedKind(s.kind)) }))
-      .filter(g => g.statuses.length > 0);
+    // Passed as the `kinds` param (excluding them from computation entirely, not just the
+    // rendered result) rather than filtered out afterward -- computing several global kinds'
+    // status just to discard it isn't free, see getAllAchievementCardStatuses' own comment on
+    // why this was a real performance problem (each task switch/filter re-running two full,
+    // unbounded sorts of the selected task's own completion history for kinds that were always
+    // going to be dropped here).
+    // getGroupedAchievementCardStatuses already omits any bucket that ends up empty (see its own
+    // doc comment), so no extra filtering is needed here regardless of which kind list was used.
+    return getGroupedAchievementCardStatuses(
+      filteredAchievements,
+      activeTasksForGroups,
+      undefined,
+      selectedTask ? TASK_SCOPED_KIND_ORDER : undefined
+    );
   }, [filteredAchievements, activeTasksForGroups, selectedTask]);
 
   const columnCount = getColumnCount(width);

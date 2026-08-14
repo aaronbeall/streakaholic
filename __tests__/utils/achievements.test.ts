@@ -954,13 +954,50 @@ describe('getAchievementCardStatus', () => {
     });
 
     it('reports the qualifying fraction of the trailing window', () => {
+      // 12 total (>= TIME_OF_DAY_MIN_SAMPLES, so progress actually shows; < window so nothing
+      // gets truncated by the trailing-14 cap).
       const completions = [
-        ...Array.from({ length: 2 }, (_, i) => completionAt(`e${i}`, 5)),
-        ...Array.from({ length: 3 }, (_, i) => completionAt(`m${i}`, 13)),
+        ...Array.from({ length: 7 }, (_, i) => completionAt(`e${i}`, 5)),
+        ...Array.from({ length: 5 }, (_, i) => completionAt(`m${i}`, 13)),
       ];
       const task = makeTask({ id: 't1', completions });
       const status = getAchievementCardStatus('early-bird', [], [task], today);
-      expect(status.progress).toEqual({ current: 2, target: 3 }); // Math.ceil(5 / 2)
+      expect(status.progress).toEqual({ current: 7, target: 6 }); // Math.ceil(12 / 2)
+    });
+
+    it('shows no progress below the minimum sample size, even with a qualifying fraction (regression)', () => {
+      // Same bug this shared helper was extracted to fix: a locked card's progress bar must not
+      // show a misleadingly "close"/"done"-looking number from a handful of completions detection
+      // itself wouldn't yet consider eligible -- see getTimeOfDayWindow's own comment.
+      const completions = Array.from({ length: 5 }, (_, i) => completionAt(`e${i}`, 5)); // all before 7am, but only 5 total
+      const task = makeTask({ id: 't1', completions });
+      const status = getAchievementCardStatus('early-bird', [], [task], today);
+      expect(status.progress).toBeUndefined();
+    });
+
+    it('the trailing window is the truly most-recent completions, not just any N of them (regression, bounded-selection correctness)', () => {
+      // 20 total, all on the same day: the 6 OLDEST are well before 7am (would qualify for
+      // early-bird), the 14 NEWEST are all mid-day (wouldn't). If the bounded top-k selection
+      // picked the wrong 14 -- or a regression reintroduced considering the *whole* history
+      // instead of just the trailing window -- some of the old early ones would leak in and
+      // qualifying would be nonzero.
+      const base = new Date(today);
+      base.setHours(0, 0, 0, 0);
+      const completions: TaskCompletion[] = [
+        ...Array.from({ length: 6 }, (_, i) => {
+          const d = new Date(base);
+          d.setHours(5, i, 0, 0); // 5:00-5:05am -- unambiguously earlier in the day than any below
+          return makeCompletion(`old-early-${i}`, d);
+        }),
+        ...Array.from({ length: 14 }, (_, i) => {
+          const d = new Date(base);
+          d.setHours(13, i, 0, 0); // 1:00-1:13pm -- unambiguously the most recent 14
+          return makeCompletion(`new-mid-${i}`, d);
+        }),
+      ];
+      const task = makeTask({ id: 't1', completions });
+      const status = getAchievementCardStatus('early-bird', [], [task], today);
+      expect(status.progress).toEqual({ current: 0, target: 7 }); // Math.ceil(14 / 2), none of the 14 most recent qualify
     });
   });
 });
