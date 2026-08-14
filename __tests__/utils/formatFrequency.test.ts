@@ -1,4 +1,4 @@
-import { formatFrequencyLabel } from '../../app/utils/formatFrequency';
+import { formatFrequencyLabel, formatFrequencySentence } from '../../app/utils/formatFrequency';
 import { StreakScheduleInfo } from '../../app/utils/streaks';
 
 const baseSchedule = (overrides: Partial<StreakScheduleInfo> = {}): StreakScheduleInfo => ({
@@ -57,5 +57,37 @@ describe('formatFrequencyLabel', () => {
     // Same collapse applies to specific_days_of_week selections that resolve to "Daily" too
     // (empty or all-7 selection), since they render identically to the plain 'daily' case.
     expect(formatFrequencyLabel(baseSchedule({ frequency: 'specific_days_of_week', daysOfWeek: [], timesPerDay: 4 }))).toBe('4x daily');
+  });
+});
+
+describe('formatFrequencySentence', () => {
+  it('daily reads as "Happens every day."', () => {
+    expect(formatFrequencySentence(baseSchedule({ frequency: 'daily' }))).toBe('Happens every day.');
+  });
+
+  it('weekdays/weekends read with "on"', () => {
+    expect(formatFrequencySentence(baseSchedule({ frequency: 'specific_days_of_week', daysOfWeek: [1, 2, 3, 4, 5] }))).toBe('Happens on weekdays.');
+    expect(formatFrequencySentence(baseSchedule({ frequency: 'specific_days_of_week', daysOfWeek: [0, 6] }))).toBe('Happens on weekends.');
+  });
+
+  it('a specific day list reads with "on", in day order', () => {
+    expect(formatFrequencySentence(baseSchedule({ frequency: 'specific_days_of_week', daysOfWeek: [5, 1, 3] }))).toBe('Happens on Mon, Wed, Fri.');
+  });
+
+  it('days_per_week reads as "N times a week."', () => {
+    expect(formatFrequencySentence(baseSchedule({ frequency: 'days_per_week', daysPerWeek: 3 }))).toBe('Happens 3 times a week.');
+  });
+
+  it('days_per_month reads as "N times a month."', () => {
+    expect(formatFrequencySentence(baseSchedule({ frequency: 'days_per_month', daysPerMonth: 10 }))).toBe('Happens 10 times a month.');
+  });
+
+  it('collapses "every day" once a times-per-day count is shown, same as formatFrequencyLabel', () => {
+    expect(formatFrequencySentence(baseSchedule({ frequency: 'daily', timesPerDay: 3 }))).toBe('Happens 3 times a day.');
+  });
+
+  it('combines a non-daily base with a times-per-day clause', () => {
+    expect(formatFrequencySentence(baseSchedule({ frequency: 'specific_days_of_week', daysOfWeek: [1, 2, 3, 4, 5], timesPerDay: 2 })))
+      .toBe('Happens on weekdays, 2 times a day.');
   });
 });

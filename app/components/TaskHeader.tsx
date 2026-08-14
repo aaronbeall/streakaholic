@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Reanimated, { useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useToast } from '../context/ToastContext';
@@ -12,6 +12,7 @@ import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
 import { formatFrequencyLabel } from '../utils/formatFrequency';
 import { isTaskCompleted } from '../utils/streaks';
+import { getTaskStatusInfo } from '../utils/taskStatusSummary';
 import { ParticleSystem } from './ParticleSystem';
 import { TaskProgressIcon } from './TaskProgressIcon';
 
@@ -60,6 +61,17 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
   const frequencyLabel = formatFrequencyLabel(task);
 
   const { streakBadgeStyle, badgeAnimatedStyle, showParticles, celebrationKey, handleParticlesComplete } = useFireCelebration(task);
+
+  // Tapping the frequency/streak badges row pops up a plain-English recap of exactly this state --
+  // recomputed fresh each time it opens (not memoized against `task` alone) since "today" itself is
+  // part of what the summary depends on, same reasoning as every other "asOfDate"-sensitive read
+  // elsewhere in this app.
+  const [showSummary, setShowSummary] = useState(false);
+  const statusInfo = useMemo(() => getTaskStatusInfo(task), [task]);
+  const handleOpenSummary = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowSummary(true);
+  };
 
   // Same press-and-hold-to-complete interaction as TaskCard's own task face (TaskProgressIcon
   // renders identically here), reimplemented at this screen's own level rather than reusing
@@ -196,7 +208,14 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
               </TouchableOpacity>
             )}
           </View>
-          <View style={styles.badgesRow}>
+          <TouchableOpacity
+            style={styles.badgesRow}
+            onPress={handleOpenSummary}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Habit status summary"
+            accessibilityHint="Shows today's status in plain English"
+          >
             <View style={styles.frequencyBadge}>
               <MaterialCommunityIcons name="repeat" size={13} color="rgba(255, 255, 255, 0.85)" />
               <Text style={styles.frequencyText} accessibilityLabel={`Repeats ${frequencyLabel}`}>
@@ -221,7 +240,7 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
                 )}
               </Reanimated.View>
             )}
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -274,6 +293,84 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* RN's Modal, not a plain absolute-positioned overlay -- TaskHeader isn't mounted at the
+          screen root (it's nested inside TaskDetailScreen, sitting above the tab content), so a
+          plain absolute View here would only ever cover TaskHeader's own bounds, not the tab
+          content below it. Modal renders as a true full-screen layer regardless of where it's
+          declared, which is what lets tapping anywhere -- including the Calendar/Stats/Streaks
+          content below -- dismiss it. transparent + a manual backdrop (rather than the platform's
+          own opaque default) keeps this reading as a lightweight popover, not a full navigation. */}
+      <Modal
+        transparent
+        visible={showSummary}
+        animationType="fade"
+        onRequestClose={() => setShowSummary(false)}
+      >
+        <Pressable
+          style={styles.summaryBackdrop}
+          onPress={() => setShowSummary(false)}
+          accessibilityRole="none"
+        >
+          {/* Swallows the touch so tapping the card itself doesn't fall through to the backdrop's
+              own onPress and dismiss it -- the same nested-Pressable pattern already proven
+              elsewhere in this app (AchievementCelebration's unlock-history list). */}
+          <Pressable style={styles.summaryCard} onPress={() => {}}>
+            <View style={styles.summaryHeader}>
+              {/* The task's own icon (not a generic "info" glyph) -- ties this popover's title
+                  back to the task the same way its icon already identifies it everywhere else in
+                  the app (TaskCard, the header's own big icon above). */}
+              <View style={[styles.summaryIconBadge, { backgroundColor: task.color }]}>
+                <MaterialCommunityIcons name={task.icon} size={16} color="#fff" />
+              </View>
+              <Text style={styles.summaryTitle} numberOfLines={1}>{task.name}</Text>
+              <TouchableOpacity
+                onPress={() => setShowSummary(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={8}
+              >
+                <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Deliberately separate rows -- Schedule / (quota explainer) / Status / Best -- rather
+                than one blended paragraph (2026-08-14, per explicit user direction), each with its
+                own icon so the row is scannable without reading every word. */}
+            <View style={styles.summaryRow}>
+              <View style={[styles.summaryRowIcon, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+                <MaterialCommunityIcons name="repeat" size={16} color={colors.textSecondary} />
+              </View>
+              <Text style={styles.summaryRowText}>{statusInfo.scheduleSentence}</Text>
+            </View>
+
+            {statusInfo.frequencyExplainer && (
+              <View style={styles.summaryRow}>
+                <View style={[styles.summaryRowIcon, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+                  <MaterialCommunityIcons name="information-outline" size={16} color={colors.textSecondary} />
+                </View>
+                <Text style={[styles.summaryRowText, styles.summaryExplainerText]}>{statusInfo.frequencyExplainer}</Text>
+              </View>
+            )}
+
+            <View style={styles.summaryRow}>
+              <View style={[styles.summaryRowIcon, { backgroundColor: `${statusInfo.status.color}26` }]}>
+                <MaterialCommunityIcons name={statusInfo.status.icon} size={16} color={statusInfo.status.color} />
+              </View>
+              <Text style={styles.summaryRowText}>{statusInfo.status.text}</Text>
+            </View>
+
+            {statusInfo.best && (
+              <View style={styles.summaryRow}>
+                {/* No tinted circle behind this one, unlike the other rows -- a bare trophy reads
+                    clearly enough on its own, per explicit user direction. */}
+                <MaterialCommunityIcons name={statusInfo.best.icon} size={22} color={statusInfo.best.color} style={styles.summaryBestIcon} />
+                <Text style={[styles.summaryRowText, styles.summaryBestText]}>{statusInfo.best.text}</Text>
+              </View>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -396,5 +493,79 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.textSecondary,
+  },
+  summaryBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  summaryCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  summaryIconBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  summaryRowIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryRowText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 19,
+    color: colors.text,
+  },
+  // Slightly smaller/quieter than the other rows -- supplementary context (why the schedule works
+  // the way it does), not a headline fact like Schedule/Status/Best.
+  summaryExplainerText: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.textSecondary,
+  },
+  // A touch bolder than the other rows -- this one's a celebratory acknowledgment, not just a
+  // status fact, so it earns slightly more visual weight.
+  summaryBestText: {
+    fontWeight: '700',
+  },
+  // Matches summaryRowIcon's own 28px width so the text column still lines up with the rows
+  // above/below it, even though this icon has no tinted circle behind it.
+  summaryBestIcon: {
+    width: 28,
+    textAlign: 'center',
   },
 });

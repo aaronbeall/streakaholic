@@ -48,6 +48,9 @@
   - [x] Trophy Case: filter by task (a radio-style "All" + per-task icon chip row, shown once there's more than one active task; selecting one scopes the grid to that task's own earned/in-progress kinds, dropping global-scoped kinds like Century Club/Perfect Day entirely since they aren't attributable to a single task -- see CLAUDE.md)
   - [x] Integrate achievements on Stats screens (a shared `AchievementsPreviewCard` -- unlocked badges + closest-next progress + a "View Trophy Case" link -- on both `TaskStatsScreen` (this task's own earned/in-progress achievements, deep-linking into the Trophy Case pre-filtered to it) and `DashboardStatsView` (the full app-wide trophy status, unfiltered by Dashboard's own task-selection bubbles); see CLAUDE.md)
   - [x] Achievement spam via undo/redo (see CLAUDE.md, 2026-08-13 -- date-qualified dedup scope for repeatable, task-scoped kinds)
+  - [ ] Subtle pulsing glow effect on tile/showcase emblems (Trophy Case's `TrophyEmblem` and the Stats-screen `AchievementsPreviewCard` are currently fully static -- something lighter-weight than `TrophyBadge`'s own full halo/pulse animation machinery, since several of these render simultaneously in a grid)
+  - [ ] Combine multiple unlocks into one unified congratulations screen with prev/next steppers (right now each queued achievement gets its own separate full-screen `AchievementCelebration` shown one after another)
+  - [ ] The full congratulations screen shouldn't have to wait behind queued achievement alerts (a real unlock and a snoozed-kind's quick `AchievementAlert` currently share one `pendingCelebrations` queue, drained in order)
 - [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
 - [x] Performance optimizations
   - [x] Performance pass (audited Context re-render fan-out, memoization/referential-stability gaps, and common RN FlatList traps — see CLAUDE.md's "State management" section)
@@ -64,7 +67,7 @@
 - [ ] Sounds
   - [ ] Completion and streak
   - [ ] Congratulations
-- [ ] Add a day status summary/explainer on task details screen
+- [x] Add a day status summary/explainer on task details screen (tapping `TaskHeader`'s frequency/streak badges row opens a dismissable popover with a plain-English recap -- schedule, today's own status, and how it compares to the task's best streak -- built via `app/utils/taskStatusSummary.ts`'s branching `buildTaskStatusSummary`; see CLAUDE.md)
 
 ## MMP
 
