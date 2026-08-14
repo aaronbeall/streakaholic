@@ -80,8 +80,8 @@
 
 ## Future
 
-- [x] Timeline view (`DashboardCalendarView`'s "Timeline" section — infinite horizontal scroll, Grid | Bars toggle)
-- [x] Heatmap view (`DashboardCalendarView`'s Timeline section — partial-day fills across every task calendar now scale opacity by completion fraction, plus a Grid | Bars toggle with a per-day segmented completion bar chart)
+- [ ] Timeline view
+- [ ] Heatmap view
 - [x] Achievements (see the MVP+ entry above — 23-kind system, Trophy Case, celebration screen; deliberately no points/ranks/upgrades layered on top yet, kept purely cosmetic per explicit design decision — a future point system could hang off the same recorded data, see below)
 - [ ] Points/ranks/upgrades
 - [ ] Daily summary notification (evening recap push -- completions, streaks at risk; distinct from per-task reminders, and from Home, which only covers the passive/at-a-glance case)
