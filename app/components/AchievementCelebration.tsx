@@ -403,10 +403,10 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
   const handleToggleMute = useCallback(() => {
     if (isMuted) {
       unmuteKind(achievement.kind);
-      showToast({ message: `Future unlocks of "${meta.title}" will show the full congratulations again.` });
+      showToast({ message: `Future unlocks of "${meta.title}" will show the full celebration again.` });
     } else {
       muteKind(achievement.kind);
-      showToast({ message: `Future unlocks of "${meta.title}" won't show the full congratulations — just a quick alert.` });
+      showToast({ message: `Future unlocks of "${meta.title}" won't show the full celebration — just a quick alert.` });
     }
   }, [isMuted, muteKind, unmuteKind, achievement.kind, showToast, meta.title]);
 

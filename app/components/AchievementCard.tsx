@@ -338,7 +338,7 @@ export const AchievementBadgeCard: React.FC<AchievementBadgeCardProps> = ({
             {/* A snoozed (muted, via the celebration screen's own bell toggle) kind still shows
                 here exactly as unlocked as it always would -- this is purely an at-a-glance note
                 that future unlocks of it will show a quick alert instead of the full
-                congratulations, not a status that changes anything else about the card.
+                celebration, not a status that changes anything else about the card.
                 Deliberately not interactive (no TouchableOpacity, no onPress of its own -- the
                 whole card's own tap still replays/previews normally) and placed right beside the
                 date it's a footnote to, rather than as a separate corner badge competing with

@@ -108,7 +108,7 @@ export const SettingsScreen: React.FC = () => {
   // point offering a reset with nothing to reset.
   const handleRestoreFullCelebrations = () => {
     unmuteAllKinds();
-    showToast({ message: 'Every achievement is unsnoozed -- full congratulations are back.' });
+    showToast({ message: 'Every celebration is unsnoozed -- the full celebration is back.' });
   };
 
   const handleExport = async () => {
@@ -292,9 +292,9 @@ export const SettingsScreen: React.FC = () => {
           {mutedAchievementCount > 0 && (
             <>
               <View style={styles.divider} />
-              <TouchableOpacity style={styles.row} onPress={handleRestoreFullCelebrations} accessibilityRole="button" accessibilityHint="Turns full congratulations back on for every achievement you've snoozed">
+              <TouchableOpacity style={styles.row} onPress={handleRestoreFullCelebrations} accessibilityRole="button" accessibilityHint="Turns the full celebration back on for everything you've snoozed">
                 <MaterialCommunityIcons name="bell-off-outline" size={22} color={colors.textSecondary} />
-                <Text style={styles.rowLabel}>Unsnooze All Achievements</Text>
+                <Text style={styles.rowLabel}>Unsnooze All Celebrations</Text>
                 <Text style={styles.rowValue}>{mutedAchievementCount}</Text>
               </TouchableOpacity>
             </>
