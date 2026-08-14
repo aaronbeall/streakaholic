@@ -23,6 +23,7 @@ import { IconPicker } from '../components/IconPicker';
 import { DAY_ABBREVIATIONS, DEFAULT_COLORS, DEFAULT_ICONS } from '../constants/task';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { useAchievementsStore } from '../stores/achievementsStore';
 import { useTaskStore } from '../stores/taskStore';
 import { FrequencyType, MaterialCommunityIconName, NotificationLevel } from '../types';
 import { formatFrequencyLabel } from '../utils/formatFrequency';
@@ -80,6 +81,7 @@ export const AddTaskScreen: React.FC = () => {
       restoreTask: state.restoreTask,
     }))
   );
+  const runRetroactiveScan = useAchievementsStore(state => state.runRetroactiveScan);
   const { showToast } = useToast();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
@@ -179,6 +181,35 @@ export const AddTaskScreen: React.FC = () => {
     notificationLevel !== initialFormValues.notificationLevel ||
     notificationTime !== initialFormValues.notificationTime ||
     nagIntervalMinutes !== initialFormValues.nagIntervalMinutes;
+
+  // These are the task settings that can reinterpret existing completion history and therefore
+  // change achievement eligibility. Cosmetic edits and reminder settings do not affect the
+  // achievement engine, so they should not produce a noisy scan offer.
+  const achievementEligibilityChanged = isEditing && (
+    frequency !== initialFormValues.frequency ||
+    timesPerDay !== initialFormValues.timesPerDay ||
+    (frequency === 'specific_days_of_week' && !daysOfWeekEqual(daysOfWeek, initialFormValues.daysOfWeek)) ||
+    (frequency === 'days_per_week' && daysPerWeek !== initialFormValues.daysPerWeek) ||
+    (frequency === 'days_per_month' && daysPerMonth !== initialFormValues.daysPerMonth)
+  );
+
+  const offerAchievementScan = () => {
+    showToast({
+      message: 'Schedule changes can affect achievements earned from existing history.',
+      action: {
+        label: 'Check Now',
+        onPress: () => {
+          const activeTasks = useTaskStore.getState().tasks.filter(task => !task.archived);
+          const count = runRetroactiveScan(activeTasks);
+          showToast({
+            message: count > 0
+              ? `Found ${count} achievement${count === 1 ? '' : 's'} you'd already earned!`
+              : "No new achievements found — you're all caught up.",
+          });
+        },
+      },
+    });
+  };
 
   // Every one of this screen's own router calls that intentionally leaves with unsaved changes
   // already accounted for (a completed Save, or Delete/Archive/Restore -- each of which already
@@ -300,6 +331,7 @@ export const AddTaskScreen: React.FC = () => {
       }
       bypassLeaveGuardRef.current = true;
       router.back();
+      if (achievementEligibilityChanged) offerAchievementScan();
     } catch {
       showToast({ message: `Failed to ${isEditing ? 'update' : 'create'} habit` });
     }

@@ -9,7 +9,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { useToast } from '../context/ToastContext';
@@ -74,31 +74,28 @@ export const SettingsScreen: React.FC = () => {
   const appName = Constants.expoConfig?.name ?? 'Streakaholic';
   const version = Constants.expoConfig?.version ?? '';
 
-  // Turning celebrations ON (not off -- there's nothing to offer when disabling) is a natural
-  // moment to offer a retroactive "catch up" scan (the same one TrophiesScreen's own "Check for
-  // Missed Achievements" button runs), since a user re-enabling this after a while, or trying it
-  // for the first time, likely already has qualifying history sitting unrecorded. A toast with an
-  // action rather than running it automatically -- this is genuinely optional, not something to
-  // do on the user's behalf without asking, and follows the same toast+action shape the app
-  // already uses for exactly this kind of "here's a related thing you can also do" offer.
-  const handleAchievementCelebrationsToggle = (enabled: boolean) => {
-    setAchievementCelebrationsEnabled(enabled);
-    if (!enabled) return;
+  // A scan is only useful after data changed outside the normal completion flow. Achievements are
+  // always recorded even when celebrations are hidden, so toggling that display preference has no
+  // bearing on whether history needs to be checked.
+  const scanForMissedAchievements = () => {
+    const activeTasks = useTaskStore.getState().tasks.filter(t => !t.archived);
+    const count = runRetroactiveScan(activeTasks);
     showToast({
-      message: 'Achievements enabled! Want to check for ones you already qualify for?',
-      action: {
-        label: 'Check Now',
-        onPress: () => {
-          const activeTasks = tasks.filter(t => !t.archived);
-          const count = runRetroactiveScan(activeTasks);
-          showToast({
-            message: count > 0
-              ? `Found ${count} achievement${count === 1 ? '' : 's'} you'd already earned!`
-              : "No new achievements found — you're all caught up.",
-          });
-        },
-      },
+      message: count > 0
+        ? `Found ${count} achievement${count === 1 ? '' : 's'} you'd already earned!`
+        : "No new achievements found — you're all caught up.",
     });
+  };
+
+  const offerAchievementScan = () => {
+    Alert.alert(
+      'Check for achievements?',
+      'Imported history can qualify for achievements that were not recorded through normal habit completion.',
+      [
+        { text: 'Not Now', style: 'cancel' },
+        { text: 'Check Now', onPress: scanForMissedAchievements },
+      ]
+    );
   };
 
   // A single kind can also be un-snoozed directly from its own celebration screen (the bell toggle
@@ -182,6 +179,7 @@ export const SettingsScreen: React.FC = () => {
           + (alreadyImported ? ' (already imported before)' : '') + '.',
         action: { label: 'Undo', onPress: () => importTasks(previousTasks, { mode: 'replace' }) },
       });
+      offerAchievementScan();
     } catch {
       showToast({ message: 'Failed to import data' });
     } finally {
@@ -272,7 +270,7 @@ export const SettingsScreen: React.FC = () => {
             <Text style={styles.rowLabel}>Celebrate Achievements</Text>
             <WebSwitch
               value={achievementCelebrationsEnabled}
-              onValueChange={handleAchievementCelebrationsToggle}
+              onValueChange={setAchievementCelebrationsEnabled}
               trackColor={{ false: colors.border, true: '#007AFF' }}
               thumbColor="#fff"
               activeThumbColor="#fff"
