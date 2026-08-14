@@ -91,7 +91,9 @@ A smaller defensive change can keep a previous-value ref, skip the initial mount
 
 **Area:** `app/components/ParticleSystem.tsx`
 
-**Observed behavior**
+**Status:** Addressed 2026-08-14. All particles now mount once and use Reanimated `withDelay` for UI-thread staggering. The single system-level completion timer remains for reliable Android cleanup/control flow.
+
+**Previous behavior**
 
 Particle reveal is staggered by scheduling an individual JavaScript `setTimeout` for each particle and updating React state as each timeout fires. This creates a burst of timers, JS callbacks, state updates, reconciliations, and native handoffs during an animation that should largely stay on the UI thread.
 
@@ -526,4 +528,3 @@ The current automated suite covers pure utility logic but not components, gestur
 - **Do not optimize only in development mode.** Compare native release builds on the same device and data set.
 - **Do not hide long-history cost with an arbitrary cap without explaining it in the UI.** Prefer aggregation that preserves the trend.
 - **Do not move everything off the JS thread indiscriminately.** Prioritize operations proven to contend with interaction and animation.
-
