@@ -334,24 +334,28 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
               </TouchableOpacity>
             </View>
 
-            {/* Deliberately separate rows -- Schedule / (quota explainer) / Status / Best -- rather
-                than one blended paragraph (2026-08-14, per explicit user direction), each with its
-                own icon so the row is scannable without reading every word. */}
-            <View style={styles.summaryRow}>
+            {/* Schedule / Status / Best remain the three primary data rows. The optional frequency
+                explainer is nested inside Schedule as a small tip, so its info icon doesn't claim
+                a fourth slot in the left-hand data-icon column. */}
+            <View style={[styles.summaryRow, styles.summaryScheduleRow]}>
               <View style={[styles.summaryRowIcon, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
                 <MaterialCommunityIcons name="repeat" size={16} color={colors.textSecondary} />
               </View>
-              <Text style={styles.summaryRowText}>{statusInfo.scheduleSentence}</Text>
-            </View>
-
-            {statusInfo.frequencyExplainer && (
-              <View style={styles.summaryRow}>
-                <View style={[styles.summaryRowIcon, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
-                  <MaterialCommunityIcons name="information-outline" size={16} color={colors.textSecondary} />
-                </View>
-                <Text style={[styles.summaryRowText, styles.summaryExplainerText]}>{statusInfo.frequencyExplainer}</Text>
+              <View style={styles.summaryScheduleContent}>
+                <Text style={[styles.summaryRowText, styles.summaryScheduleText]}>{statusInfo.scheduleSentence}</Text>
+                {statusInfo.frequencyExplainer && (
+                  <View style={styles.summaryTip}>
+                    <MaterialCommunityIcons
+                      name="information-outline"
+                      size={14}
+                      color={colors.textSecondary}
+                      style={styles.summaryTipIcon}
+                    />
+                    <Text style={[styles.summaryRowText, styles.summaryExplainerText]}>{statusInfo.frequencyExplainer}</Text>
+                  </View>
+                )}
               </View>
-            )}
+            </View>
 
             <View style={styles.summaryRow}>
               <View style={[styles.summaryRowIcon, { backgroundColor: `${statusInfo.status.color}26` }]}>
@@ -537,6 +541,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  summaryScheduleRow: {
+    alignItems: 'flex-start',
+  },
+  summaryScheduleContent: {
+    flex: 1,
+  },
+  summaryScheduleText: {
+    flex: 0,
+  },
   summaryRowIcon: {
     width: 28,
     height: 28,
@@ -553,9 +566,23 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   // Slightly smaller/quieter than the other rows -- supplementary context (why the schedule works
   // the way it does), not a headline fact like Schedule/Status/Best.
   summaryExplainerText: {
+    flex: 1,
     fontSize: 12,
     lineHeight: 16,
     color: colors.textSecondary,
+  },
+  summaryTip: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  summaryTipIcon: {
+    marginTop: 1,
   },
   // A touch bolder than the other rows -- this one's a celebratory acknowledgment, not just a
   // status fact, so it earns slightly more visual weight.

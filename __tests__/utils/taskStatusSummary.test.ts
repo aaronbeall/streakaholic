@@ -50,21 +50,21 @@ describe('getTaskStatusInfo', () => {
     it('explains week-based quota tracking, without repeating the task name, and clarifying the streak still counts by day', () => {
       const task = makeTask({ name: 'Yoga', frequency: 'days_per_week', daysPerWeek: 4 });
       expect(getTaskStatusInfo(task, today).frequencyExplainer).toBe(
-        'Needs 4 days a week. As long as you reach that, your streak — always counted in days — stays alive.'
+        'Complete 4 days each week to keep your streak alive. Streak length is counted in days.'
       );
     });
 
     it('explains month-based quota tracking, without repeating the task name, and clarifying the streak still counts by day', () => {
       const task = makeTask({ name: 'Budget Review', frequency: 'days_per_month', daysPerMonth: 10 });
       expect(getTaskStatusInfo(task, today).frequencyExplainer).toBe(
-        'Needs 10 days a month. As long as you reach that, your streak — always counted in days — stays alive.'
+        'Complete 10 days each month to keep your streak alive. Streak length is counted in days.'
       );
     });
 
     it('explains the miss/bonus rule for a genuine specific_days_of_week subset', () => {
       const task = makeTask({ frequency: 'specific_days_of_week', daysOfWeek: [1, 3, 5] });
       expect(getTaskStatusInfo(task, today).frequencyExplainer).toBe(
-        'Missing a due day breaks your streak — but completing it on any other day still counts as a bonus.'
+        'Missing a due day breaks your streak — but completing it on any other day counts as a bonus day toward your streak.'
       );
     });
   });

@@ -22,7 +22,7 @@ const getColumnCount = (width: number): number => {
   return 2;
 };
 
-const GRID_SPACING = 12;
+const GRID_SPACING = 16;
 const SIDE_PADDING = 16;
 
 // One row of the FlatList's data -- either a section heading (Unlocked/In Progress/Not Started,
@@ -206,9 +206,9 @@ export const TrophiesScreen: React.FC = () => {
           key={columnCount}
           keyExtractor={item => item.key}
           contentContainerStyle={[styles.listContent, { paddingBottom: 16 + insets.bottom }]}
-          renderItem={({ item }) =>
+          renderItem={({ item, index }) =>
             item.type === 'header' ? (
-              <View style={styles.sectionHeaderRow}>
+              <View style={[styles.sectionHeaderRow, index === 0 && styles.sectionHeaderRowFirst]}>
                 <View style={styles.sectionHeaderDivider} />
                 <Text style={styles.sectionHeader}>{item.label}</Text>
                 <View style={styles.sectionHeaderDivider} />
@@ -319,13 +319,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     textAlign: 'center',
   },
   listContent: {
-    padding: SIDE_PADDING,
-    gap: GRID_SPACING,
+    paddingHorizontal: SIDE_PADDING,
+    paddingTop: 4,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    marginTop: 24,
+    marginBottom: 14,
+  },
+  sectionHeaderRowFirst: {
+    marginTop: 12,
   },
   sectionHeaderDivider: {
     flex: 1,
@@ -342,6 +347,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
+    justifyContent: 'center',
     gap: GRID_SPACING,
+    marginBottom: 26,
   },
 });

@@ -168,16 +168,16 @@ const buildStatusBadge = (task: Task, today: Date): TaskStatusBadge => {
 // it here read as redundant (per explicit user direction).
 const buildFrequencyExplainer = (task: Task): string | null => {
   if (task.frequency === 'days_per_week') {
-    return `Needs ${task.daysPerWeek} days a week. As long as you reach that, your streak — always counted in days — stays alive.`;
+    return `Complete ${task.daysPerWeek} days each week to keep your streak alive. Streak length is counted in days.`;
   }
   if (task.frequency === 'days_per_month') {
-    return `Needs ${task.daysPerMonth} days a month. As long as you reach that, your streak — always counted in days — stays alive.`;
+    return `Complete ${task.daysPerMonth} days each month to keep your streak alive. Streak length is counted in days.`;
   }
   if (task.frequency === 'specific_days_of_week') {
     const daysOfWeek = task.daysOfWeek ?? [];
     const isGenuineSubset = daysOfWeek.length > 0 && daysOfWeek.length < 7;
     if (!isGenuineSubset) return null;
-    return 'Missing a due day breaks your streak — but completing it on any other day still counts as a bonus.';
+    return 'Missing a due day breaks your streak — but completing it on any other day counts as a bonus day toward your streak.';
   }
   return null;
 };

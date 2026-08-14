@@ -169,14 +169,25 @@ const HomeHeader = React.memo(({
 
   return (
     <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-      <TouchableOpacity
-        style={styles.headerButton}
-        onPress={() => router.push({ pathname: '/dashboard' })}
-        accessibilityRole="button"
-        accessibilityLabel="Dashboard"
-      >
-        <MaterialCommunityIcons name="chart-bar" size={24} color={colors.text} />
-      </TouchableOpacity>
+      <View style={styles.headerActions}>
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => router.push({ pathname: '/dashboard' })}
+          accessibilityRole="button"
+          accessibilityLabel="Dashboard"
+        >
+          <MaterialCommunityIcons name="chart-bar" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.headerButtonSecondary}
+          onPress={() => router.push('/trophies')}
+          accessibilityRole="button"
+          accessibilityLabel="Trophy Case"
+          accessibilityHint="Opens your trophy history"
+        >
+          <MaterialCommunityIcons name="trophy-outline" size={21} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.streakBubbles}>
         {streakStats.upToDate > 0 && (
@@ -235,13 +246,13 @@ const HomeHeader = React.memo(({
 
       <View style={styles.headerActions}>
         <TouchableOpacity
-          style={styles.headerButton}
+          style={styles.headerButtonSecondary}
           onPress={onToggleReordering}
           accessibilityRole="button"
           accessibilityLabel="Reorder habits"
           accessibilityHint="Opens controls to change the habit order"
         >
-          <MaterialCommunityIcons name="sort-variant" size={22} color={colors.text} />
+          <MaterialCommunityIcons name="sort-variant" size={21} color={colors.textSecondary} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.headerButton}
@@ -652,9 +663,16 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerButtonSecondary: {
+    width: 36,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerActions: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    gap: 4,
   },
   headerSpacer: {
     width: 40,
