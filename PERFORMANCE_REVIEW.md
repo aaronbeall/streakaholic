@@ -65,13 +65,17 @@ When addressing an issue, check off its concrete subtasks as they land, check th
   - [x] Pass TypeScript, lint, Jest, and Android production-export validation.
   - Native follow-up: visually confirm stagger timing on a physical Android device.
 - [ ] **PERF-003 — Reduce synchronous completion-path work**
-  - [ ] Instrument completion recognition, store commit, calculations, serialization, and notification work.
-  - [ ] Cache completion maps/stats by immutable task or completions-array identity.
-  - [ ] Avoid recalculating unchanged tasks during one task's completion.
-  - [ ] Narrow persistence so one completion does not serialize every task's full history.
-  - [ ] Define safe persistence flush behavior for backgrounding and termination.
-  - [ ] Move/diff notification reconciliation outside the immediate visual commit.
-  - [ ] Verify streak, achievement, undo, and durability behavior against the current implementation.
+  - [ ] Add release-like Android timing spans for completion-array construction, task stats, the task-store commit/stringification, achievement preparation/detection/persistence, and notification dispatch.
+  - [ ] Record the time from `completeTask` entry to the task-store subscriber notification and to the next rendered frame.
+  - [ ] Add immutable-reference `WeakMap` caches for per-task completion-count maps, so unchanged tasks do not rescan their histories for every completion.
+  - [ ] Reuse or incrementally maintain the capped recent-completion window used by early-bird/night-owl detection instead of flattening and sorting all active histories.
+  - [ ] Measure `calculateTaskStats` separately for daily, specific-day, weekly-quota, and monthly-quota tasks with long and sparse histories.
+  - [ ] Add a fast path for ordinary current-day completion only if it can exactly match the full calculation; retain the full path for backfills, undo, restore, imports, and uncertain cases.
+  - [ ] Narrow persistence so one completion does not stringify every task's full history; define and test migration from the current `tasks` key.
+  - [ ] Prefer immediately starting a narrow durable write over blind debounce; if writes are coalesced, define background flush and explicit failure/retry behavior first.
+  - [x] Diff notification schedules instead of blanket cancel/dismiss/reschedule after every completion-related mutation.
+  - [ ] Preserve an immutable before/after snapshot and serialized ordering for achievement detection; do not let deferred work observe a newer, unrelated store state.
+  - [ ] Verify daily and quota streaks, multi-rep completion, backfilled dates, repeated completion, undo/redo deduplication, perfect-day/week, time-of-day achievements, reminders, hydration, migration, and abrupt termination.
 
 ### P1 — Invisible work, startup, and scale
 
@@ -88,9 +92,9 @@ When addressing an issue, check off its concrete subtasks as they land, check th
 - [ ] **PERF-006 — Reduce startup and foreground reconciliation**
   - [ ] Persist the local date for which derived task stats were last refreshed.
   - [ ] Skip same-day task-history recalculation when data is unchanged.
-  - [ ] Skip reminder-disabled tasks in the normal notification pass.
-  - [ ] Diff desired and scheduled notifications instead of blanket cancel/reschedule.
-  - [ ] Invalidate only affected task schedules after normal mutations.
+  - [x] Skip reminder-disabled tasks in the normal notification pass.
+  - [x] Diff desired and scheduled notifications instead of blanket cancel/reschedule.
+  - [x] Invalidate only affected task schedules after normal mutations.
   - [ ] Test imports, date/timezone changes, daylight saving, permissions, and device reboot behavior.
 - [ ] **PERF-007 — Make Dashboard calendar work incremental and bounded**
   - [ ] Calculate only newly appended calendar pages.
@@ -117,12 +121,6 @@ When addressing an issue, check off its concrete subtasks as they land, check th
   - [ ] Move components, screens, hooks, stores, types, and utilities mechanically.
   - [ ] Leave only route files/groups under `app/`.
   - [ ] Run a complete native navigation and typed-route regression pass.
-- [ ] **PERF-011 — Stop parent stats rerenders during ordinary scrolling**
-  - [ ] Profile render counts on both stats screens.
-  - [ ] Replace `scrollY` React state with viewability callbacks or a UI-thread/shared-value mechanism.
-  - [ ] Keep lazy mounting one-way after a chart becomes visible.
-  - [ ] Confirm scrolling and chart interaction on a lower-end Android device.
-
 ### P3 — Deferred animation and rendering safeguards
 
 - [ ] **PERF-001 — Add a global concurrent-particle budget (deferred)**
@@ -142,6 +140,14 @@ When addressing an issue, check off its concrete subtasks as they land, check th
   - [ ] Consider viewport-aware prewarming for visible and near-visible cards.
   - [ ] Consider flattening the noninteractive mini calendar into a lighter SVG rendering while retaining eager mounting.
   - [ ] Reject any alternative that restores the previously observed first-flip hitch or displays a blank destination face.
+- [ ] **PERF-011 — Remove scroll-position state from stats parents if native profiling justifies it (deferred)**
+  - [ ] Measure parent and child render counts in both Task Stats and Dashboard Stats in a release-like Android build.
+  - [ ] Record JS/UI slow frames while scrolling before assuming the approximately 10 parent renders per second are user-visible.
+  - [ ] Include a many-task Dashboard case because its per-task completion bars are rebuilt on each parent render.
+  - [ ] If warranted, keep the latest scroll offset in a ref and move visibility checks into a small imperative chart-mount coordinator.
+  - [ ] Update React state only when a chart first crosses its pre-mount threshold, not for every sampled scroll position.
+  - [ ] Preserve one-way lazy mounting and enough pre-mount margin that users never scroll onto an empty chart card.
+  - [ ] Confirm time-range controls, chart interaction, rotation/layout changes, and lower-end Android scrolling after the change.
 - [ ] **PERF-012 — Move achievement count-up off JS state if profiling justifies it**
   - [ ] Measure JS contention during single and queued achievement celebrations.
   - [ ] Keep the current implementation if it stays within the native frame budget.
@@ -163,7 +169,7 @@ When addressing an issue, check off its concrete subtasks as they land, check th
 | PERF-008 | P2 | Completion feedback has about 1.25 seconds of intentional gating before state commits | Medium–High perceived | M | Interaction design |
 | PERF-009 | P2 | Broad icon/chart imports increase the native bundle | Medium | S–M | Bundle/startup |
 | PERF-010 | P2 | Non-route modules live under Expo Router's `app/` directory | Medium | L | Project structure |
-| PERF-011 | P2 | Stats screens update React state repeatedly while scrolling | Medium | M | Rendering |
+| PERF-011 | P3 | Stats parents update React state repeatedly while scrolling, although memoized charts are protected | Low–Medium, profile-dependent | M | Rendering |
 | PERF-001 | P3 | Add a shared particle budget for dense simultaneous mount celebrations | Medium in dense bursts | M | Animation |
 | PERF-004 | P3 | Reduce hidden-calendar pre-render cost without regressing first-flip responsiveness | Medium if Home mount becomes costly | M–L | Rendering |
 | PERF-012 | P3 | Achievement count-up uses JS-thread frame updates | Low–Medium | M | Animation |
@@ -233,45 +239,110 @@ If mounting all particles at once is visually or architecturally inconvenient, b
 
 ### PERF-003 (P0): Completion updates do too much synchronous work
 
-**Area:** `app/stores/taskStore.ts`, stats/streak utilities, achievement detection, Zustand persistence
+**Area:** `app/stores/taskStore.ts`, `app/utils/streaks.ts`, `app/stores/achievementsStore.ts`, `app/utils/achievements.ts`, Zustand persistence, and notification reconciliation
+
+**Status:** Open. This remains P0 because it sits directly in the app's primary interaction and its cost grows with both the changed task's history and the user's total active history.
 
 **Observed behavior**
 
-The completion path currently performs several pieces of work together:
+`completeTask` presents one synchronous JavaScript turn containing several differently scaling operations. Some occur before Zustand can publish the changed task; others occur immediately afterward but can still occupy the JS thread before React renders the next frame.
 
-1. Create a new completions array.
-2. Recalculate the changed task's history-derived stats.
-3. Build completion counts across active tasks for achievement detection.
-4. Detect and record newly earned achievements.
-5. Persist the Zustand task store, which serializes the entire task collection and completion history.
-6. Begin notification rescheduling.
+| Stage | Current work | Scaling characteristic | Position relative to the task commit |
+| --- | --- | --- | --- |
+| Find/update the dated completion | Scan the changed task for the date, then map its completion array for an existing date or spread it for a new date. | O(changed task history), with two passes when updating an existing date. | Before commit |
+| Recalculate task stats | Filter qualifying completions, create sets/maps and sorted dates, then walk calendar days or quota periods from the first completion through the requested date. | O(changed task history + elapsed calendar range); sparse multi-year histories can cost more than their entry count suggests. | Before commit |
+| Publish task state | Map the task array while preserving unchanged task references, then synchronously notify Zustand subscribers. | O(task count), normally cheap relative to history work. | Commit |
+| Persist the task store | Zustand persistence invokes `taskStorage.setItem`, whose `JSON.stringify(value)` serializes every task and every completion before `AsyncStorage.setItem` can perform its asynchronous native write. | O(all task data), plus a large temporary string allocation. | As part of the persisted store update |
+| Prepare achievement lookup maps | Filter active tasks and rebuild a completion-count map from every active task's full history. | O(all active completion history), every real completion. | After task commit, same JS turn |
+| Prepare achievement deduplication | Rebuild a `Set` from the complete earned-achievement history. | O(achievement history). | After task commit |
+| Detect achievements | Check task thresholds, task age, comeback, perfect day/week, global totals, active-task count, and time-of-day ratios. Until both time-of-day kinds are earned, their window can flatten and sort completions across all active tasks. | Mostly bounded rule checks after preparation, but perfect-day/week scales with active tasks and the time-of-day sort is O(H log H) for total active history H. | After task commit |
+| Record an unlock | If anything is earned, update the achievements store and stringify its persisted achievement history as a separate write. | O(achievement history) only on an unlock. | After task commit |
+| Reconcile reminders | Addressed: derive a deterministic desired intent and enqueue reconciliation against the observed native snapshot. An unchanged intent performs no native work; a changed occurrence is repaired serially. | Small pure comparison for ordinary updates; native work only when reminder intent changes. | After task commit |
 
-Each piece is reasonable in isolation, but the combined synchronous path competes with the completion interaction and its animation. The cost grows with completion history and task count.
+The changed task is the only task whose `.stats` are recalculated here; unchanged tasks already retain their object references. The all-task repetition comes from achievement lookup-map construction and full-store serialization, not from `calculateTaskStats` being called for every task.
+
+The ordering also matters. The new task state cannot be published until the completion-array update and full stats calculation finish. Once it is published, achievement preparation, detection, persistence, and notification dispatch can still delay the next JS-driven render or callback even though the in-memory store already contains the completion.
+
+**Concrete scale examples**
+
+- A task with ten years of sparse specific-day history can make the stats calculation walk thousands of calendar dates even if it contains far fewer completion records.
+- With 30 active tasks containing 1,000 dated records each, one completion currently rebuilds maps over roughly 30,000 completion records for achievement checks, including 29 unchanged tasks.
+- The same completion stringifies the complete persisted `tasks` envelope. Its cost therefore increases when unrelated tasks accumulate history.
+- Updating a multi-rep completion for an existing day first searches for the record and then maps the same changed-task history to replace it.
+- Once both time-of-day achievements are permanently earned, their flatten/sort branch stops running; before then, it is another total-history operation worth measuring separately.
 
 **Impact:** High. Habit completion is the core, frequent interaction; even moderate pauses here are disproportionately visible.
 
 **Complexity:** Large because correctness matters across streaks, achievements, persistence, undo, and process termination.
 
-**Recommended fix**
+**Recommended sequence**
 
-Split the path into work needed for immediate visual truth and work that can safely follow:
+Do not begin by making the whole path asynchronous. First remove repeat work while preserving the existing transactional semantics, then change persistence and scheduling behind explicit durability rules.
 
-- Commit the changed task and immediate derived state first.
-- Cache history-derived maps and stats by immutable task/completions-array identity so unchanged tasks reuse results.
-- Keep achievement correctness synchronous if it depends on an exact before/after snapshot, but avoid rebuilding maps for unchanged tasks.
-- Redesign persistence so a single completion does not stringify every task's full history. Options include separate metadata/history keys, per-task records, or a compact append-oriented completion log.
-- Defer or coalesce persistence only after establishing explicit flush rules for app backgrounding and shutdown. Blind debouncing would risk data loss and is not recommended.
-- Diff notification state and perform native scheduling outside the immediate visual commit.
+#### 1. Measure the actual slices
 
-A `WeakMap` keyed by the exact immutable completions array or task object is appropriate here. This avoids the stale-cache failure mode of a cache keyed only by task ID: changed arrays receive new cache entries, while unchanged references safely reuse prior work.
+Instrument release-like Android builds around completion-array construction, `calculateTaskStats`, task-store publication and task JSON serialization, achievement map/dedup preparation, achievement detection and persistence, and notification dispatch. Capture both elapsed JS time and the first rendered frame after `completeTask` begins. Test each schedule type because the daily/specific-day and quota algorithms have different cost shapes.
+
+This establishes whether stats, cross-task achievement preparation, serialization, or native dispatch dominates on representative data. Development-mode React timings are not an adequate basis for redesigning durability.
+
+#### 2. Reuse immutable per-task indexes
+
+Introduce a module-level `WeakMap` keyed by the exact `TaskCompletion[]` reference for `buildCompletionCountsByDate`. On one completion, only the changed task receives a new completions-array identity; every unchanged task can safely reuse its prior map. A task-ID cache without reference-aware invalidation is not safe because imports, undo, restore, or edits can replace history while retaining the same ID.
+
+Use the cached maps both in screens and in live achievement detection where practical. For the time-of-day window, maintain or cache only the newest capped records required by the rule instead of flattening and sorting the entire active history. The cache must account for the active task set and each contributing completions-array identity.
+
+Expected result: cross-task achievement preparation falls from scanning all active history on every completion to rebuilding only the changed task's index, while preserving exact perfect-day/week answers.
+
+#### 3. Optimize changed-task stats carefully
+
+`calculateTaskStats` cannot be globally memoized for the changed task because every real completion intentionally creates a new completions array. Profile it independently. If it is material, add an incremental fast path for the common operation—adding one current-day rep—using the previous stats plus a maintained history index or bounded affected period.
+
+The fast path must fall back to the current full calculation for backfilled calendar dates, undo, restoring a cleared completion, imports, schedule-setting changes, day rollover, and any case whose effect is not provably local. Daily/specific-day and weekly/monthly quota streaks should not share an incremental algorithm merely for convenience; their linking rules differ.
+
+#### 4. Narrow persistence rather than merely delaying it
+
+The safest structural improvement is to stop persisting one monolithic `tasks` value. Viable designs, in increasing complexity, are:
+
+| Storage shape | Completion write cost | Tradeoff |
+| --- | --- | --- |
+| One record per task plus a small ordered task index | Serializes only the changed task's metadata/history and the index only when order changes. | Straightforward migration and good reduction when users have many tasks, but a single task's full history is still rewritten. |
+| Task metadata separate from per-task completion history | A completion rewrites only that task's history. | More keys and hydration coordination; still O(changed task history). |
+| Append/update-oriented completion records or a local database | Writes approximately the changed day/record rather than the full history. | Best scaling and query flexibility, but highest migration, compaction, transaction, backup/export, and recovery complexity. |
+
+Per-task persistence is the recommended first target unless measurements show individual histories themselves are already too large. Preserve a migration reader for the current `tasks` key, write the new form successfully, verify it, and only then retire the legacy value.
+
+Blindly debouncing the existing whole-store write would shorten some bursts but increase the interval in which a killed process can lose a completion. React Native has no universally reliable synchronous shutdown hook. If coalescing is introduced, writes should still begin promptly, failures should remain retryable/observable, and `AppState` backgrounding should request a flush without being treated as the sole durability guarantee.
+
+#### 5. Keep achievement ordering exact
+
+Achievement detection can remain synchronous initially after its indexes are fixed. If profiling still shows meaningful post-commit contention, it may move into a serialized job queue using immutable `prevTask`, `nextTask`, task-list, date, and completion-index snapshots captured by the mutation. Detection must read the latest earned-scope set when its job executes, and jobs must execute in completion order, or rapid consecutive completions could duplicate or miss threshold, perfect-day, and perfect-week unlocks.
+
+Deferring only the celebration presentation is safe; weakening the recorded achievement history or allowing detection to observe an unrelated later task state is not.
+
+#### 6. Diff notification intent — implemented 2026-08-14
+
+Each scheduled request now carries a deterministic intent key and ordinary mutations compare against a process-local snapshot of native state. Only a changed occurrence/content set is cancelled and replaced. Hydration, foreground, and import run a recovery-grade diff from one scheduled/presented-notification query; permission, day/timezone, fired/missing, legacy, and orphaned state therefore self-heal without blanket cancellation. If a completion now satisfies today's quota, moving the reminder to the next due day remains correctness work; partial reps and unrelated edits perform no native calls.
+
+**What not to do**
+
+- Do not optimistically display a completion that is absent from the authoritative in-memory store; the task commit itself should remain atomic.
+- Do not use a mutable cache keyed only by task ID.
+- Do not replace exact streak/achievement logic with an approximate counter.
+- Do not send achievement detection to an unordered timer without immutable snapshots and dedup sequencing.
+- Do not claim an AsyncStorage write is durable merely because its promise was started.
+- Do not fold PERF-008's intentional long-press/animation delay into this measurement. PERF-003 begins when `completeTask` is actually invoked; changing when it is invoked is a separate interaction-design decision.
 
 **Acceptance checks**
 
-- Completion state appears immediately and remains durable after abrupt background/termination tests.
-- Streak and achievement results match the current implementation for completion, repeated completion, and undo.
-- Updating one habit does not recalculate completion maps for every unchanged habit.
-- JS frame stalls around completion decrease in a native release build.
-- Large-history persistence cost is measured before and after the storage change.
+- The in-memory completion commit and next rendered state occur measurably sooner on the representative Android data/device matrix.
+- A completion on one task does not rebuild completion-count maps for unchanged tasks.
+- Ordinary completion does not stringify unrelated tasks' completion history.
+- Daily, specific-day, weekly-quota, and monthly-quota stats match the current implementation for current-day completion, multi-rep partial/full transitions, backfill, undo, restore, and day rollover.
+- Achievement records and celebration order match for threshold crossings, comeback, new best, perfect day/week, global totals, and time-of-day rules, including rapid consecutive completions and undo/redo deduplication.
+- Reminder cancellation and next-occurrence scheduling remain correct after completion, undo, background/foreground, permission changes, and process restart.
+- Existing installs migrate without data loss; import/export and task ordering remain unchanged.
+- A completion survives immediate backgrounding and realistic abrupt-termination tests, and storage failures are surfaced or retried rather than silently discarded.
+- Before/after traces report calculation, serialization, achievement, and notification costs separately so improvements cannot be hidden by a different stage regressing.
 
 ### PERF-004 (P3): Reduce hidden-calendar pre-render cost without regressing first-flip responsiveness
 
@@ -381,13 +452,27 @@ This is a broad, low-code optimization but should be measured before and after. 
 
 **Area:** `app/_layout.tsx`, `app/stores/taskStore.ts`, `app/utils/notifications.ts`
 
-**Observed behavior**
+**Status:** Partially addressed 2026-08-14. Notification intent diffing and affected-task invalidation are implemented; persisting the stats-refresh date and the full native date/timezone/reboot matrix remain open.
+
+**Previous notification behavior**
 
 After hydration and on foreground transitions, the app refreshes task stats and reschedules notifications broadly.
 
 The stats refresh marker is not persisted, so a cold launch can recalculate and rewrite all task stats even when they were already calculated for the same local day.
 
 Notification scheduling cancels and dismisses multiple known identifiers for each active task before it checks whether notifications are disabled. With twenty active habits, the current cleanup-first pattern can produce up to roughly 160 native cancel/dismiss calls per broad pass, even when many habits have no enabled reminder.
+
+**Implemented notification behavior**
+
+- Each scheduled reminder now carries a deterministic intent key derived only from fields that affect its content or occurrence.
+- Hydration, foreground, and import reconciliation read scheduled and presented native notifications once, then repair only missing, changed, delivered, legacy, or orphaned identifiers.
+- Ordinary task mutations reuse the observed process-local snapshot and perform no native query, cancellation, dismissal, permission check, or scheduling call when intent is unchanged.
+- Partial multi-rep completions, color/icon changes, stats updates, and other non-reminder mutations therefore leave an identical installed reminder alone.
+- Reminder operations run through one serialized queue so a rapid completion/undo or pair of edits cannot finish out of order.
+- Permission state is refreshed during the recovery pass and reused by normal mutations; an external grant/revocation is picked up when the app foregrounds.
+- Imports invoke the recovery-grade diff so removed-task reminders are cleaned up and matching schedules remain installed.
+
+The first recovery pass deliberately replaces legacy reminders that have no intent key. Subsequent passes can prove equality without relying on platform-specific trigger normalization.
 
 **Impact:** High for startup/foreground responsiveness, battery use, and native bridge/module traffic.
 
@@ -397,16 +482,16 @@ Notification scheduling cancels and dismisses multiple known identifiers for eac
 
 - Persist a local-date marker indicating the day for which derived task stats were last refreshed. Recompute on hydration only when that date is stale or data migration/import invalidates it.
 - Keep the foreground check cheap: compare the marker before walking task histories.
-- Skip reminder-disabled tasks during the normal scheduling pass.
-- Track or query scheduled identifiers once, compute the desired schedule, and apply a diff rather than canceling every possible identifier first.
-- Invalidate only affected task schedules after edits or completions; reserve a full reconciliation for hydration, imports, permission changes, and recovery.
+- Completed: skip reminder-disabled tasks during the normal scheduling pass.
+- Completed: query native reminder state once during recovery, compute deterministic desired schedules, and apply a diff.
+- Completed: reconcile only the affected task after normal edits/completions, with recovery-grade passes for hydration, foreground, and imports.
 
 **Acceptance checks**
 
 - Opening the app twice on the same day does not rewrite unchanged task stats.
 - Crossing a day boundary correctly refreshes streak status.
-- Disabled reminders cause no per-task native cancellation churn in a normal foreground pass.
-- Imports and reminder-setting changes still reconcile stale OS notifications.
+- Disabled reminders cause no per-task native cancellation churn in a normal foreground pass. Automated reconciliation coverage passes.
+- Imports and reminder-setting changes still reconcile stale OS notifications. Import integration is implemented; native import testing remains.
 - Device reboot, permission changes, timezone/date changes, and daylight-saving transitions are covered by manual native tests.
 
 ### PERF-007 (P1): Dashboard calendar work scales with all loaded history
@@ -532,21 +617,65 @@ Screens, components, hooks, stores, types, and utilities all live under Expo Rou
 
 Move non-route code to a top-level `src/` tree, leaving only route files and route groups under `app/`. Perform this as an isolated mechanical migration after higher-value runtime fixes, with a full native navigation regression pass.
 
-### PERF-011 (P2): Stats screens rerender their parent during scroll
+### PERF-011 (P3): Stats parents receive React state updates during scroll
 
-**Area:** per-task and dashboard stats screens, lazy chart mounting
+**Area:** `TaskStatsScreen`, `DashboardStatsView`, and `LazyMount`
+
+**Status:** Deferred pending release-like native evidence. This is a real inefficiency, but the current memoization means it is not equivalent to redrawing every chart on every scroll event.
 
 **Observed behavior**
 
-The lazy-mount mechanism stores `scrollY` in React state from a scroll handler using `scrollEventThrottle={100}`. This rerenders the parent stats view about ten times per second while scrolling. Memoized chart children avoid the worst redraws, so the current impact is bounded.
+Both stats views store the current vertical offset in parent React state. Their `ScrollView` handlers call `setScrollY(...)` with `scrollEventThrottle={100}`, producing up to roughly ten parent render attempts per second during an active scroll. Each parent passes that changing value to three `LazyMount` wrappers, which compare their measured bounds with the viewport and permanently mount a chart when it approaches visibility.
 
-**Impact:** Medium on chart-heavy screens, especially lower-end devices.
+The position itself is not displayed. It is only an input to those one-time chart-mount decisions. Nevertheless, the parent keeps updating after all three charts have mounted, when no further visibility decision is needed.
 
-**Complexity:** Medium.
+**What work actually repeats**
 
-**Recommended fix**
+| Area | Behavior during a sampled scroll update |
+| --- | --- |
+| Task Stats parent | Re-executes the component and reconciles the hero, stat strips, four time-range buttons, achievements preview, and three lazy-mount wrappers. |
+| Dashboard Stats parent | Re-executes the component and reconciles the same general structure plus recreates the JSX for every per-task completion bar. This makes a many-task dashboard the most important case to measure. |
+| `LazyMount` wrappers | Receive the new offset, render, and run their visibility effect. Before visibility, one may transition to mounted; after visibility, it remains mounted but still receives every new offset. |
+| Time-range controls and other non-memoized children | Their functions/JSX may be evaluated again even though their visible values did not change. |
 
-Use viewability/intersection-style callbacks, a Reanimated shared value, or a small native-driven visibility mechanism so ordinary scrolling does not update the full screen's React state. Keep lazy mounting one-way: once a chart is mounted, scrolling should not continually toggle it.
+**What is already protected**
+
+- Expensive date-range, completion-pattern, aggregate-stat, chart-data, and task-total calculations use `useMemo` with dependencies that do not change merely because the user scrolled.
+- The line and histogram chart-card components use `React.memo`; their data and callbacks remain referentially stable during scrolling, so the chart-kit/SVG trees should not be redrawn on each parent update.
+- Lazy mounting is one-way. A chart is not unmounted when it leaves the viewport, avoiding repeated chart construction and lost interaction state.
+- A 100 ms throttle is already much less aggressive than updating React state once per display frame.
+
+For example, scrolling through Task Stats for one second may cause about ten parent reconciliation passes, but it should not cause ten recalculations of the completion history or ten line-chart redraws. On Dashboard Stats with 30 tasks, however, the parent also rebuilds the 30 completion-bar element descriptions on each pass. Whether that produces dropped frames depends on the device, data volume, and concurrent native drawing work.
+
+**Impact:** Low to Medium and profile-dependent. It is most plausible on lower-end Android devices, on Dashboard Stats with many task rows, or while a heavy chart is mounting. After the charts are mounted, continued parent updates are pure overhead, but they may still fit comfortably within the frame budget.
+
+**Complexity:** Medium for a robust fix.
+
+**Preferred fix if profiling demonstrates an issue**
+
+Keep scroll position out of parent render state. Store the latest offset in a ref and give a small chart-mount coordinator an imperative visibility check. The scroll handler can compare the offset with measured chart bounds and call React state only when an unmounted chart first crosses its pre-mount threshold. In the normal case this changes the behavior from approximately ten parent state updates per scrolling second to at most one small subtree update per chart for the screen's lifetime.
+
+This plain React Native approach is preferable as a first implementation because it preserves the existing layout-measurement model and avoids introducing UI-thread-to-JavaScript synchronization merely to mount three charts. It must also recheck thresholds when viewport size or measured layout changes.
+
+**Alternatives and tradeoffs**
+
+| Option | Benefit | Tradeoff |
+| --- | --- | --- |
+| Keep the current implementation | Simplest and already bounded by memoization and a 100 ms throttle. | Retains avoidable parent reconciliation, including after every chart has mounted. |
+| Isolate `scrollY` state in a chart-section coordinator | Limits repeated renders to a much smaller subtree while retaining declarative logic. | Still performs React state updates throughout scrolling and requires reshaping ownership around the `ScrollView`. |
+| Use a Reanimated shared value and UI-thread threshold checks | Keeps high-frequency position updates off the JS/React path. | React must still be notified to mount a chart; `runOnJS`, layout synchronization, and testing add complexity disproportionate to three thresholds unless the simpler fix is insufficient. |
+| Quantize scroll updates by distance | Small change that lowers render frequency. | Only reduces rather than removes the issue, and a large interval can mount charts late. |
+| Mount charts at drag/scroll end | Eliminates updates during active motion. | Users can reach blank placeholders before charts mount, making scrolling feel worse. |
+| Mount all charts immediately | Removes visibility tracking entirely. | Moves all chart construction into initial screen render, defeating the reason lazy mounting exists. |
+| Convert the page to a virtualized list/viewability API | Provides built-in visibility callbacks. | Large structural change for a screen with only a few heavy sections; may unmount charts and introduce more churn than it removes. |
+
+**Acceptance criteria**
+
+- Ordinary scrolling does not rerender either full stats parent solely because its vertical offset changed.
+- Each chart mounts before its placeholder becomes visibly exposed and remains mounted afterward.
+- A chart threshold is reevaluated after relevant layout or viewport-size changes.
+- Time-range switching, chart gestures, navigation back/forward, and achievements preview behavior remain unchanged.
+- Release-like Android profiling shows a measurable improvement in render count or slow frames; otherwise the current simpler implementation remains acceptable.
 
 ### PERF-012 (P3): Achievement count-up uses JS-thread frame updates
 
@@ -635,7 +764,6 @@ The app uses stable list keys, `getItemLayout` where appropriate, memoized chart
 - PERF-007: Incrementally append dashboard calendar calculations.
 - PERF-007: Add indexed/cursor-based streak-chain lookup.
 - PERF-007: Bound or aggregate streamgraph history.
-- PERF-011: Remove React parent rerenders from ordinary stats scrolling if native traces show value.
 
 **Expected outcome:** stable calendar interaction for multi-year histories.
 
@@ -650,6 +778,7 @@ The app uses stable list keys, `getItemLayout` where appropriate, memoized chart
 
 - PERF-001: Add a global concurrent-particle budget only if native traces show dense Home-mount bursts need it.
 - PERF-004: Explore staged prewarming, cached calendar models, viewport priority, or flattened rendering only if native Home measurements justify changing the current eager calendar.
+- PERF-011: Replace stats-parent scroll state with threshold-driven chart mounting only if release-like Android traces show a meaningful render or frame-time cost.
 - PERF-012: Move achievement count-up off JS state only if profiling justifies it.
 - PERF-013: Add reduced-motion and background lifecycle handling to continuous celebration loops.
 
@@ -706,7 +835,7 @@ These are initial targets to refine after collecting a baseline on the represent
 ## Verification completed during the review
 
 - TypeScript: `npx tsc --noEmit` passed.
-- Jest: 14 suites and 274 tests passed with `--runInBand --watchman=false`.
+- Jest: 15 suites and 282 tests passed with `--runInBand --watchman=false`.
 - ESLint: no errors; seven existing hook-dependency/unused-variable warnings remained.
 - Android production export: completed successfully.
 - Synthetic scaling benchmarks: completed for one-, five-, and ten-year histories; temporary benchmark code was removed afterward.

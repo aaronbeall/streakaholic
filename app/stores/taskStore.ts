@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { PersistStorage, persist } from 'zustand/middleware';
 import { Task, TaskCompletion } from '../types';
 import { mergeTaskLists } from '../utils/importExport';
-import { cancelTaskNotifications, scheduleTaskNotifications } from '../utils/notifications';
+import { cancelTaskNotifications, rescheduleAllTaskNotifications, scheduleTaskNotifications } from '../utils/notifications';
 import { buildCompletionCountsByDate, calculateTaskStats } from '../utils/streaks';
 import { useAchievementsStore } from './achievementsStore';
 import { useLastImportStore } from './lastImportStore';
@@ -221,8 +221,10 @@ export const useTaskStore = create<TaskStore>()(
             date,
             completionCountsByTaskId
           );
-          // A completion can affect whether today's reminder should still be pending (now done,
-          // cancel it) -- scheduleTaskNotifications recomputes from scratch either way.
+          // A completion can affect whether today's reminder should still be pending. The
+          // notification layer compares the newly desired occurrence/content with its observed
+          // native snapshot, so partial reps and other no-intent-change updates stop here without
+          // cancellation/rescheduling churn.
           rescheduleFor(nextTask);
         }
       },
@@ -330,12 +332,20 @@ export const useTaskStore = create<TaskStore>()(
       importTasks: (importedTasks, options = {}) => {
         const mode = options.mode ?? 'replace';
         const nextTasks = mode === 'merge' ? mergeTaskLists(get().tasks, importedTasks) : importedTasks;
+        const tasksWithStats = nextTasks.map(task => ({
+          ...task,
+          stats: calculateTaskStats(task, task.completions || []),
+        }));
         set({
-          tasks: nextTasks.map(task => ({
-            ...task,
-            stats: calculateTaskStats(task, task.completions || []),
-          })),
+          tasks: tasksWithStats,
         });
+
+        // Import can add, remove, or rewrite every reminder at once. Run the recovery-grade diff
+        // after the store commit so stale identifiers from replaced/deleted tasks are cleaned up,
+        // while matching imported schedules remain untouched.
+        rescheduleAllTaskNotifications(tasksWithStats).catch(error =>
+          console.warn('Failed to reconcile task notifications after import', error)
+        );
 
         if (options.exportMeta) {
           useLastImportStore.getState().setLastImport({

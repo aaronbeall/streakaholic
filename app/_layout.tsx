@@ -165,11 +165,11 @@ function AppGate() {
   useEffect(() => {
     if (!hydrated) return;
     useTaskStore.getState().maybeRefreshStats();
-    // Same trigger as maybeRefreshStats (hydrate + every foreground) -- the self-healing bulk pass
-    // that recovers a task's "next occurrence" after a previously-scheduled reminder already fired
-    // while the app was closed, and re-derives everything across a calendar-day rollover. See
-    // rescheduleAllTaskNotifications's own doc comment for why this doesn't need a once-per-day
-    // dedup guard the way maybeRefreshStats does.
+    // Same trigger as maybeRefreshStats (hydrate + every foreground) -- the self-healing diff pass
+    // reads scheduled/presented reminders once, repairs only changed/missing/orphaned intent, and
+    // refreshes its process-local snapshot. It therefore still recovers a reminder that fired or
+    // disappeared while the app was closed and handles day/permission/timezone changes, without
+    // blanket cancellation when the native schedule already matches.
     rescheduleAllTaskNotifications(useTaskStore.getState().tasks).catch(error => console.warn('Failed to reschedule task notifications', error));
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {

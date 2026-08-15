@@ -34,6 +34,21 @@ const allIdentifiersFor = (taskId: string): string[] => [
   mainIdentifier(taskId),
   ...Array.from({ length: NAG_MAX_REPEATS }, (_, i) => nagIdentifier(taskId, i + 1)),
 ];
+const REMINDER_IDENTIFIER_PREFIX = 'reminder:';
+const REMINDER_INTENT_DATA_KEY = 'reminderIntentKey';
+const REMINDER_INTENT_VERSION = 1;
+
+interface ReminderIntent {
+  identifier: string;
+  intentKey: string;
+  content: Notifications.NotificationContentInput;
+  trigger: Notifications.DateTriggerInput;
+}
+
+interface ReminderSnapshot {
+  scheduledIntentById: Map<string, string | undefined>;
+  presentedIds: Set<string>;
+}
 
 // Pure and unit-tested (mirrors streaks.ts/achievements.ts's no-native-imports testability
 // constraint) -- everything below this point touches the native Notifications API and can only be
@@ -78,7 +93,75 @@ export const getNextReminderOccurrence = (task: Task, now: Date): Date | null =>
   return null;
 };
 
+const buildIntentKey = (
+  task: Task,
+  identifier: string,
+  scheduledFor: Date,
+  level: number
+): string => JSON.stringify([
+  REMINDER_INTENT_VERSION,
+  identifier,
+  task.id,
+  task.name,
+  scheduledFor.getTime(),
+  level,
+]);
+
+// Pure description of exactly what should be installed for one task. Its compact intent key is
+// stored in each native notification's data, avoiding comparisons against platform-normalized
+// trigger objects (whose Android/iOS shapes differ after Expo reads them back). Fields that don't
+// affect notification content or timing -- task color, icon, stats, a partial multi-rep completion
+// -- deliberately don't enter the key, so those mutations no longer churn identical reminders.
+export const getReminderIntents = (task: Task, now: Date): ReminderIntent[] => {
+  const nextOccurrence = getNextReminderOccurrence(task, now);
+  if (!nextOccurrence || !task.notifications || task.notifications.level === 0 || task.archived) return [];
+
+  const level = task.notifications.level;
+  const isOngoing = level >= 3;
+  const channelId = level === 4 ? ALARM_CHANNEL_ID : REMINDER_CHANNEL_ID;
+  const mainId = mainIdentifier(task.id);
+  const mainIntentKey = buildIntentKey(task, mainId, nextOccurrence, level);
+  const intents: ReminderIntent[] = [{
+    identifier: mainId,
+    intentKey: mainIntentKey,
+    content: {
+      title: `Time for "${task.name}"`,
+      body: isOngoing
+        ? `"${task.name}" is still waiting on you today.`
+        : `Don't forget to complete "${task.name}" today.`,
+      sticky: isOngoing,
+      autoDismiss: !isOngoing,
+      data: { taskId: task.id, [REMINDER_INTENT_DATA_KEY]: mainIntentKey },
+    },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: nextOccurrence, channelId },
+  }];
+
+  if (level === 2) {
+    const intervalMinutes = task.notifications.nagIntervalMinutes ?? DEFAULT_NAG_INTERVAL_MINUTES;
+    for (let n = 1; n <= NAG_MAX_REPEATS; n++) {
+      const scheduledFor = new Date(nextOccurrence.getTime() + n * intervalMinutes * 60 * 1000);
+      const identifier = nagIdentifier(task.id, n);
+      const intentKey = buildIntentKey(task, identifier, scheduledFor, level);
+      intents.push({
+        identifier,
+        intentKey,
+        content: {
+          title: `Still haven't done "${task.name}"?`,
+          body: `A friendly nudge -- "${task.name}" is still on today's list.`,
+          sticky: false,
+          autoDismiss: true,
+          data: { taskId: task.id, [REMINDER_INTENT_DATA_KEY]: intentKey },
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: scheduledFor, channelId },
+      });
+    }
+  }
+
+  return intents;
+};
+
 let channelsEnsured = false;
+let observedPermissionGranted: boolean | null = null;
 
 const ensureNotificationChannels = async (): Promise<void> => {
   if (Platform.OS !== 'android' || channelsEnsured) return;
@@ -97,85 +180,197 @@ const ensureNotificationChannels = async (): Promise<void> => {
 
 export const ensureNotificationPermissions = async (): Promise<boolean> => {
   const current = await Notifications.getPermissionsAsync();
-  if (current.granted) return true;
-  if (!current.canAskAgain) return false;
+  if (current.granted) {
+    observedPermissionGranted = true;
+    return true;
+  }
+  if (!current.canAskAgain) {
+    observedPermissionGranted = false;
+    return false;
+  }
   const requested = await Notifications.requestPermissionsAsync();
+  observedPermissionGranted = requested.granted;
   return requested.granted;
 };
 
-// Cancels + dismisses every identifier this task could possibly have scheduled or delivered,
-// unconditionally -- safe even if fewer than that were actually posted (e.g. a level-1 task never
-// had any nag identifiers to begin with).
-export const cancelTaskNotifications = async (taskId: string): Promise<void> => {
-  await Promise.all(
-    allIdentifiersFor(taskId).map(async identifier => {
-      await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => undefined);
-      await Notifications.dismissNotificationAsync(identifier).catch(() => undefined);
-    })
+let observedSnapshot: ReminderSnapshot | null = null;
+let notificationWorkQueue: Promise<void> = Promise.resolve();
+
+// Native notification mutation is serialized. Besides making the in-memory snapshot trustworthy,
+// this prevents a rapid complete -> undo (or two quick edits) from letting an older asynchronous
+// cancel/schedule operation finish after the newer desired state and overwrite it.
+const enqueueNotificationWork = <T>(work: () => Promise<T>): Promise<T> => {
+  const result = notificationWorkQueue.then(work, work);
+  notificationWorkQueue = result.then(() => undefined, () => undefined);
+  return result;
+};
+
+const isReminderIdentifier = (identifier: string): boolean => identifier.startsWith(REMINDER_IDENTIFIER_PREFIX);
+
+const intentKeyFrom = (request: Notifications.NotificationRequest): string | undefined => {
+  const value = request.content.data?.[REMINDER_INTENT_DATA_KEY];
+  return typeof value === 'string' ? value : undefined;
+};
+
+const readNativeSnapshot = async (): Promise<ReminderSnapshot> => {
+  const [scheduled, presented] = await Promise.all([
+    Notifications.getAllScheduledNotificationsAsync(),
+    Notifications.getPresentedNotificationsAsync(),
+  ]);
+  return {
+    scheduledIntentById: new Map(
+      scheduled
+        .filter(request => isReminderIdentifier(request.identifier))
+        .map(request => [request.identifier, intentKeyFrom(request)] as const)
+    ),
+    presentedIds: new Set(
+      presented
+        .map(notification => notification.request.identifier)
+        .filter(isReminderIdentifier)
+    ),
+  };
+};
+
+const getObservedSnapshot = async (refresh = false): Promise<ReminderSnapshot> => {
+  if (refresh || !observedSnapshot) observedSnapshot = await readNativeSnapshot();
+  return observedSnapshot;
+};
+
+const taskHasNativeReminder = (snapshot: ReminderSnapshot, taskId: string): boolean =>
+  allIdentifiersFor(taskId).some(identifier =>
+    snapshot.scheduledIntentById.has(identifier) || snapshot.presentedIds.has(identifier)
+  );
+
+const intentMatchesSnapshot = (
+  snapshot: ReminderSnapshot,
+  taskId: string,
+  intents: ReminderIntent[]
+): boolean => {
+  const desiredById = new Map(intents.map(intent => [intent.identifier, intent.intentKey] as const));
+  return allIdentifiersFor(taskId).every(identifier =>
+    !snapshot.presentedIds.has(identifier) &&
+    (desiredById.has(identifier)
+      ? snapshot.scheduledIntentById.get(identifier) === desiredById.get(identifier)
+      : !snapshot.scheduledIntentById.has(identifier))
   );
 };
 
-// Always cancels this task's existing scheduled/delivered notifications first, then -- if the task
-// still wants one -- schedules only the single next due-and-incomplete occurrence (plus level 2's
-// follow-up nags). Called after every task mutation that could affect what should be reminding
-// (create/edit/complete/undo/archive/restore) and again in a bulk sweep on app foreground/hydrate,
-// so a task's reminders are always recomputed fresh rather than relying on long-lived OS-level
-// recurring triggers that are harder to cancel per-day.
-export const scheduleTaskNotifications = async (task: Task): Promise<void> => {
-  await cancelTaskNotifications(task.id);
-
-  if (!task.notifications || task.notifications.level === 0 || task.archived) return;
-
-  const { granted } = await Notifications.getPermissionsAsync();
-  if (!granted) return;
-
-  const nextOccurrence = getNextReminderOccurrence(task, new Date());
-  if (!nextOccurrence) return;
-
-  await ensureNotificationChannels();
-
-  const level = task.notifications.level;
-  const isOngoing = level >= 3;
-  const channelId = level === 4 ? ALARM_CHANNEL_ID : REMINDER_CHANNEL_ID;
-
-  await Notifications.scheduleNotificationAsync({
-    identifier: mainIdentifier(task.id),
-    content: {
-      title: `Time for "${task.name}"`,
-      body: isOngoing
-        ? `"${task.name}" is still waiting on you today.`
-        : `Don't forget to complete "${task.name}" today.`,
-      sticky: isOngoing,
-      autoDismiss: !isOngoing,
-      data: { taskId: task.id },
-    },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: nextOccurrence, channelId },
-  });
-
-  if (level === 2) {
-    const intervalMinutes = task.notifications.nagIntervalMinutes ?? DEFAULT_NAG_INTERVAL_MINUTES;
-    for (let n = 1; n <= NAG_MAX_REPEATS; n++) {
-      const nagTime = new Date(nextOccurrence.getTime() + n * intervalMinutes * 60 * 1000);
-      await Notifications.scheduleNotificationAsync({
-        identifier: nagIdentifier(task.id, n),
-        content: {
-          title: `Still haven't done "${task.name}"?`,
-          body: `A friendly nudge -- "${task.name}" is still on today's list.`,
-          sticky: false,
-          autoDismiss: true,
-          data: { taskId: task.id },
-        },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: nagTime, channelId },
-      });
-    }
+const removeTaskFromSnapshot = (snapshot: ReminderSnapshot, taskId: string): void => {
+  for (const identifier of allIdentifiersFor(taskId)) {
+    snapshot.scheduledIntentById.delete(identifier);
+    snapshot.presentedIds.delete(identifier);
   }
 };
 
-// The self-healing bulk pass -- called alongside taskStore's maybeRefreshStats on hydrate/app
-// foreground. Recovers a task's "next occurrence" after a previously-scheduled one has already
-// fired while the app was closed (nothing ran to schedule its successor), and self-heals across a
-// calendar-day rollover. Cheap enough (cancel+reschedule for a handful of tasks) that it doesn't
-// need maybeRefreshStats's own once-per-day dedup guard.
-export const rescheduleAllTaskNotifications = async (tasks: Task[]): Promise<void> => {
-  await Promise.all(tasks.filter(task => !task.archived).map(task => scheduleTaskNotifications(task)));
+const cancelIdentifier = async (identifier: string): Promise<void> => {
+  await Promise.all([
+    Notifications.cancelScheduledNotificationAsync(identifier),
+    Notifications.dismissNotificationAsync(identifier),
+  ]);
 };
+
+const cancelTaskNotificationsInternal = async (
+  taskId: string,
+  snapshot: ReminderSnapshot
+): Promise<void> => {
+  if (!taskHasNativeReminder(snapshot, taskId)) return;
+  await Promise.all(
+    allIdentifiersFor(taskId).map(cancelIdentifier)
+  );
+  removeTaskFromSnapshot(snapshot, taskId);
+};
+
+const reconcileTaskNotifications = async (
+  task: Task,
+  snapshot: ReminderSnapshot,
+  now: Date,
+  permissionGranted?: boolean
+): Promise<void> => {
+  let intents = getReminderIntents(task, now);
+  if (intents.length > 0) {
+    const granted = permissionGranted
+      ?? observedPermissionGranted
+      ?? (await Notifications.getPermissionsAsync()).granted;
+    observedPermissionGranted = granted;
+    if (!granted) intents = [];
+  }
+
+  if (intentMatchesSnapshot(snapshot, task.id, intents)) return;
+
+  await cancelTaskNotificationsInternal(task.id, snapshot);
+  if (intents.length === 0) return;
+
+  await ensureNotificationChannels();
+  for (const intent of intents) {
+    await Notifications.scheduleNotificationAsync({
+      identifier: intent.identifier,
+      content: intent.content,
+      trigger: intent.trigger,
+    });
+    snapshot.scheduledIntentById.set(intent.identifier, intent.intentKey);
+  }
+};
+
+// Cancels only when the native snapshot says this task actually has a scheduled or presented
+// reminder. Delete/archive calls therefore remain self-healing without issuing eight native no-op
+// calls for tasks that never had notifications installed.
+export const cancelTaskNotifications = (taskId: string): Promise<void> =>
+  enqueueNotificationWork(async () => {
+    const snapshot = await getObservedSnapshot();
+    try {
+      await cancelTaskNotificationsInternal(taskId, snapshot);
+    } catch (error) {
+      observedSnapshot = null;
+      throw error;
+    }
+  });
+
+// Reconciles one task against the last observed native state. Ordinary mutations reuse the
+// in-memory snapshot populated by hydration/foreground recovery, so an unchanged intent performs
+// no native query, cancellation, dismissal, or scheduling call.
+export const scheduleTaskNotifications = (task: Task): Promise<void> =>
+  enqueueNotificationWork(async () => {
+    const snapshot = await getObservedSnapshot();
+    try {
+      await reconcileTaskNotifications(task, snapshot, new Date());
+    } catch (error) {
+      observedSnapshot = null;
+      throw error;
+    }
+  });
+
+// Self-healing bulk pass for hydration/app foreground. It refreshes the snapshot from the OS once,
+// cleans up orphaned reminder identifiers, then changes only tasks whose desired keys differ from
+// what is actually scheduled/presented. This still recovers fired, externally removed, legacy
+// (pre-intent-key), permission-revoked, and day-rollover state without blanket native churn.
+export const rescheduleAllTaskNotifications = (tasks: Task[]): Promise<void> =>
+  enqueueNotificationWork(async () => {
+    const snapshot = await getObservedSnapshot(true);
+    const validIdentifiers = new Set(tasks.flatMap(task => allIdentifiersFor(task.id)));
+    const actualIdentifiers = new Set([
+      ...snapshot.scheduledIntentById.keys(),
+      ...snapshot.presentedIds,
+    ]);
+
+    try {
+      for (const identifier of actualIdentifiers) {
+        if (validIdentifiers.has(identifier)) continue;
+        await cancelIdentifier(identifier);
+        snapshot.scheduledIntentById.delete(identifier);
+        snapshot.presentedIds.delete(identifier);
+      }
+
+      const now = new Date();
+      // Refresh permission alongside the OS snapshot on every hydration/foreground recovery. The
+      // result is then reused by ordinary mutations, avoiding a permission native call per task
+      // update while still noticing grants/revocations made in system settings when focus returns.
+      const permissionGranted = (await Notifications.getPermissionsAsync()).granted;
+      observedPermissionGranted = permissionGranted;
+      for (const task of tasks) {
+        await reconcileTaskNotifications(task, snapshot, now, permissionGranted);
+      }
+    } catch (error) {
+      observedSnapshot = null;
+      throw error;
+    }
+  });
