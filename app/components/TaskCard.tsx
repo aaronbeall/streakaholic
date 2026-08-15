@@ -28,7 +28,7 @@ import { PartialDayPie } from './PartialDayPie';
 import { TaskProgressIcon } from './TaskProgressIcon';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { getExpectedPeriodTotal } from '../utils/periodStats';
-import { getDayStreakState, getTaskStreakChains, isConnectedDay } from '../utils/reports';
+import { getCachedTaskStreakChains, getDayStreakState, isConnectedDay } from '../utils/reports';
 import { getCachedCompletionCountsByDate, getCompletionCount, getStreakBadgeStyle, isTaskCompleted } from '../utils/streaks';
 
 // A rough estimate of the streak *bubble*'s own rendered bounds (icon + streak count text,
@@ -235,9 +235,8 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
   // count instead of also calling isTaskCompleted (which would repeat the same lookup again).
   const completionCounts = useMemo(() => getCachedCompletionCountsByDate(task.completions || []), [task.completions]);
   const requiredTimes = task.timesPerDay || 1;
-  // Memoized once per task rather than recomputed per empty cell -- getTaskStreakChains walks
-  // the task's full history, so this turns a per-cell cost back into a per-render one.
-  const streakChains = useMemo(() => getTaskStreakChains(task), [task]);
+  // Shared across every view that receives this immutable task version, not merely this render.
+  const streakChains = useMemo(() => getCachedTaskStreakChains(task), [task]);
 
   const days = Array.from({ length: daysInMonth }, (_, i) => {
     const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), i + 1);

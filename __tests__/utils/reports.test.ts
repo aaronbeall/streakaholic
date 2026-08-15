@@ -1,6 +1,6 @@
 import { format, startOfDay, subDays } from 'date-fns';
 import { Task, TaskCompletion } from '../../app/types';
-import { buildDayConnectionInfo, eachDayOfRange, getDayStreakState, getRecentStreaks, getTaskStreakChains, isConnectedDay } from '../../app/utils/reports';
+import { buildDayConnectionInfo, eachDayOfRange, getCachedTaskStreakChains, getDayStreakState, getRecentStreaks, getTaskStreakChains, isConnectedDay } from '../../app/utils/reports';
 import { calculateTaskStats } from '../../app/utils/streaks';
 
 const makeCompletion = (id: string, date: Date): TaskCompletion => ({
@@ -115,6 +115,39 @@ describe('getTaskStreakChains', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+describe('getCachedTaskStreakChains', () => {
+  const asOf = new Date(2026, 0, 4, 12);
+  const task = baseTask({
+    completions: [
+      makeCompletion('a', new Date(2026, 0, 1, 12)),
+      makeCompletion('b', new Date(2026, 0, 2, 12)),
+    ],
+  });
+
+  it('reuses chains for the same immutable task version on the same local day', () => {
+    const first = getCachedTaskStreakChains(task, asOf);
+    const second = getCachedTaskStreakChains(task, new Date(2026, 0, 4, 23));
+
+    expect(second).toBe(first);
+  });
+
+  it('invalidates for a replacement task object and for a new local day', () => {
+    const first = getCachedTaskStreakChains(task, asOf);
+    const updatedTask = {
+      ...task,
+      completions: [...(task.completions || []), makeCompletion('c', new Date(2026, 0, 3, 12))],
+    };
+    const updated = getCachedTaskStreakChains(updatedTask, asOf);
+    const nextDay = getCachedTaskStreakChains(updatedTask, new Date(2026, 0, 5, 12));
+
+    expect(updated).not.toBe(first);
+    expect(updated).toEqual([
+      { startDate: new Date(2026, 0, 1), endDate: new Date(2026, 0, 3), length: 3 },
+    ]);
+    expect(nextDay).not.toBe(updated);
   });
 });
 

@@ -96,16 +96,18 @@ When addressing an issue, check off its concrete subtasks as they land, check th
   - [x] Diff desired and scheduled notifications instead of blanket cancel/reschedule.
   - [x] Invalidate only affected task schedules after normal mutations.
   - [ ] Test imports, date/timezone changes, daylight saving, permissions, and device reboot behavior.
-- [ ] **PERF-007 — Make Dashboard calendar work incremental and bounded**
-  - [ ] Calculate only newly appended calendar pages.
-  - [ ] Add indexed, binary-search, or cursor-based streak-chain lookup.
-  - [ ] Memoize day columns so pagination does not rerender unchanged dates.
-  - [ ] Bound or aggregate older streamgraph history.
+- [ ] **PERF-007 — Make Dashboard calendar work incremental and bounded (partially addressed; larger redesign deferred)**
+  - [x] Share day-keyed streak-chain reconstruction across Home, Task Calendar, Dashboard, and recent-streak reporting by immutable task reference.
+  - [x] Replace repeated per-day linear streak-chain scans with a shared binary-search lookup.
+  - [ ] Calculate only newly appended calendar pages (deferred; recent-first infinite history is intentional and current cost is accepted).
+  - [ ] Memoize day columns so pagination does not rerender unchanged dates (deferred pending native evidence).
+  - [ ] Bound or aggregate older streamgraph history (deferred; do not alter the product's infinite-scroll history without a demonstrated need).
   - [ ] Validate Grid/Bars interaction with a ten-year native stress data set.
+  - [x] Pass focused calendar/streak tests, the full Jest suite, TypeScript, and lint for the scoped lookup changes.
 
 ### P2 — Perceived latency, bundle, and render hygiene
 
-- [ ] **PERF-008 — Reassess completion commit timing**
+- [ ] **PERF-008 — Reassess completion commit timing (deferred; current behavior accepted)**
   - [ ] Measure recognition-to-visible-commit latency on Android.
   - [ ] Decide whether to commit at long-press recognition or shorten the post-recognition delay.
   - [ ] Keep cosmetic animation independent from mutation timing.
@@ -168,7 +170,7 @@ When addressing an issue, check off its concrete subtasks as they land, check th
 | PERF-003 | P0 | Habit completion performs history-wide calculation and full-store persistence synchronously | High | L | Updates/state |
 | PERF-005 | P1 | Inactive native-stack screens are not frozen | Medium–High | S | Rendering/navigation |
 | PERF-006 | P1 | Startup/foreground stats refreshes and notification rescheduling repeat broad work | High | M–L | Startup/native APIs |
-| PERF-007 | P1 | Dashboard calendar and streamgraph cost grows with all loaded history | High at scale | L | Rendering/calculation |
+| PERF-007 | P1 | Dashboard calendar and streamgraph cost grows with all loaded history | Medium currently; High after deep long-history scrolling | L | Rendering/calculation |
 | PERF-008 | P2 | Completion feedback has about 1.25 seconds of intentional gating before state commits | Medium–High perceived | M | Interaction design |
 | PERF-009 | P2 | Broad icon/chart imports increase the native bundle | Medium | S–M | Bundle/startup |
 | PERF-010 | P2 | Non-route modules live under Expo Router's `app/` directory | Medium | L | Project structure |
@@ -501,9 +503,11 @@ The first recovery pass deliberately replaces legacy reminders that have no inte
 
 **Area:** `app/screens/DashboardCalendarView.tsx`, `app/utils/reports.ts`
 
+**Status:** Partially addressed 2026-08-14. Streak-chain reconstruction is now cached once per immutable task version and local day, then shared by Home, Task Calendar, Dashboard, and recent-streak reporting. Per-day membership, prior-chain, and neighboring-chain checks now use binary search over chronological chains instead of repeatedly scanning the full list. The Timeline remains intentionally recent-first with infinite scroll into history; incremental page calculation, column memoization, and streamgraph aggregation are deferred unless native evidence makes the deeper redesign worthwhile.
+
 **Observed behavior**
 
-Loading another 30-day page rebuilds day-connection information over the entire loaded range rather than computing only the appended dates. Day connection lookup repeatedly scans streak-chain data. Grid mode virtualizes date columns, but streamgraph mode renders the loaded axis and a growing SVG/path as one unbounded visualization.
+Loading another 30-day page still rebuilds day-connection information over the entire loaded range rather than computing only the appended dates. Grid mode virtualizes date columns, but streamgraph mode renders the loaded axis and a growing SVG/path as one unbounded visualization. The formerly repeated full-history streak reconstruction and linear per-cell chain scans have been removed from this path.
 
 Synthetic JavaScript benchmarks from the review showed approximately linear growth:
 
@@ -515,17 +519,18 @@ Synthetic JavaScript benchmarks from the review showed approximately linear grow
 
 These figures came from the project's Jest/V8 environment and are useful for relative scaling only. Android Hermes and device rendering can be slower, so they are not native performance claims.
 
-**Impact:** High for long-lived users and multi-task histories; lower for new users.
+**Impact:** Low to Medium for the intended recent-first use. It can become High only when a user with long, multi-task histories scrolls far enough back to keep a large range loaded.
 
 **Complexity:** Large.
 
-**Recommended fix**
+**Remaining options if native measurements justify them**
 
 - Calculate only the newly appended 30-day page and merge it with prior memoized results.
-- Replace repeated chain scans with a date-indexed interval lookup, binary search, or a cursor that advances through sorted chains.
 - Memoize individual day columns so appending history does not rerender already-loaded columns.
 - Bound the streamgraph's daily resolution. For example, keep recent daily samples and aggregate older history weekly or monthly, or cap the interactive daily window to a documented range.
 - Avoid constructing one ever-growing SVG path when segmented/aggregated paths can preserve the useful visual result.
+
+These are deliberately deferred. The Timeline's infinite recent-first exploration is part of the product design, and the remaining work adds state/cache complexity that is not justified by the currently expected usage.
 
 **Acceptance checks**
 
@@ -537,6 +542,8 @@ These figures came from the project's Jest/V8 environment and are useful for rel
 ### PERF-008 (P2): Completion feedback intentionally delays the state update
 
 **Area:** `app/components/TaskCard.tsx`, `app/components/TaskProgressIcon.tsx`
+
+**Status:** Deferred by design 2026-08-14. The immediate long-press acknowledgment and local success animation make the interaction feel responsive enough; committing later also prevents store updates and achievement presentation from interrupting or obscuring that animation. Revisit only if the delayed success haptic, toast, or downstream state update feels sluggish on-device.
 
 **Observed behavior**
 
@@ -783,11 +790,10 @@ The app uses stable list keys, `getItemLayout` where appropriate, memoized chart
 
 ### Phase 4: Make history views scale
 
-- PERF-007: Incrementally append dashboard calendar calculations.
-- PERF-007: Add indexed/cursor-based streak-chain lookup.
-- PERF-007: Bound or aggregate streamgraph history.
+- PERF-007: Completed shared streak-chain caching and binary-search chain lookup.
+- PERF-007: Defer incremental page calculation, day-column memoization, and streamgraph aggregation unless native evidence justifies them.
 
-**Expected outcome:** stable calendar interaction for multi-year histories.
+**Expected outcome:** lower repeated lookup cost in normal recent-first use without changing the Timeline's infinite-scroll behavior; retain deeper scaling options for demonstrated long-history pressure.
 
 ### Phase 5: Startup and bundle hygiene
 

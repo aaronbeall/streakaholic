@@ -66,12 +66,16 @@ const chainMetSegments = (segments: Segment[]): StreakChain[] => {
 // segment's actual dates instead of collapsing everything into aggregate numbers. A day that's
 // due today and not yet completed leaves its segment unclosed (matching calculateDueDayStats's
 // "not a miss yet" handling), so an ambiguous still-open today never counts into a chain early.
-const getDueDayStreakChains = (schedule: StreakScheduleInfo, completedDates: Set<string>): StreakChain[] => {
+const getDueDayStreakChains = (
+  schedule: StreakScheduleInfo,
+  completedDates: Set<string>,
+  asOfDate: Date
+): StreakChain[] => {
   const sortedDates = Array.from(completedDates).sort();
   if (sortedDates.length === 0) return [];
 
   const firstDate = startOfDay(parseISO(sortedDates[0]));
-  const today = startOfDay(new Date());
+  const today = startOfDay(asOfDate);
   const todayStr = format(today, 'yyyy-MM-dd');
 
   const segments: Segment[] = [];
@@ -108,12 +112,17 @@ const getDueDayStreakChains = (schedule: StreakScheduleInfo, completedDates: Set
 // (streaks.ts) both use, rather than each independently re-walking the same period bounds.
 // requiredTimes=1 here since `completionCounts` is already built from pre-filtered qualifying
 // completions (every entry already met the task's own timesPerDay).
-const getQuotaStreakChains = (completionCounts: ReadonlyMap<string, number>, unit: QuotaUnit, quota: number): StreakChain[] => {
+const getQuotaStreakChains = (
+  completionCounts: ReadonlyMap<string, number>,
+  unit: QuotaUnit,
+  quota: number,
+  asOfDate: Date
+): StreakChain[] => {
   const dates = Array.from(completionCounts.keys()).sort();
   if (dates.length === 0) return [];
 
   const firstDate = parseISO(dates[0]);
-  const today = startOfDay(new Date());
+  const today = startOfDay(asOfDate);
 
   const segments: Segment[] = [];
   let cursor = getPeriodBounds(firstDate, unit).start;
@@ -128,21 +137,38 @@ const getQuotaStreakChains = (completionCounts: ReadonlyMap<string, number>, uni
 };
 
 // Every historical streak run for one task, oldest first.
-export const getTaskStreakChains = (task: Task): StreakChain[] => {
+export const getTaskStreakChains = (task: Task, asOfDate: Date = new Date()): StreakChain[] => {
   const requiredTimes = Math.max(1, task.timesPerDay || 1);
   const qualifyingCompletions = (task.completions || []).filter(c => c.timesCompleted >= requiredTimes);
   if (qualifyingCompletions.length === 0) return [];
 
   switch (task.frequency) {
     case 'days_per_week':
-      return getQuotaStreakChains(buildCompletionCountsByDate(qualifyingCompletions), 'week', task.daysPerWeek);
+      return getQuotaStreakChains(buildCompletionCountsByDate(qualifyingCompletions), 'week', task.daysPerWeek, asOfDate);
     case 'days_per_month':
-      return getQuotaStreakChains(buildCompletionCountsByDate(qualifyingCompletions), 'month', task.daysPerMonth);
+      return getQuotaStreakChains(buildCompletionCountsByDate(qualifyingCompletions), 'month', task.daysPerMonth, asOfDate);
     case 'daily':
     case 'specific_days_of_week':
     default:
-      return getDueDayStreakChains(task, new Set(qualifyingCompletions.map(c => c.date)));
+      return getDueDayStreakChains(task, new Set(qualifyingCompletions.map(c => c.date)), asOfDate);
   }
+};
+
+// Tasks are replaced immutably by the store, so an exact object reference is also a safe version
+// key for every schedule/completion field used above. Include the local day because today's open
+// segment can settle at midnight even when the task data itself has not changed. This cache is
+// intentionally shared by Home, Task Calendar, Dashboard, and recent-streak reporting so a task's
+// full history is reconstructed at most once per task version per day.
+const streakChainsByTask = new WeakMap<Task, { dayKey: string; chains: StreakChain[] }>();
+
+export const getCachedTaskStreakChains = (task: Task, asOfDate: Date = new Date()): StreakChain[] => {
+  const dayKey = format(startOfDay(asOfDate), 'yyyy-MM-dd');
+  const cached = streakChainsByTask.get(task);
+  if (cached?.dayKey === dayKey) return cached.chains;
+
+  const chains = getTaskStreakChains(task, asOfDate);
+  streakChainsByTask.set(task, { dayKey, chains });
+  return chains;
 };
 
 export type DayStreakState = 'connected' | 'hardMiss' | 'softMiss';
@@ -150,11 +176,44 @@ export type DayStreakState = 'connected' | 'hardMiss' | 'softMiss';
 // Finds the most recent chain that has already fully closed before `day` (chains are
 // chronological, oldest-first, so this is just "the last one whose endDate precedes day").
 const lastChainBefore = (chains: StreakChain[], day: Date): StreakChain | undefined => {
+  let low = 0;
+  let high = chains.length - 1;
   let result: StreakChain | undefined;
-  for (const chain of chains) {
-    if (chain.endDate < day) result = chain;
+
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const chain = chains[middle];
+    if (chain.endDate < day) {
+      result = chain;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
   }
+
   return result;
+};
+
+// Streak chains are chronological and non-overlapping. Find the last chain that starts on or
+// before the day, then check its end, avoiding a full chain scan for each calendar cell and each
+// neighboring-day connection check.
+const chainContaining = (chains: StreakChain[], day: Date): StreakChain | null => {
+  let low = 0;
+  let high = chains.length - 1;
+  let candidate: StreakChain | null = null;
+
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const chain = chains[middle];
+    if (chain.startDate <= day) {
+      candidate = chain;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+
+  return candidate && day <= candidate.endDate ? candidate : null;
 };
 
 // A day's relationship to the task's own streak history -- three states, not two:
@@ -193,7 +252,7 @@ export const getDayStreakState = (
       // getDueDayStreakChains). Bug fixed 2026-08-09: this used to return 'connected'
       // unconditionally for every non-due day, so one sitting right after a real hard miss
       // (nothing currently connected at all) still drew a connecting dash.
-      return chains.some(chain => day >= chain.startDate && day <= chain.endDate) ? 'connected' : 'softMiss';
+      return chainContaining(chains, day) ? 'connected' : 'softMiss';
     }
     // A missed due day was genuinely required, full stop -- per explicit user direction, this
     // holds even long after the streak that would have used it has already expired; there's no
@@ -285,7 +344,7 @@ const isChainConnectedDay = (
   if (day > startOfDay(new Date())) return false;
   if (isConnectedDay(task, date, chains, completionCounts)) return true;
 
-  return chains.some(chain => day >= chain.startDate && day <= chain.endDate);
+  return chainContaining(chains, day) !== null;
 };
 
 // Which chain (if any) a day's own IncludingClose span belongs to -- used only to tell two
@@ -294,8 +353,7 @@ const isChainConnectedDay = (
 // before its own first completion connects via getDayStreakState, not via any chain span) -- that
 // falls through to `null` here, which is deliberately treated as "no competing chain identity" by
 // the caller, rather than as its own distinct chain.
-const chainOf = (chains: StreakChain[], day: Date): StreakChain | null =>
-  chains.find(chain => day >= chain.startDate && day <= chain.endDate) ?? null;
+const chainOf = (chains: StreakChain[], day: Date): StreakChain | null => chainContaining(chains, day);
 
 // Whether `neighbor` should be treated as continuing the same visual run as `day`. Ordinarily
 // this is just "is the neighbor connected too" -- but two *different* chains can sit on
@@ -397,7 +455,7 @@ export const buildDayConnectionInfo = (
 // getTaskStreakChains directly instead.
 export const getRecentStreaks = (tasks: Task[], limit: number = 10): TaskStreakChain[] => {
   const all: TaskStreakChain[] = tasks.flatMap(task =>
-    getTaskStreakChains(task)
+    getCachedTaskStreakChains(task)
       .filter(chain => chain.length > 1)
       .map(chain => ({
         ...chain,

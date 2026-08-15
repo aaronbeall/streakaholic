@@ -13,7 +13,7 @@ import { StreakCountBadge } from '../components/StreakCountBadge';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
-import { buildDayConnectionInfo, getDayStreakState, getTaskStreakChains } from '../utils/reports';
+import { buildDayConnectionInfo, getCachedTaskStreakChains, getDayStreakState } from '../utils/reports';
 import { buildStreamLayerPath, computeStreamgraphLayers } from '../utils/streamgraph';
 import { getCachedCompletionCountsByDate } from '../utils/streaks';
 
@@ -27,6 +27,7 @@ const GRID_WEEKDAY_HEIGHT = 14;
 const GRID_DAY_HEADER_HEIGHT = 20;
 const GRID_AXIS_HEIGHT = GRID_WEEKDAY_HEIGHT + GRID_DAY_HEADER_HEIGHT;
 const DAYS_PAGE_SIZE = 30;
+const EMPTY_COMPLETION_COUNTS: ReadonlyMap<string, number> = new Map();
 
 // Bars mode's per-task segment unit height -- same as a single Grid-mode dot row, so a day where
 // every task is fully done reaches exactly the same total height Grid mode's task rows already
@@ -190,11 +191,11 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
     [tasks]
   );
 
-  // Same reasoning as completionCountsByTask above -- getTaskStreakChains walks a task's full
-  // history, so this is computed once per task rather than once per empty cell in the grid below.
+  // The shared immutable-task cache means a new `tasks` array only reconstructs chains for task
+  // objects that actually changed; unchanged task references are reused across every calendar.
   const streakChainsByTask = useMemo(
-    () => new Map(tasks.map(task => [task.id, getTaskStreakChains(task)])),
-    [tasks]
+    () => new Map(tasks.map(task => [task.id, getCachedTaskStreakChains(task, today)])),
+    [tasks, today]
   );
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
@@ -272,7 +273,7 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
   const dayConnectionInfoByTask = useMemo(
     () => new Map(tasks.map(task => [
       task.id,
-      buildDayConnectionInfo(task, days, streakChainsByTask.get(task.id) ?? [], completionCountsByTask.get(task.id) ?? new Map()),
+      buildDayConnectionInfo(task, days, streakChainsByTask.get(task.id) ?? [], completionCountsByTask.get(task.id) ?? EMPTY_COMPLETION_COUNTS),
     ])),
     [tasks, days, streakChainsByTask, completionCountsByTask]
   );
@@ -610,7 +611,7 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                     const isFuture = dateString > todayStr;
                     const isEmpty = !isFuture && !isCompleted && !isPartial;
                     const streakState = isEmpty
-                      ? getDayStreakState(task, day, streakChainsByTask.get(task.id) ?? [], taskCompletionCounts ?? new Map())
+                      ? getDayStreakState(task, day, streakChainsByTask.get(task.id) ?? [], taskCompletionCounts ?? EMPTY_COMPLETION_COUNTS)
                       : null;
                     const isMissed = streakState === 'hardMiss';
                     const isSkipped = streakState === 'connected';
