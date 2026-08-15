@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { format, parseISO } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import React, { useMemo } from 'react';

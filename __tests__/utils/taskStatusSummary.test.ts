@@ -1,3 +1,4 @@
+import { format } from 'date-fns';
 import { Task, TaskStats } from '../../app/types';
 import { getTaskStatusInfo } from '../../app/utils/taskStatusSummary';
 
@@ -29,7 +30,10 @@ const makeTask = (overrides: Partial<Task> = {}, statsOverrides: Partial<TaskSta
 });
 
 const today = new Date();
-const todayStr = today.toISOString().slice(0, 10);
+// Completion dates are local calendar dates throughout the app. Using toISOString() here made
+// these tests flip to tomorrow after the local UTC offset crossed midnight (for example, after
+// 8 p.m. Eastern during daylight saving time), even though `today` was still the prior local day.
+const todayStr = format(today, 'yyyy-MM-dd');
 
 describe('getTaskStatusInfo', () => {
   it('reports a full schedule sentence, including when the task was created, independent of status', () => {

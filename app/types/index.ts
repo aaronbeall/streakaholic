@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 export type MaterialCommunityIconName = keyof typeof MaterialCommunityIcons.glyphMap;
 
@@ -74,4 +74,4 @@ export type RootStackParamList = {
   Home: undefined;
   AddTask: undefined;
   TaskDetails: { taskId: string };
-}; 
+};

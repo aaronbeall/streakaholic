@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useDebounce } from 'use-debounce';
@@ -253,4 +253,4 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
   },
-}); 
+});

@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';

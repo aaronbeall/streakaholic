@@ -1,7 +1,8 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { BarChart, LineChart } from 'react-native-chart-kit';
+import BarChart from 'react-native-chart-kit/dist/BarChart';
+import LineChart from 'react-native-chart-kit/dist/line-chart';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { getBarPercentage } from '../utils/data';
 

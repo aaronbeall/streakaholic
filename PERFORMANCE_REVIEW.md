@@ -106,11 +106,12 @@ When addressing an issue, check off its concrete subtasks as they land, check th
   - [ ] Decide whether to commit at long-press recognition or shorten the post-recognition delay.
   - [ ] Keep cosmetic animation independent from mutation timing.
   - [ ] Guard against early release and duplicate completion.
-- [ ] **PERF-009 — Narrow icon and chart imports**
-  - [ ] Switch MaterialCommunityIcons to its supported direct module import.
-  - [ ] Prototype direct chart-component imports.
-  - [ ] Compare production Hermes bytecode, assets, and source-map groups.
-  - [ ] Keep only changes with verified native bundle benefit.
+- [x] **PERF-009 — Narrow icon and chart imports**
+  - [x] Switch every MaterialCommunityIcons use to its supported direct module import.
+  - [x] Import BarChart and LineChart from their direct package subpaths.
+  - [x] Confirm the production source map contains only the required icon family and chart modules, with no Lodash sources.
+  - [x] Compare clean Android production exports made with the same command.
+  - [x] Pass TypeScript, lint, Jest, and Android production-export validation.
 - [ ] **PERF-010 — Move non-route code out of Expo Router's `app/` tree**
   - [ ] Establish the target `src/` structure and import aliases.
   - [ ] Move components, screens, hooks, stores, types, and utilities mechanically.
@@ -474,7 +475,9 @@ Commit the completion as soon as the long press is recognized, then run the cosm
 
 **Area:** icon imports throughout `app/`, `app/components/StatsCharts.tsx`
 
-**Observed behavior**
+**Status:** Addressed 2026-08-14. All MaterialCommunityIcons imports now use the direct package module, and StatsCharts imports only BarChart and LineChart through their direct distribution subpaths.
+
+**Previous behavior**
 
 The Android production export completed successfully. The resulting Hermes bytecode was approximately 3.77 MB and bundled assets were approximately 5.2 MB.
 
@@ -488,18 +491,30 @@ Source-map grouping showed several large library contributions:
 | date-fns | 521 KB |
 | react-native-chart-kit | 287 KB |
 
-MaterialCommunityIcons is imported from the `@expo/vector-icons` package barrel in many files, which can bundle more font families or module setup than necessary. `StatsCharts.tsx` imports chart components from the root `react-native-chart-kit` barrel; that barrel eagerly references other chart modules, including code that pulls in Lodash.
+MaterialCommunityIcons was imported from the `@expo/vector-icons` package barrel in many files, which bundled more font families and module setup than necessary. `StatsCharts.tsx` imported chart components from the root `react-native-chart-kit` barrel; that barrel eagerly referenced other chart modules, including code that pulled in Lodash.
 
 **Impact:** Medium. Bundle size influences installation, parsing, and startup, though the runtime animation findings above are more urgent.
 
 **Complexity:** Small to Medium.
 
-**Recommended fix**
+**Implemented fix and measured result**
 
-- Use the package's supported direct MaterialCommunityIcons module import and confirm only the required font is packaged.
-- Prototype direct chart component subpath imports and verify TypeScript compatibility.
-- Generate the same production export and compare Hermes bytecode, assets, and source-map groups before keeping the changes.
-- Do not replace libraries solely from source-map size; measure the native release result and maintenance cost.
+- MaterialCommunityIcons now comes from `@expo/vector-icons/MaterialCommunityIcons` everywhere, including the glyph-map-derived icon-name type.
+- BarChart now comes from `react-native-chart-kit/dist/BarChart`.
+- LineChart now comes from `react-native-chart-kit/dist/line-chart`.
+
+Controlled clean Android exports before and after used the same production command:
+
+| Metric | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| Metro modules | 2,141 | 2,071 | 70 fewer |
+| Exported asset entries/files | 44 | 26 | 18 fewer |
+| Hermes bytecode | 5,816,200 bytes | 5,413,000 bytes | 403,200 bytes smaller (6.9%) |
+| Total export directory | 10,960 KiB | 7,824 KiB | 3,136 KiB smaller (28.6%) |
+
+The removed assets are the 18 unused vector-icon font families; MaterialCommunityIcons is the only vector-icon font left. The post-change production source map contains only MaterialCommunityIcons sources plus `AbstractChart`, `BarChart`, `LineChart`, and `LegendItem` from chart-kit. It contains no Lodash or ContributionGraph source entries.
+
+This keeps the existing UI/chart libraries and behavior while reducing packaged fonts, JavaScript modules, bytecode, and total export-artifact size.
 
 ### PERF-010 (P2): Expo Router scans non-route modules under `app/`
 

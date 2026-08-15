@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { MaterialCommunityIconName } from "../types";
 
 // Modern, evenly-spaced hues, each checked for contrast against white icons/text

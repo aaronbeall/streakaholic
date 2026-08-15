@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { addDays, endOfWeek, format, getDay, getDaysInMonth, parseISO, startOfMonth, startOfWeek, subDays } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -891,4 +891,4 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-}); 
+});
