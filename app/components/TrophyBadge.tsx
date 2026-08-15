@@ -3,6 +3,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Reanimated, {
   Easing,
+  type SharedValue,
+  useAnimatedReaction,
   useAnimatedStyle,
   useDerivedValue,
   useSharedValue,
@@ -149,15 +151,21 @@ const SHOCKWAVE_DURATION = 1400;
 // aggressive ease out"), one step further up the same quad->cubic->quart->quint progression.
 const SHOCKWAVE_EASING = Easing.out(Easing.poly(5));
 
-const ShockwaveRing: React.FC<{ color: string }> = ({ color }) => {
+const ShockwaveRing: React.FC<{ color: string; introProgress: SharedValue<number> }> = ({ color, introProgress }) => {
   const progress = useSharedValue(0);
+  const active = useSharedValue(0);
 
-  useEffect(() => {
-    progress.value = withTiming(1, { duration: SHOCKWAVE_DURATION, easing: SHOCKWAVE_EASING });
-    // Fires once on mount (this component is only ever mounted once, at IMPACT_DELAY -- see
-    // TrophyBadge's own showShockwave state) -- no repeat, no delay of its own to configure here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useAnimatedReaction(
+    () => introProgress.value >= SHOCKWAVE_TRIGGER_PROGRESS,
+    (hasImpacted, hadImpacted) => {
+      // Trigger from the exact same linear UI-thread clock that drives the badge's bounce. This is
+      // intentionally a threshold crossing, not another independently scheduled delay.
+      if (hasImpacted && !hadImpacted) {
+        active.value = 1;
+        progress.value = withTiming(1, { duration: SHOCKWAVE_DURATION, easing: SHOCKWAVE_EASING });
+      }
+    }
+  );
 
   const style = useAnimatedStyle(() => {
     const size = SHOCKWAVE_MIN_SIZE + (SHOCKWAVE_MAX_SIZE - SHOCKWAVE_MIN_SIZE) * progress.value;
@@ -166,7 +174,7 @@ const ShockwaveRing: React.FC<{ color: string }> = ({ color }) => {
       height: size,
       borderRadius: size / 2,
       borderWidth: SHOCKWAVE_START_BORDER - (SHOCKWAVE_START_BORDER - SHOCKWAVE_END_BORDER) * progress.value,
-      opacity: SHOCKWAVE_MAX_OPACITY * (1 - progress.value),
+      opacity: SHOCKWAVE_MAX_OPACITY * (1 - progress.value) * active.value,
     };
   });
 
@@ -269,6 +277,11 @@ const DROP_START_ROTATION = 28; // degrees
 // Penner's bounceOut spends the first 1/2.75 of its duration on a smooth, bounce-free rise, so
 // that's the moment the badge actually "hits."
 const IMPACT_DELAY = Math.round(DROP_DURATION / 2.75);
+// The initial shockwave disc is the same size as the badge and painted behind it, so starting the
+// expansion at mathematical contact would keep its first frames invisible. Trigger slightly ahead
+// on the *same* intro clock so its edge emerges at contact without introducing a second timer.
+const SHOCKWAVE_VISUAL_LEAD = 70;
+const SHOCKWAVE_TRIGGER_PROGRESS = Math.max(0, IMPACT_DELAY - SHOCKWAVE_VISUAL_LEAD) / DROP_DURATION;
 // Both the frame rings and the halo burst via genuine spring physics, not an eased withTiming,
 // specifically because they need to "continue to bounce back and forth... like a rubber band"
 // (explicit user direction) rather than a single overshoot-and-settle -- and, per a direct
@@ -305,9 +318,8 @@ const BURST_SPRING_CONFIG = { damping: 2.1, stiffness: 50, mass: 1, energyThresh
 // lot of bounciness"), both start already close to their resting size (`BURST_START_SCALE`) and the
 // *same* wobbly spring only has this short remaining distance to travel and overshoot/undershoot
 // around -- same wobble count and speed either way, but a swing of roughly +-10% of final size
-// instead of +-65%. Visibility is handled by mounting each element at its own trigger moment (see
-// TrophyBadge's showHalo/visibleRingCount state) rather than by animating from scale 0, since 0.8
-// isn't a small enough scale to read as "invisible" on its own.
+// instead of +-65%. Each element is pre-mounted but held at zero opacity until its UI-thread burst
+// delay, since 0.8 isn't a small enough scale to read as "invisible" on its own.
 const BURST_START_SCALE = 0.8;
 // A spring has no fixed duration (it runs until its own physics settle), but the pulsate phase
 // still needs *some* wall-clock estimate of when the burst is "done" so it knows when to start --
@@ -397,8 +409,10 @@ const useBurstThenPulsate = (
 ) => {
   const burst = useSharedValue(initialScale);
   const pulse = useSharedValue(0);
+  const active = useSharedValue(0);
 
   useEffect(() => {
+    active.value = withDelay(delay, withTiming(1, { duration: 0 }));
     burst.value = withDelay(delay, burstAnimation());
     pulse.value = withDelay(
       delay + burstDuration + pulsateDelay,
@@ -407,7 +421,8 @@ const useBurstThenPulsate = (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return useDerivedValue(() => burst.value * (1 + (pulse.value - 0.5) * 2 * PULSATE_AMPLITUDE));
+  const scale = useDerivedValue(() => burst.value * (1 + (pulse.value - 0.5) * 2 * PULSATE_AMPLITUDE));
+  return { scale, active };
 };
 
 const PulseRing: React.FC<{ delay: number; color: string }> = ({ delay, color }) => {
@@ -446,21 +461,19 @@ const PulseRing: React.FC<{ delay: number; color: string }> = ({ delay, color })
   return <Reanimated.View style={[styles.pulseRingBase, { borderColor: color }, style]} />;
 };
 
-// One frame ring. Not mounted at all until TrophyBadge's visibleRingCount reaches its index (the
-// same "mount = start" pattern Halo uses, below, rather than an in-component Reanimated delay), so
-// its spring starts fresh, already close to resting size, the instant it appears -- see
-// BURST_START_SCALE's own comment for why. Opacity is a plain, unanimated style at the ring's own
-// full designed value, since mounting already handles visibility; there's nothing for a separate
-// opacity fade to add.
-const BurstRing: React.FC<{ ring: (typeof FRAME_RINGS)[number]; color: string; pulsateDelay: number }> = ({
+// One frame ring. It is mounted from the start but stays transparent until its UI-thread delay;
+// no JavaScript timer/state/mount round-trip can shift its impact timing.
+const BurstRing: React.FC<{ ring: (typeof FRAME_RINGS)[number]; color: string; delay: number; pulsateDelay: number }> = ({
   ring,
   color,
+  delay,
   pulsateDelay,
 }) => {
-  const burst = useBurstThenPulsate(0, () => withSpring(1, BURST_SPRING_CONFIG), BURST_SETTLE_ESTIMATE, pulsateDelay, BURST_START_SCALE);
+  const burst = useBurstThenPulsate(delay, () => withSpring(1, BURST_SPRING_CONFIG), BURST_SETTLE_ESTIMATE, pulsateDelay, BURST_START_SCALE);
 
   const style = useAnimatedStyle(() => ({
-    transform: [{ scale: Math.max(0, burst.value) }],
+    opacity: ring.opacity * burst.active.value,
+    transform: [{ scale: Math.max(0, burst.scale.value) }],
   }));
 
   const size = BADGE_SIZE + ring.sizeOffset * 2;
@@ -474,7 +487,6 @@ const BurstRing: React.FC<{ ring: (typeof FRAME_RINGS)[number]; color: string; p
           borderRadius: size / 2,
           borderWidth: ring.borderWidth,
           borderColor: color,
-          opacity: ring.opacity,
         },
         style,
       ]}
@@ -482,14 +494,13 @@ const BurstRing: React.FC<{ ring: (typeof FRAME_RINGS)[number]; color: string; p
   );
 };
 
-// The big filled background circle -- same mount-gated, near-final-size spring approach as
-// BurstRing above (they were split into two components mainly because a ring needs its own
-// `ring`/size props and the halo doesn't, not because their animation differs anymore).
-const Halo: React.FC<{ color: string }> = ({ color }) => {
-  const halo = useBurstThenPulsate(0, () => withSpring(1, BURST_SPRING_CONFIG), BURST_SETTLE_ESTIMATE, 0, BURST_START_SCALE);
+// The big filled background circle uses the same pre-mounted, UI-delayed burst as the rings.
+const Halo: React.FC<{ color: string; delay: number }> = ({ color, delay }) => {
+  const halo = useBurstThenPulsate(delay, () => withSpring(1, BURST_SPRING_CONFIG), BURST_SETTLE_ESTIMATE, 0, BURST_START_SCALE);
 
   const style = useAnimatedStyle(() => ({
-    transform: [{ scale: Math.max(0, halo.value) }],
+    opacity: 0.3 * halo.active.value,
+    transform: [{ scale: Math.max(0, halo.scale.value) }],
   }));
 
   return <Reanimated.View style={[styles.glow, { backgroundColor: color }, style]} />;
@@ -555,22 +566,15 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({ icon, color
   // separate opacity toggle is needed to hide either bar between cycles.
   const badgePhase = useSharedValue(0);
   const ribbonPhase = useSharedValue(0);
-  const drop = useSharedValue(0);
+  // One linear UI-thread clock drives both the badge's bounce curve and the shockwave's impact
+  // threshold. Keeping elapsed intro time in one shared value prevents independent delays from
+  // drifting relative to the visible motion.
+  const introProgress = useSharedValue(0);
   const [sparkleKey, setSparkleKey] = useState(0);
-  // The halo and each frame ring mount (rather than animating in from scale 0) at their own
-  // trigger moment -- see Halo/BurstRing's own comments for why. visibleRingCount counts up 0->3
-  // as each ring's own staggered moment arrives, mirroring PulseRing's own "reveal one at a time"
-  // approach elsewhere in this file.
-  const [showHalo, setShowHalo] = useState(false);
-  const [visibleRingCount, setVisibleRingCount] = useState(0);
-  // The shockwave is a one-shot burst (unlike the halo/frame rings, which then settle into an idle
-  // pulsate loop) -- mounting it at IMPACT_DELAY is enough on its own, no ongoing state needed
-  // beyond "has it appeared yet."
-  const [showShockwave, setShowShockwave] = useState(false);
   // Gates the *first* appearance of the sparkle burst -- per direct follow-up ("it shouldn't
   // appear until after the whole intro animation has completed"), sparkles used to mount (and
   // start spawning, staggered over their own spawnWindow) from frame one, well before the badge
-  // had even finished falling. `DROP_DURATION` is the exact moment `drop`'s own withTiming
+  // had even finished falling. `DROP_DURATION` is the exact moment `introProgress`'s own withTiming
   // finishes -- not just IMPACT_DELAY (the first touchdown, before the decaying rebounds -- what
   // the frame rings/halo/shimmer all key off, since those are meant to burst in reaction to
   // impact) but the point the whole bounce sequence has fully settled to rest, matching "the
@@ -597,17 +601,9 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({ icon, color
       );
     badgePhase.value = withDelay(IMPACT_DELAY, sheenLoop());
     ribbonPhase.value = withDelay(IMPACT_DELAY + RIBBON_START_OFFSET, sheenLoop());
-    drop.value = withTiming(1, { duration: DROP_DURATION, easing: Easing.bounce });
-    const haloTimer = setTimeout(() => setShowHalo(true), IMPACT_DELAY);
-    const ringTimers = FRAME_RINGS.map((_, i) =>
-      setTimeout(() => setVisibleRingCount(count => Math.max(count, i + 1)), IMPACT_DELAY + i * BURST_RING_STAGGER)
-    );
-    const shockwaveTimer = setTimeout(() => setShowShockwave(true), IMPACT_DELAY);
+    introProgress.value = withTiming(1, { duration: DROP_DURATION, easing: Easing.linear });
     const sparkleTimer = setTimeout(() => setShowSparkles(true), DROP_DURATION);
     return () => {
-      clearTimeout(haloTimer);
-      clearTimeout(shockwaveTimer);
-      ringTimers.forEach(clearTimeout);
       clearTimeout(sparkleTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -640,7 +636,7 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({ icon, color
     // property's own start/end range, so a bounce's rebound (remaining briefly ticking back up)
     // moves the badge up *and* a little bigger *and* a little more rotated all together, reading
     // as one coherent physical motion instead of three separately-timed ones.
-    const remaining = 1 - drop.value;
+    const remaining = 1 - Easing.bounce(introProgress.value);
     const translateY = DROP_START_OFFSET_Y * remaining;
     const scale = 1 + (DROP_START_SCALE - 1) * remaining;
     const rotate = DROP_START_ROTATION * remaining;
@@ -658,18 +654,25 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({ icon, color
           one flat aura color for all three, per the base/glow/accent three-color scheme. */}
       {FRAME_RINGS.map((ring, i) => (
         <View key={ring.sizeOffset} style={styles.centeredFill}>
-          {i < visibleRingCount && (
-            <BurstRing ring={ring} color={i === 0 ? accent : glow} pulsateDelay={(i + 1) * PULSATE_STAGGER} />
-          )}
+          <BurstRing
+            ring={ring}
+            color={i === 0 ? accent : glow}
+            delay={IMPACT_DELAY + i * BURST_RING_STAGGER}
+            pulsateDelay={(i + 1) * PULSATE_STAGGER}
+          />
         </View>
       ))}
 
-      <View style={styles.centeredFill}>{showHalo && <Halo color={glow} />}</View>
+      <View style={styles.centeredFill}>
+        <Halo color={glow} delay={IMPACT_DELAY} />
+      </View>
 
-      {/* The one-shot shockwave -- rendered after the halo/before the ambient pulse pool so it
-          paints on top of the halo but underneath the badge itself, expanding outward from behind
-          it. Uses `glow` (the aura color), matching the halo/outer frame rings' own role. */}
-      <View style={styles.centeredFill}>{showShockwave && <ShockwaveRing color={glow} />}</View>
+      {/* The one-shot shockwave reads the same introProgress value as the badge's drop transform,
+          so it starts on the exact frame that clock crosses the first-touchdown threshold rather
+          than relying on a separately scheduled delay. */}
+      <View style={styles.centeredFill}>
+        <ShockwaveRing color={glow} introProgress={introProgress} />
+      </View>
 
       {PULSE_POOL.map(i => (
         <View key={i} style={styles.centeredFill}>
@@ -779,7 +782,6 @@ const styles = StyleSheet.create({
     width: GLOW_SIZE,
     height: GLOW_SIZE,
     borderRadius: GLOW_SIZE / 2,
-    opacity: 0.3,
   },
   pulseRingBase: {
     backgroundColor: 'transparent',

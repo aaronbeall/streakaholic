@@ -126,9 +126,9 @@ interface ConfettiProps {
 //
 // Wrapped in React.memo (2026-08-13, a performance-review finding) -- same reasoning as
 // TrophyBadge's own identical change: every prop here is a primitive, stable across re-renders
-// unless the achievement itself changes, so this stops AchievementCelebration's count-up-driven
-// re-renders from needlessly re-diffing all 60 (already mount-only-animated, so visually
-// unaffected either way) confetti pieces on every tick.
+// unless the achievement itself changes, so staged celebration reveal updates do not needlessly
+// re-diff all 60 already mount-only-animated confetti pieces. The hero count itself now runs via
+// native animated props and no longer rerenders its parent on every displayed integer.
 export const Confetti: React.FC<ConfettiProps> = React.memo(({ count = 60, baseColor = '#FFD700', glowColor, accentColor }) => {
   const { width, height } = useWindowDimensions();
 

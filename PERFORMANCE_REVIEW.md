@@ -148,10 +148,13 @@ When addressing an issue, check off its concrete subtasks as they land, check th
   - [ ] Update React state only when a chart first crosses its pre-mount threshold, not for every sampled scroll position.
   - [ ] Preserve one-way lazy mounting and enough pre-mount margin that users never scroll onto an empty chart card.
   - [ ] Confirm time-range controls, chart interaction, rotation/layout changes, and lower-end Android scrolling after the change.
-- [ ] **PERF-012 — Move achievement count-up off JS state if profiling justifies it**
-  - [ ] Measure JS contention during single and queued achievement celebrations.
-  - [ ] Keep the current implementation if it stays within the native frame budget.
-  - [ ] Otherwise, prototype a Reanimated/shared-value count-up without rerendering the screen tree.
+- [x] **PERF-012 — Move achievement count-up off JS state**
+  - [x] Replace `requestAnimationFrame` plus per-frame React state with a Reanimated shared value and `withTiming`.
+  - [x] Update a display-only native SVG text span through animated props without rerendering `CelebrationContent`.
+  - [x] Preserve logarithmic 1–3 second duration scaling, cubic ease-in-out pacing, integer rounding, and comma grouping.
+  - [x] Keep the animated field out of accessibility focus so the full-screen alert is announced once rather than once per number.
+  - [x] Pass pure formatting/timing tests, TypeScript, lint, Jest, and Android production-export validation.
+  - Native follow-up: visually confirm 2, 10, 100, and 1,000+ counts animate without clipping on a physical Android device.
 - [ ] **PERF-013 — Add lifecycle and reduced-motion guards**
   - [ ] Pause or cancel continuous trophy animation while the app is inactive.
   - [ ] Honor the platform reduced-motion preference.
@@ -172,7 +175,7 @@ When addressing an issue, check off its concrete subtasks as they land, check th
 | PERF-011 | P3 | Stats parents update React state repeatedly while scrolling, although memoized charts are protected | Low–Medium, profile-dependent | M | Rendering |
 | PERF-001 | P3 | Add a shared particle budget for dense simultaneous mount celebrations | Medium in dense bursts | M | Animation |
 | PERF-004 | P3 | Reduce hidden-calendar pre-render cost without regressing first-flip responsiveness | Medium if Home mount becomes costly | M–L | Rendering |
-| PERF-012 | P3 | Achievement count-up uses JS-thread frame updates | Low–Medium | M | Animation |
+| PERF-012 | P3 | Addressed: achievement count-up formerly used JS-thread frame updates | Low–Medium | M | Animation |
 | PERF-013 | P3 | Continuous achievement animation does not account for reduced motion or app state | Low | S–M | Animation/accessibility |
 
 ## Detailed findings and recommendations
@@ -677,21 +680,40 @@ This plain React Native approach is preferable as a first implementation because
 - Time-range switching, chart gestures, navigation back/forward, and achievements preview behavior remain unchanged.
 - Release-like Android profiling shows a measurable improvement in render count or slow frames; otherwise the current simpler implementation remains acceptable.
 
-### PERF-012 (P3): Achievement count-up uses JS-thread frame updates
+### PERF-012 (P3): Achievement count-up used JS-thread frame updates
 
 **Area:** `app/components/AchievementCelebration.tsx`
 
-**Observed behavior**
+**Status:** Addressed 2026-08-14. Automated validation passed; physical Android visual confirmation remains.
 
-The achievement number count-up uses JavaScript `requestAnimationFrame` and `setState` for approximately one to three seconds. Heavy subtrees are memoized, so the practical cost is smaller than the particle issues, and this screen is intentionally full-screen and short-lived.
+**Previous behavior**
+
+The achievement number count-up used JavaScript `requestAnimationFrame` and `setState` for approximately one to three seconds. Heavy subtrees were memoized, so the practical cost was smaller than the particle issues, and this screen is intentionally full-screen and short-lived.
+
+Every displayed integer scheduled a JS callback and rerendered `CelebrationContent`. Memoized trophy, confetti, description, and history children avoided their heaviest work, but React still had to execute and reconcile the celebration parent throughout the animation.
+
+**Implemented behavior**
+
+- `AchievementCount` owns a Reanimated shared value and advances it with UI-thread `withTiming`.
+- A display-only animated SVG text span receives the formatted integer through its native `content` prop; React state is not updated per frame.
+- The same cubic ease-in-out shape and logarithmic 1–3 second duration remain.
+- A worklet-safe formatter preserves rounding and comma grouping without relying on `Intl` inside the UI runtime.
+- A fixed 260×76 SVG viewport reserves stable layout and center-anchors each freshly measured glyph run. Unlike Android `EditText`, the display-only span has no cursor, selection, scrolling viewport, or editable line box that can drift or clip as the number changes width.
+- The animated SVG is removed from accessibility focus. The existing full-screen alert label remains the single semantic announcement, avoiding rapidly repeated screen-reader updates.
+- Starting is still gated by the title reveal, so the count does not complete invisibly while its fixed layout slot is hidden.
 
 **Impact:** Low to Medium.
 
-**Complexity:** Medium.
+**Complexity:** Medium, completed.
 
-**Recommended fix**
+**Acceptance checks**
 
-Only revisit after native profiling shows JS contention. A Reanimated shared value with an animated text strategy could move progression off React state, but added complexity is not justified without evidence.
+- No `requestAnimationFrame`, timer, or per-frame React state drives the count.
+- Values at 1, 10, 100, 1,000, and above finish at the exact target with the existing duration scale.
+- Comma grouping and integer rounding match the former `toLocaleString` presentation for supported nonnegative achievement values.
+- Description reveal timing still waits for the configured count duration plus its settle pause.
+- Trophy, confetti, unlock history, close/mute controls, and queued achievement transitions remain unchanged.
+- Physical Android QA confirms no clipping, baseline drift, or screen-reader chatter from the native SVG text.
 
 ### PERF-013 (P3): Continuous celebration animation needs lifecycle guards
 
@@ -779,7 +801,6 @@ The app uses stable list keys, `getItemLayout` where appropriate, memoized chart
 - PERF-001: Add a global concurrent-particle budget only if native traces show dense Home-mount bursts need it.
 - PERF-004: Explore staged prewarming, cached calendar models, viewport priority, or flattened rendering only if native Home measurements justify changing the current eager calendar.
 - PERF-011: Replace stats-parent scroll state with threshold-driven chart mounting only if release-like Android traces show a meaningful render or frame-time cost.
-- PERF-012: Move achievement count-up off JS state only if profiling justifies it.
 - PERF-013: Add reduced-motion and background lifecycle handling to continuous celebration loops.
 
 **Expected outcome:** bounded worst-case animation density without removing intentional mount celebrations or adding complexity before measurements justify it.
@@ -835,7 +856,7 @@ These are initial targets to refine after collecting a baseline on the represent
 ## Verification completed during the review
 
 - TypeScript: `npx tsc --noEmit` passed.
-- Jest: 15 suites and 289 tests passed with `--runInBand --watchman=false`.
+- Jest: 16 suites and 293 tests passed with `--runInBand --watchman=false`.
 - ESLint: no errors; seven existing hook-dependency/unused-variable warnings remained.
 - Android production export: completed successfully.
 - Synthetic scaling benchmarks: completed for one-, five-, and ten-year histories; temporary benchmark code was removed afterward.

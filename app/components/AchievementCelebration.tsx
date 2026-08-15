@@ -3,12 +3,15 @@ import { format, parseISO } from 'date-fns';
 import React, { useCallback, useEffect, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Reanimated, {
+  cancelAnimation,
   Easing,
+  useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { RNSVGTSpan, Text as SvgText } from 'react-native-svg';
 import { AchievementAlert } from '../components/AchievementAlert';
 import { Confetti } from '../components/Confetti';
 import { TROPHY_BADGE_STACK_SIZE, TrophyBadge } from '../components/TrophyBadge';
@@ -16,6 +19,7 @@ import { useToast } from '../context/ToastContext';
 import { useAchievementsStore } from '../stores/achievementsStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { MaterialCommunityIconName } from '../types';
+import { formatAchievementCount, getAchievementCountUpDuration } from '../utils/achievementCountUp';
 import { ACHIEVEMENT_META, Achievement, AchievementKind, getRibbonText } from '../utils/achievements';
 
 // Sequential reveal timeline (all delays measured from mount) -- widened considerably per explicit
@@ -47,7 +51,7 @@ const TITLE_DELAY = 1600;
 // fixed pacing, since there's no count-up to wait on there.
 const DESCRIPTION_DELAY_NO_COUNTER = 2900;
 // A short settle beat after a counter-driven title's count-up actually finishes, before the
-// description reveals -- see getCountUpDuration below for why "actually finishes" is now a
+// description reveals -- see getAchievementCountUpDuration for why "actually finishes" is a
 // per-achievement value rather than a fixed constant.
 const DESCRIPTION_PAUSE_AFTER_COUNT = 300;
 const HINT_PAUSE_AFTER_CONTENT = 800;
@@ -73,59 +77,65 @@ const HISTORY_MAX_VISIBLE_ROWS = 4;
 // shrink-to-fit, `alignItems: 'center'` containers.
 const HISTORY_LIST_WIDTH = 260;
 
-// The count-up's own duration scales with the achieved value, per explicit user direction (1s at
-// the low end up to a capped ceiling at the high end -- originally 5s, brought down to 3s per
-// direct follow-up), rather than one fixed duration for every kind. A *log* scale, not linear --
-// achievement values span orders of magnitude (a streak-2's own value of 2 up to a
-// streak-1000/milestone-1000's 1,000), and a linear map from that same [1, 1000] range would put
-// everything below ~100 within a few hundred ms of the 1s floor, making the scaling invisible for
-// most kinds. Log-scaling means the animation's *pace* roughly tracks the number's own order of
-// magnitude instead: quick for tens, noticeably longer for hundreds, the full ceiling for the
-// app's largest tier. Clamped so a value at or above COUNT_DURATION_REF_VALUE (1,000 -- the
-// largest fixed tier in the app) hits the ceiling rather than exceeding it.
-const COUNT_DURATION_MIN = 1000;
-const COUNT_DURATION_MAX = 3000;
-const COUNT_DURATION_REF_VALUE = 1000;
-const getCountUpDuration = (value: number): number => {
-  const t = Math.min(1, Math.log10(Math.max(1, value)) / Math.log10(COUNT_DURATION_REF_VALUE));
-  return COUNT_DURATION_MIN + t * (COUNT_DURATION_MAX - COUNT_DURATION_MIN);
-};
+type NativeSvgTextAnimatedProps = { content?: string };
+const AnimatedSvgTSpan = Reanimated.createAnimatedComponent(RNSVGTSpan);
 
-// Counts up 0 -> value in plain JS (requestAnimationFrame + setState), not a Reanimated worklet
-// bridged back to JS -- there's no cheaper way to animate a *text* value than re-rendering it, so
-// there's nothing to gain from the UI thread here. `active` gates when the count-up actually
-// starts (the title's slot is always mounted for layout stability -- see RevealSlot below -- so
-// without this gate the count would finish silently in the background long before it's visible).
-//
-// Ease-in-*out* (not ease-out alone) per explicit user direction ("start slow, speed up, then slow
-// down" -- the previous ease-out-cubic curve started at full speed and only decelerated).
-// Standard cubic ease-in-out: the first half mirrors ease-in-cubic (slow start), the second half
-// mirrors ease-out-cubic (slow finish), meeting at the midpoint where the count is moving fastest.
-const easeInOutCubic = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-
-const useCountUp = (value: number, active: boolean, duration: number): number => {
-  const [display, setDisplay] = useState(0);
+// Reanimated updates an SVG text span's native `content` prop directly on the UI thread. Unlike the former
+// requestAnimationFrame + setState hook, this does not rerender CelebrationContent (or any of its
+// trophy/confetti/history subtree) for every displayed integer. `active` still gates the start:
+// the title slot is mounted from frame one for layout stability, but the counter must wait until
+// that slot is actually revealed. This deliberately uses a display-only SVG node rather than an
+// Android EditText: native input controls maintain selection, scrolling, and editable line-box
+// state even when marked non-editable, which made rapidly replaced centered text drift or clip.
+// SVG recomputes and center-anchors each new glyph run inside the same fixed viewport instead.
+const AchievementCount: React.FC<{
+  value: number;
+  active: boolean;
+  duration: number;
+  color: string;
+}> = React.memo(({ value, active, duration, color }) => {
+  const count = useSharedValue(0);
 
   useEffect(() => {
-    if (!active) return;
-    if (value <= 1) {
-      setDisplay(value);
+    cancelAnimation(count);
+    if (!active) {
+      count.value = 0;
       return;
     }
-    let frame: number;
-    const start = Date.now();
-    const tick = () => {
-      const elapsed = Date.now() - start;
-      const t = Math.min(1, elapsed / duration);
-      setDisplay(Math.round(value * easeInOutCubic(t)));
-      if (t < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [active, value, duration]);
+    if (value <= 1) {
+      count.value = Math.max(0, value);
+      return;
+    }
+    // Same cubic ease-in-out shape as the former JS implementation: slow start, fastest at the
+    // midpoint, then a slow finish. Only the execution thread changes.
+    count.value = withTiming(value, {
+      duration,
+      easing: Easing.inOut(Easing.cubic),
+    });
+    return () => cancelAnimation(count);
+  }, [active, count, duration, value]);
 
-  return display;
-};
+  const animatedProps = useAnimatedProps<NativeSvgTextAnimatedProps>(() => {
+    return { content: formatAchievementCount(count.value) };
+  });
+
+  return (
+    <Svg
+      width={260}
+      height={76}
+      viewBox="0 0 260 76"
+      pointerEvents="none"
+      accessible={false}
+      importantForAccessibility="no"
+    >
+      <SvgText x={130} y={59} textAnchor="middle" fill={color} fontSize={58} fontWeight="900">
+        <AnimatedSvgTSpan animatedProps={animatedProps} content="0" />
+      </SvgText>
+    </Svg>
+  );
+});
+
+AchievementCount.displayName = 'AchievementCount';
 
 // A fixed-space slot whose *content* fades/slides in once `revealed` flips true, without ever
 // changing the slot's own footprint -- the fix for "layout shifts every time a new element
@@ -187,8 +197,8 @@ const RevealSlot: React.FC<{ revealed: boolean; minHeight: number; style?: objec
 // Wrapped in React.memo (2026-08-13, a performance-review finding) -- `achievement` is a stable
 // reference here (passed down unchanged from CelebrationContent's own props, which only change
 // when the pending achievement itself does) and `taskColor` is a primitive string, so this stops
-// needless re-renders during CelebrationContent's own count-up-driven re-render churn (see
-// useCountUp above).
+// needless work during CelebrationContent's staged reveal-state updates. The count-up itself now
+// stays on the UI thread and no longer rerenders this parent.
 const DescriptionText: React.FC<{ achievement: Achievement; taskColor: string }> = React.memo(({ achievement, taskColor }) => {
   const meta = ACHIEVEMENT_META[achievement.kind];
   const flavor = meta.flavorText;
@@ -264,8 +274,8 @@ DescriptionText.displayName = 'DescriptionText';
 // nothing else needed around it.
 // Wrapped in React.memo (2026-08-13, a performance-review finding) -- `allAchievements` is a
 // stable store reference here (only changes when an achievement is actually earned, unrelated to
-// CelebrationContent's own count-up ticking) and every other prop is a primitive, so this avoids
-// needlessly re-filtering/re-sorting/re-rendering this list on every count-up frame.
+// CelebrationContent's staged reveal updates) and every other prop is a primitive, so this avoids
+// needlessly re-filtering/re-sorting/re-rendering the list as the presentation unfolds.
 const UnlockHistoryList: React.FC<{
   kind: AchievementKind;
   allAchievements: Achievement[];
@@ -366,8 +376,7 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
   const [showDescription, setShowDescription] = useState(false);
   const [showHint, setShowHint] = useState(false);
 
-  const countDuration = showsNumber ? getCountUpDuration(achievement.value ?? 0) : 0;
-  const count = useCountUp(achievement.value ?? 0, showTitle && showsNumber, countDuration);
+  const countDuration = showsNumber ? getAchievementCountUpDuration(achievement.value ?? 0) : 0;
 
   // The title slot's own minHeight used to be one fixed value shared by both variants -- tuned
   // against the taller numberBlock (eyebrow + huge number + unit caption), it left a comeback's
@@ -429,7 +438,7 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
     visibility.value = withTiming(1, { duration: 250 });
 
     // For a counter-driven title, wait for the count-up to actually finish (its duration now
-    // varies per achievement, up to 5s -- see getCountUpDuration) before revealing the
+    // varies per achievement, up to 3s -- see getAchievementCountUpDuration) before revealing the
     // description, so it can't pop in while a big number is still visibly climbing above it.
     // Kinds with no counter (comeback) keep the original fixed pacing -- there's nothing to wait
     // on there.
@@ -547,9 +556,12 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
                     comment in achievements.ts). Only the handful of genuinely dark-based themes
                     (Gilded, Obsidian) opt into accent instead, since base would read as nearly
                     invisible against this screen's own dark backdrop for those specifically. */}
-                <Text style={[styles.bigNumber, { color: meta.color.useAccentText ? kindAccentColor : kindColor }]}>
-                  {count.toLocaleString()}
-                </Text>
+                <AchievementCount
+                  value={achievement.value ?? 0}
+                  active={showTitle}
+                  duration={countDuration}
+                  color={meta.color.useAccentText ? kindAccentColor : kindColor}
+                />
                 <Text style={styles.unitCaption}>{numberBlock!.unit}</Text>
               </View>
             ) : (
@@ -752,11 +764,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1.5,
-  },
-  bigNumber: {
-    fontSize: 58,
-    fontWeight: '900',
-    fontVariant: ['tabular-nums'],
   },
   unitCaption: {
     color: 'rgba(255, 255, 255, 0.65)',
