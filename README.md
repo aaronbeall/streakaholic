@@ -21,4 +21,7 @@ A playful, modern habit and streak tracker for Android.
 - [CLAUDE.md](CLAUDE.md)
 - [PUBLISHING.md](PUBLISHING.md)
 - [MONETIZATION.md](MONETIZATION.md)
+- [COMMITMENT_MODE.md](COMMITMENT_MODE.md)
+- [MARKETING.md](MARKETING.md)
+- [COMPETITIVE_ANALYSIS.md](COMPETITIVE_ANALYSIS.md)
 - [demo-data/](demo-data/) — a realistic dataset (with backfilled history) for showing off the app

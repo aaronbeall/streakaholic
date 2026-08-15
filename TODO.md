@@ -31,7 +31,8 @@
 - [x] Accessibility support (accessibilityLabel/Role/Hint/State added across every screen and component — see CLAUDE.md)
 - [x] Haptic feedback (task completion, long-press gesture recognition, calendar day toggle, toast Undo, archive/delete/restore — see CLAUDE.md)
 - [ ] Hide unscheduled tasks option (Home filter to only show tasks due today)
-- [ ] Pause tasks (hidden, doesn't count towards completion percentage while paused)
+- [ ] Pause tasks (hidden, doesn't count towards completion percentage while paused;
+      Commitment Mode pauses must be prospective — see [COMMITMENT_MODE.md](COMMITMENT_MODE.md))
 - [x] Remember dashboard selection (`dashboardLastTab`/`taskDetailLastTab` in `SettingsContext` — last-viewed Stats/Calendar/Streaks tab persists across visits; the task-filter checkboxes themselves still reset to "all tasks" each time, that's a separate thing)
 - [x] Re-order habits on Home (the Home header's sort control supports whole-row drag-and-drop plus Created, Most Used, Color, and Time of Day ordering; the last applied preset highlights until the order is manually changed; `taskStore.reorderTasks` persists the shared active-task order so Home, Dashboard filters/calendar, Trophy filters, and task-detail prev/next navigation all follow it)
 - [x] Auto-suggest an icon based on the habit name typed into Add/Edit Task (`app/utils/iconSuggestions.ts`'s `suggestIconForName` -- a word-stem keyword table, e.g. "Run"/"Running" both suggest the running-shoe icon; new tasks only, never overrides an existing task's icon, and stops suggesting the moment the user picks an icon themselves via the picker -- see CLAUDE.md)
@@ -50,8 +51,8 @@
   - [x] Integrate achievements on Stats screens (a shared `AchievementsPreviewCard` -- unlocked badges + closest-next progress + a "View Trophy Case" link -- on both `TaskStatsScreen` (this task's own earned/in-progress achievements, deep-linking into the Trophy Case pre-filtered to it) and `DashboardStatsView` (the full app-wide trophy status, unfiltered by Dashboard's own task-selection bubbles); see CLAUDE.md)
   - [x] Achievement spam via undo/redo (see CLAUDE.md, 2026-08-13 -- date-qualified dedup scope for repeatable, task-scoped kinds)
   - [ ] Subtle pulsing glow effect on tile/showcase emblems (Trophy Case's `TrophyEmblem` and the Stats-screen `AchievementsPreviewCard` are currently fully static -- something lighter-weight than `TrophyBadge`'s own full halo/pulse animation machinery, since several of these render simultaneously in a grid)
-  - [ ] Combine multiple unlocks into one unified congratulations screen with prev/next steppers (right now each queued achievement gets its own separate full-screen `AchievementCelebration` shown one after another)
-  - [ ] The full congratulations screen shouldn't have to wait behind queued achievement alerts (a real unlock and a snoozed-kind's quick `AchievementAlert` currently share one `pendingCelebrations` queue, drained in order)
+  - [x] Combine multiple unlocks into one unified congratulations screen with prev/next steppers (full-screen unlocks are snapshotted into one stable batch; close dismisses that exact batch and newly arriving unlocks remain queued)
+  - [x] The full congratulations screen doesn't wait behind queued achievement alerts (live unlocks are assigned to separate transient full-screen/quick-alert queues at earn time; full-screen work preempts alerts, which remain queued and resume afterward)
 - [x] Bottom margin and androind buttons (edge-to-edge insets — every bottom-anchored element (FAB, `ToastBanner`, scroll content, the fixed-height calendar grid) adds `insets.bottom`)
 - [x] Performance optimizations
   - [x] Performance pass (audited Context re-render fan-out, memoization/referential-stability gaps, and common RN FlatList traps — see CLAUDE.md's "State management" section)
@@ -72,10 +73,12 @@
 
 ## MMP
 
-- [ ] Monetization — see [MONETIZATION.md](MONETIZATION.md) for the actual plan (one-time Pro unlock + tip jar + streak unfreeze, no ads/subscription) and sequencing
+- [ ] Monetization — see [MONETIZATION.md](MONETIZATION.md) for the actual plan (one-time
+      Pro unlock + tip jar + Commitment Mode Streak Saves, no ads/subscription) and sequencing
   - [ ] Tip jar (build first — see PUBLISHING.md's implementation guide)
   - [ ] Pro unlock (unlimited tasks, widgets, extra customization — build once task cap + widgets exist)
-  - [ ] Unfreeze streak (needs the underlying "restore a lapsed streak" feature designed first, not just billing)
+  - [ ] Commitment Mode + paid Streak Saves (locked history, visible/non-completing saves,
+        and mode-specific achievement credibility — see [COMMITMENT_MODE.md](COMMITMENT_MODE.md))
   - [ ] ~~AdMob~~ — decided against, see MONETIZATION.md
 - [ ] Rate this app
 - [ ] Widgets
@@ -97,5 +100,4 @@
   - [ ] Leaderboards
 - [ ] Task groups (swipe left/right on home, etc)
 - [ ] Home screen customization (default=icons, calendar, timeline, list)
-- [ ] Ironman mode (can't change past day completions)
 - [ ] Duration based tasks

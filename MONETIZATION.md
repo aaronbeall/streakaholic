@@ -71,13 +71,14 @@ separate small transactions:
 
 - **Tip jar** — a few consumable tiers (e.g. $0.99 / $2.99 / $4.99), no strings attached,
   purely for users who want to say thanks. See PUBLISHING.md for the implementation guide.
-- **Streak unfreeze** — a small consumable (~$0.99–$1.99) that restores a broken streak.
-  Well-precedented (Duolingo's streak freeze), emotionally well-targeted — people get
-  genuinely attached to streak counts and a missed day due to travel/illness/etc. is
-  exactly the moment someone would pay a dollar not to lose months of progress. Doesn't
-  require gating anything, just needs the actual "restore a lapsed streak" logic built
-  (currently doesn't exist — this is a real feature to design and build, not just a
-  billing hookup).
+- **Commitment Mode Streak Save** — a proposed small consumable (starting point: ~$0.99)
+  available only for a habit whose user explicitly chose locked-history rules at
+  creation time. A save preserves streak continuity without converting the missed unit
+  into a completion; the save stays visible and affects its achievement provenance.
+  This makes the purchase an intentional exception to a self-selected commitment rather
+  than a general paywall on correcting normal habit history. The complete product,
+  integrity, achievement, trust, and rollout design is in
+  [COMMITMENT_MODE.md](COMMITMENT_MODE.md).
 
 ## Sequencing
 
@@ -91,8 +92,10 @@ Don't build all of this before launching. A reasonable order:
 3. **Add the Pro unlock** once the task cap and at least one other Pro feature (widgets is
    the obvious one) actually exist to justify it — selling "unlimited tasks" before the
    cap exists, or "Pro" before it does anything, isn't a real product yet.
-4. **Streak unfreeze** whenever the underlying "restore a lapsed streak" feature gets
-   built — it's a feature-design task before it's a monetization task.
+4. **Commitment Mode and Streak Saves** only after the locked-history rules and
+   achievement provenance have been validated without paid purchases. Follow the staged
+   rollout in [COMMITMENT_MODE.md](COMMITMENT_MODE.md); this remains a product-design and
+   trust feature before it is a monetization feature.
 
 ## What we're explicitly not doing (and why)
 

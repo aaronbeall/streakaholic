@@ -2,27 +2,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { Achievement, AchievementKind, dedupKey, detectCompletionAchievements, detectRetroactiveAchievements } from '../utils/achievements';
+import {
+  partitionAchievementPresentations,
+  promoteFirstAchievementAlert,
+} from '../utils/achievementCelebrations';
 import { Task } from '../types';
 
 interface AchievementsStore {
   // Full history, persisted -- what TrophiesScreen lists.
   achievements: Achievement[];
-  // Not persisted -- a queue AchievementCelebration drains one at a time. Deliberately separate from
-  // `achievements` itself (rather than e.g. an `unseen` flag on each record) so the celebration
-  // UI has nothing to do with history bookkeeping at all.
+  // Not persisted -- full-screen unlocks are grouped into one navigable batch.
   pendingCelebrations: Achievement[];
-  // Not persisted -- ids (from `pendingCelebrations`) that should show the full celebration
-  // regardless of `mutedKinds`. Set only by `queueCelebration` (a deliberate Trophy Case replay --
-  // "the user just tapped this specific achievement to see it," which always wins over the ambient
-  // mute setting), never by `recordCompletionAchievements` (a real live unlock, which should still
-  // respect mute normally). This is what lets "the trophy case always lets you open any
-  // congratulations" hold true even for a kind that's currently muted.
-  forcedCelebrationIds: string[];
+  // Not persisted -- snoozed live unlocks wait independently. Full-screen celebrations always
+  // take presentation priority, after which these quick alerts resume in their original order.
+  pendingAlerts: Achievement[];
   // Persisted. Kinds the user has explicitly opted out of the full-screen celebration for (via the
   // bell toggle on that kind's own celebration) -- future unlocks of a muted kind still get
   // recorded into `achievements` exactly as normal, they just surface via a top-anchored
-  // AchievementAlert notice (AchievementAlert.tsx, rendered by AchievementCelebration.tsx in place
-  // of the full takeover) instead. Scoped by *kind*, not per-task or per-instance, since the whole
+  // AchievementAlert notice instead. Scoped by *kind*, not per-task or per-instance, since the whole
   // point is "I get this one often enough that the big ceremony has stopped feeling special" -- a
   // property of the achievement, not of one earn of it.
   mutedKinds: AchievementKind[];
@@ -42,10 +39,23 @@ interface AchievementsStore {
     completionCountsByTaskId?: ReadonlyMap<string, ReadonlyMap<string, number>>
   ) => void;
   dismissCurrentCelebration: () => void;
+  dismissCurrentAlert: () => void;
+  // Opens the current quick alert as a full-screen celebration without changing whether its kind
+  // is muted. The next queued alert remains waiting until that celebration closes.
+  promoteCurrentAlertToCelebration: () => void;
+  // Removes exactly the achievements displayed by one unified celebration screen. ID-based
+  // rather than count-based so a new unlock appended while that screen is open is never
+  // accidentally consumed when the user closes the original batch.
+  dismissCelebrations: (achievementIds: string[]) => void;
   // Replays an already-earned achievement's celebration on demand (TrophiesScreen -- tapping an
   // unlocked card) -- just re-queues the exact same record, no new id/earnedAt assigned and
   // `achievements` history untouched, since nothing new was earned, only re-shown.
   queueCelebration: (achievement: Achievement) => void;
+  // Dev previews and any future explicit replay flow can enqueue one unified screen atomically.
+  // Like queueCelebration, these are forced replays and never alter persisted achievement history.
+  queueCelebrations: (achievements: Achievement[]) => void;
+  // Dev-only presentation fixtures can enqueue quick alerts without recording fake history.
+  queueAlerts: (achievements: Achievement[]) => void;
   // Manual "catch up" scan (TrophiesScreen's own button) -- evaluates every currently-qualifying,
   // not-yet-earned achievement against the given tasks' *current* stats and records whatever
   // qualifies. Deliberately never touches `pendingCelebrations` -- per explicit user direction
@@ -75,7 +85,7 @@ export const useAchievementsStore = create<AchievementsStore>()(
     (set, get) => ({
       achievements: [],
       pendingCelebrations: [],
-      forcedCelebrationIds: [],
+      pendingAlerts: [],
       mutedKinds: [],
       hasHydrated: false,
       setHasHydrated: (value) => set({ hasHydrated: value }),
@@ -119,31 +129,59 @@ export const useAchievementsStore = create<AchievementsStore>()(
 
         // Recorded into history unconditionally, regardless of the celebration setting -- that
         // setting only ever gates whether AchievementCelebration shows its screen, never whether the
-        // Trophy Case's history stays complete. Muted kinds still get queued too -- muting only
-        // changes how AchievementCelebration *presents* a pending entry (full screen vs. a toast),
-        // not whether one gets queued in the first place.
-        set(state => ({
-          achievements: [...state.achievements, ...recorded],
-          pendingCelebrations: [...state.pendingCelebrations, ...recorded],
-        }));
+        // Trophy Case's history stays complete. Decide the ephemeral presentation queue now so a
+        // later mute-setting change cannot alter an unlock already waiting to be shown.
+        set(state => {
+          const { celebrations, alerts } = partitionAchievementPresentations(recorded, state.mutedKinds);
+          return {
+            achievements: [...state.achievements, ...recorded],
+            pendingCelebrations: [...state.pendingCelebrations, ...celebrations],
+            pendingAlerts: [...state.pendingAlerts, ...alerts],
+          };
+        });
       },
 
-      dismissCurrentCelebration: () => set(state => {
-        const dismissedId = state.pendingCelebrations[0]?.id;
-        return {
-          pendingCelebrations: state.pendingCelebrations.slice(1),
-          forcedCelebrationIds: dismissedId
-            ? state.forcedCelebrationIds.filter(id => id !== dismissedId)
-            : state.forcedCelebrationIds,
-        };
+      dismissCurrentCelebration: () => set(state => ({
+        pendingCelebrations: state.pendingCelebrations.slice(1),
+      })),
+
+      dismissCurrentAlert: () => set(state => ({ pendingAlerts: state.pendingAlerts.slice(1) })),
+
+      promoteCurrentAlertToCelebration: () => set(state => (
+        promoteFirstAchievementAlert(state.pendingCelebrations, state.pendingAlerts) ?? state
+      )),
+
+      dismissCelebrations: (achievementIds) => set(state => {
+        if (achievementIds.length === 0) return state;
+        const dismissCountById = new Map<string, number>();
+        for (const id of achievementIds) {
+          dismissCountById.set(id, (dismissCountById.get(id) ?? 0) + 1);
+        }
+        const pendingCelebrations = state.pendingCelebrations.filter(achievement => {
+          const remaining = dismissCountById.get(achievement.id) ?? 0;
+          if (remaining === 0) return true;
+          dismissCountById.set(achievement.id, remaining - 1);
+          return false;
+        });
+        return { pendingCelebrations };
       }),
 
       queueCelebration: (achievement) => set(state => ({
         pendingCelebrations: [...state.pendingCelebrations, achievement],
-        forcedCelebrationIds: state.forcedCelebrationIds.includes(achievement.id)
-          ? state.forcedCelebrationIds
-          : [...state.forcedCelebrationIds, achievement.id],
       })),
+
+      queueCelebrations: (achievements) => set(state => {
+        if (achievements.length === 0) return state;
+        return {
+          pendingCelebrations: [...state.pendingCelebrations, ...achievements],
+        };
+      }),
+
+      queueAlerts: (achievements) => set(state => (
+        achievements.length === 0
+          ? state
+          : { pendingAlerts: [...state.pendingAlerts, ...achievements] }
+      )),
 
       runRetroactiveScan: (activeTasks) => {
         const newlyEarned = detectRetroactiveAchievements(get().achievements, activeTasks);

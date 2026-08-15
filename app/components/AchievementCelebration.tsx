@@ -1,26 +1,37 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { format, parseISO } from 'date-fns';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Reanimated, {
   cancelAnimation,
   Easing,
+  runOnJS,
+  type SharedValue,
   useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { RNSVGTSpan, Text as SvgText } from 'react-native-svg';
 import { AchievementAlert } from '../components/AchievementAlert';
+import { TrophyEmblem } from '../components/AchievementCard';
 import { Confetti } from '../components/Confetti';
-import { TROPHY_BADGE_STACK_SIZE, TrophyBadge } from '../components/TrophyBadge';
+import { TROPHY_BADGE_INTRO_DURATION, TROPHY_BADGE_STACK_SIZE, TrophyBadge } from '../components/TrophyBadge';
 import { useToast } from '../context/ToastContext';
 import { useAchievementsStore } from '../stores/achievementsStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { MaterialCommunityIconName } from '../types';
 import { formatAchievementCount, getAchievementCountUpDuration } from '../utils/achievementCountUp';
 import { ACHIEVEMENT_META, Achievement, AchievementKind, getRibbonText } from '../utils/achievements';
+import { getPendingAchievementPresentation, PendingAchievementPresentation as PendingAchievementPresentationModel } from '../utils/achievementCelebrations';
+import {
+  ACHIEVEMENT_REVEAL_TIMING,
+  getAchievementRevealProgress,
+  getAchievementRevealSchedule,
+} from '../utils/achievementRevealTimeline';
 
 // Sequential reveal timeline (all delays measured from mount) -- widened considerably per explicit
 // user direction ("much more spaced out... give a lot more emphasis to each") from an earlier,
@@ -28,7 +39,7 @@ import { ACHIEVEMENT_META, Achievement, AchievementKind, getRibbonText } from '.
 // own animation-finished callbacks -- see TaskCard's completion-pop history in CLAUDE.md for why
 // those aren't trusted for real control flow on Android); only the *reveal itself* is animated.
 //
-// No auto-dismiss timer -- this screen stays up until the user dismisses it (see handleDismiss).
+// No auto-dismiss timer -- this screen stays up until the user dismisses it.
 // A real "stinger" (a short sting that plays and vanishes on its own) is the wrong model for what
 // this is: a moment worth letting the user actually sit with, on their own schedule, not something
 // timed out from under them -- which is also why this component (and file) is named
@@ -40,22 +51,25 @@ import { ACHIEVEMENT_META, Achievement, AchievementKind, getRibbonText } from '.
 // react-native-gesture-handler ScrollView swap) never actually got scrolling working, per direct,
 // repeated on-device reports. Per explicit user direction ("Maybe we need to ditch the press
 // anywhere behavior and instead add an explicit close button"), dismissal is now two concrete,
-// unambiguous actions instead: an explicit close (X) button in the top-right corner (see
-// `closeButton` below), and the Android hardware/gesture back button (see the BackHandler effect
-// below) -- both call the same `handleDismiss`. Nothing in `content` needs to claim or swallow
-// touches anymore, which is also what let UnlockHistoryList's own touch-negotiation workarounds be
-// removed entirely (see that component's own comment).
-const EMBLEM_DELAY = 200;
-const TITLE_DELAY = 1600;
-// Used only for kinds with no counter (comeback, via plainTitle) -- unchanged from the original
-// fixed pacing, since there's no count-up to wait on there.
-const DESCRIPTION_DELAY_NO_COUNTER = 2900;
-// A short settle beat after a counter-driven title's count-up actually finishes, before the
-// description reveals -- see getAchievementCountUpDuration for why "actually finishes" is a
-// per-achievement value rather than a fixed constant.
-const DESCRIPTION_PAUSE_AFTER_COUNT = 300;
-const HINT_PAUSE_AFTER_CONTENT = 800;
+// unambiguous actions instead: a stable next/close button in the top-right corner (see
+// `CelebrationBatch`), and the Android hardware/gesture back button. Nothing in `content` needs to
+// claim or swallow touches anymore, which is also what let UnlockHistoryList's own
+// touch-negotiation workarounds be removed entirely (see that component's own comment).
+const EMBLEM_DELAY = ACHIEVEMENT_REVEAL_TIMING.initialEmblemDelay;
 const DISMISS_ANIM_DURATION = 220;
+const BATCH_DOCK_REVEAL_DELAY = EMBLEM_DELAY + TROPHY_BADGE_INTRO_DURATION;
+const BATCH_DOCK_ITEM_WIDTH = 88;
+const BATCH_DOCK_ITEM_HEIGHT = 68;
+const BATCH_DOCK_ITEM_SPACING = 70;
+const BATCH_DOCK_TRAIL_SPACING = 48;
+const BATCH_DOCK_CENTER_CLEARANCE = 50;
+const BATCH_DOCK_TRACK_TOP = 142;
+const BATCH_DOCK_TRACK_HEIGHT = 90;
+const BATCH_DOCK_NAV_TOP = 232;
+const BATCH_DOCK_SPRING = { damping: 18, stiffness: 175, mass: 0.72 };
+const BATCH_DOCK_DROP_HEIGHT = 28;
+const BATCH_DOCK_DROP_DURATION = 360;
+const BATCH_DOCK_DROP_STAGGER = 115;
 
 // A per-row height, deliberately generous enough to fit the two-line (task name + date) content
 // with real breathing room -- used as an *explicit* `height` (not just a floor) on every element
@@ -80,43 +94,27 @@ const HISTORY_LIST_WIDTH = 260;
 type NativeSvgTextAnimatedProps = { content?: string };
 const AnimatedSvgTSpan = Reanimated.createAnimatedComponent(RNSVGTSpan);
 
-// Reanimated updates an SVG text span's native `content` prop directly on the UI thread. Unlike the former
-// requestAnimationFrame + setState hook, this does not rerender CelebrationContent (or any of its
-// trophy/confetti/history subtree) for every displayed integer. `active` still gates the start:
-// the title slot is mounted from frame one for layout stability, but the counter must wait until
-// that slot is actually revealed. This deliberately uses a display-only SVG node rather than an
+// Reanimated updates an SVG text span's native `content` prop directly on the UI thread. The
+// displayed value is derived from the celebration's one elapsed-time clock, so it neither
+// rerenders CelebrationContent nor installs a second independently-started timing animation. This
+// deliberately uses a display-only SVG node rather than an
 // Android EditText: native input controls maintain selection, scrolling, and editable line-box
 // state even when marked non-editable, which made rapidly replaced centered text drift or clip.
 // SVG recomputes and center-anchors each new glyph run inside the same fixed viewport instead.
 const AchievementCount: React.FC<{
   value: number;
-  active: boolean;
   duration: number;
   color: string;
-}> = React.memo(({ value, active, duration, color }) => {
-  const count = useSharedValue(0);
-
-  useEffect(() => {
-    cancelAnimation(count);
-    if (!active) {
-      count.value = 0;
-      return;
-    }
-    if (value <= 1) {
-      count.value = Math.max(0, value);
-      return;
-    }
-    // Same cubic ease-in-out shape as the former JS implementation: slow start, fastest at the
-    // midpoint, then a slow finish. Only the execution thread changes.
-    count.value = withTiming(value, {
-      duration,
-      easing: Easing.inOut(Easing.cubic),
-    });
-    return () => cancelAnimation(count);
-  }, [active, count, duration, value]);
-
+  timeline: SharedValue<number>;
+  startTime: number;
+}> = React.memo(({ value, duration, color, timeline, startTime }) => {
   const animatedProps = useAnimatedProps<NativeSvgTextAnimatedProps>(() => {
-    return { content: formatAchievementCount(count.value) };
+    const linearProgress = getAchievementRevealProgress(timeline.value, startTime, duration);
+    const progress = Easing.inOut(Easing.cubic)(linearProgress);
+    const count = value <= 1
+      ? (timeline.value >= startTime ? Math.max(0, value) : 0)
+      : value * progress;
+    return { content: formatAchievementCount(count) };
   });
 
   return (
@@ -142,24 +140,31 @@ AchievementCount.displayName = 'AchievementCount';
 // appears": every slot in CelebrationContent is mounted from frame one (reserving its layout space
 // immediately), so revealing content inside one never pushes or re-centers anything else. Content
 // fades in with a small upward drift rather than popping instantly.
-const RevealSlot: React.FC<{ revealed: boolean; minHeight: number; style?: object; children: React.ReactNode }> = ({
-  revealed,
+const RevealSlot: React.FC<{
+  timeline: SharedValue<number>;
+  startTime: number;
+  minHeight: number;
+  style?: object;
+  children: React.ReactNode;
+}> = ({
+  timeline,
+  startTime,
   minHeight,
   style,
   children,
 }) => {
-  const reveal = useSharedValue(0);
-
-  useEffect(() => {
-    if (revealed) {
-      reveal.value = withTiming(1, { duration: 450, easing: Easing.out(Easing.cubic) });
-    }
-  }, [revealed, reveal]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: reveal.value,
-    transform: [{ translateY: (1 - reveal.value) * 14 }],
-  }));
+  const animatedStyle = useAnimatedStyle(() => {
+    const linearProgress = getAchievementRevealProgress(
+      timeline.value,
+      startTime,
+      ACHIEVEMENT_REVEAL_TIMING.revealDuration
+    );
+    const reveal = Easing.out(Easing.cubic)(linearProgress);
+    return {
+      opacity: reveal,
+      transform: [{ translateY: (1 - reveal) * 14 }],
+    };
+  });
 
   // `style` (alignItems/gap for a multi-child slot like momentBlock/metaBlock) has to land on
   // *this* view, not the outer one below -- it's the one actually holding the revealed children
@@ -328,7 +333,17 @@ const UnlockHistoryList: React.FC<{
 });
 UnlockHistoryList.displayName = 'UnlockHistoryList';
 
-const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => void }> = ({ achievement, onDismiss }) => {
+interface CelebrationContentProps {
+  achievement: Achievement;
+  emblemDelay: number;
+  timeline: SharedValue<number>;
+}
+
+const CelebrationContent: React.FC<CelebrationContentProps> = ({
+  achievement,
+  emblemDelay,
+  timeline,
+}) => {
   const insets = useSafeAreaInsets();
   const allAchievements = useAchievementsStore(state => state.achievements);
   const muteKind = useAchievementsStore(state => state.muteKind);
@@ -366,17 +381,11 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
   // preview instances (nothing real to mute yet).
   const showMuteToggle = (meta.repeatable || meta.scope === 'task') && achievement.dedupScope !== 'preview';
 
-  // Doubles as both the entrance fade-in (0 -> 1 on mount) and the tap-to-dismiss fade-out
-  // (1 -> 0), rather than two separate shared values -- there's no state where both would need
-  // to animate independently.
-  const visibility = useSharedValue(0);
-
-  const [showEmblem, setShowEmblem] = useState(false);
-  const [showTitle, setShowTitle] = useState(false);
-  const [showDescription, setShowDescription] = useState(false);
-  const [showHint, setShowHint] = useState(false);
-
   const countDuration = showsNumber ? getAchievementCountUpDuration(achievement.value ?? 0) : 0;
+  const schedule = useMemo(
+    () => getAchievementRevealSchedule({ showsNumber, countDuration, emblemDelay }),
+    [countDuration, emblemDelay, showsNumber]
+  );
 
   // The title slot's own minHeight used to be one fixed value shared by both variants -- tuned
   // against the taller numberBlock (eyebrow + huge number + unit caption), it left a comeback's
@@ -386,11 +395,6 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
   // variant fixes both at once -- safe to do since the variant itself never changes mid-playback
   // (it's a constant for this achievement's whole lifetime, only the reveal *opacity* animates).
   const titleMinHeight = showsNumber ? 116 : 48;
-
-  const handleDismiss = useCallback(() => {
-    visibility.value = withTiming(0, { duration: DISMISS_ANIM_DURATION, easing: Easing.in(Easing.cubic) });
-    setTimeout(onDismiss, DISMISS_ANIM_DURATION);
-  }, [onDismiss, visibility]);
 
   // Offered whenever this kind can genuinely fire again for *something* -- either because it's
   // marked repeatable (the same task can re-earn it, e.g. after a streak resets and climbs back
@@ -419,76 +423,28 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
     }
   }, [isMuted, muteKind, unmuteKind, achievement.kind, showToast, meta.title]);
 
-  // Android hardware/gesture back button dismisses the celebration instead of navigating
-  // backward in the router stack -- per explicit user direction. `hardwareBackPress` handlers
-  // return `true` to mark the event as handled (preventing the default back navigation) or
-  // `false` to let it fall through to whatever would normally handle it; returning `true`
-  // unconditionally here is correct since this screen, while showing, should always intercept
-  // back rather than ever letting it navigate underneath itself. A no-op on iOS/web (no hardware
-  // back button there), so no platform guard is needed.
   useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      handleDismiss();
-      return true;
+    // This is the sequence's only JS-side start signal. Every intermediate phase derives directly
+    // from this elapsed-time value on the UI thread; no timers, phase state, or React commits fire
+    // while the reveal is playing. The navigation handler resets to zero before swapping content,
+    // preventing the newly focused page from flashing at the previous page's completed time.
+    cancelAnimation(timeline);
+    timeline.value = 0;
+    timeline.value = withTiming(schedule.end, {
+      duration: schedule.end,
+      easing: Easing.linear,
     });
-    return () => subscription.remove();
-  }, [handleDismiss]);
-
-  useEffect(() => {
-    visibility.value = withTiming(1, { duration: 250 });
-
-    // For a counter-driven title, wait for the count-up to actually finish (its duration now
-    // varies per achievement, up to 3s -- see getAchievementCountUpDuration) before revealing the
-    // description, so it can't pop in while a big number is still visibly climbing above it.
-    // Kinds with no counter (comeback) keep the original fixed pacing -- there's nothing to wait
-    // on there.
-    const descriptionDelay = showsNumber
-      ? TITLE_DELAY + countDuration + DESCRIPTION_PAUSE_AFTER_COUNT
-      : DESCRIPTION_DELAY_NO_COUNTER;
-    const hintDelay = descriptionDelay + HINT_PAUSE_AFTER_CONTENT;
-
-    // No auto-dismiss timer here -- see the top-of-file note. The user dismisses via the close
-    // button or the device back button (see handleDismiss's own call sites).
-    const timers = [
-      setTimeout(() => setShowEmblem(true), EMBLEM_DELAY),
-      setTimeout(() => setShowTitle(true), TITLE_DELAY),
-      setTimeout(() => setShowDescription(true), descriptionDelay),
-      setTimeout(() => setShowHint(true), hintDelay),
-    ];
-    return () => timers.forEach(clearTimeout);
-    // Deliberately mount-only -- this timeline belongs to this one achievement instance (the
-    // parent remounts a fresh CelebrationContent per achievement via `key`), not something to
-    // restart if props happen to change identity for unrelated reasons.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const contentStyle = useAnimatedStyle(() => ({
-    opacity: visibility.value,
-    transform: [{ scale: 0.92 + visibility.value * 0.08 }],
-  }));
+    return () => cancelAnimation(timeline);
+  }, [achievement.id, schedule.end, timeline]);
 
   return (
-    <Reanimated.View style={[styles.host, contentStyle]}>
+    <View style={styles.host}>
       <View
         style={StyleSheet.absoluteFillObject}
         accessibilityRole="alert"
         accessibilityLiveRegion="polite"
         accessibilityLabel={`${meta.title}. ${meta.describe(achievement)}`}
       >
-        <View style={styles.tint} />
-
-        {/* Explicit dismissal, replacing the earlier tap-anywhere Pressable -- see the top-of-file
-            comment for why. Rendered early/unconditionally (not gated behind any reveal timer) so
-            there's always a visible way out, even before the rest of the sequence has played. */}
-        <Pressable
-          onPress={handleDismiss}
-          style={[styles.closeButton, { top: insets.top + 12 }]}
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-        >
-          <MaterialCommunityIcons name="close" size={22} color="#fff" />
-        </Pressable>
-
         {/* Mute toggle, stacked directly under the close button (2026-08-12) -- replaces an
             earlier in-flow text link ("show a quick alert next time instead"), per direct user
             direction for a smaller icon button reflecting current state rather than a one-shot
@@ -532,22 +488,22 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
             the single largest fixed dimension on this screen) or genuinely measuring/scaling. */}
         <View style={[styles.content, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }]}>
           <View style={styles.emblemSlot}>
-            {showEmblem && (
-              <TrophyBadge
-                icon={meta.icon}
-                color={kindColor}
-                glowColor={kindGlowColor}
-                accentColor={kindAccentColor}
-                ribbonText={getRibbonText(achievement)}
-              />
-            )}
+            <TrophyBadge
+              icon={meta.icon}
+              color={kindColor}
+              glowColor={kindGlowColor}
+              accentColor={kindAccentColor}
+              ribbonText={getRibbonText(achievement)}
+              timeline={timeline}
+              introStart={schedule.emblemStart}
+            />
           </View>
 
           {/* Eyebrow / huge animated number / unit caption, stacked -- rather than one hyphenated
               sentence like the Trophy Case tiles use, this screen has room to let the number be
               the clear hero element (per explicit user direction). The number itself is
               kind-colored so it visually ties back to the badge/rings above it. */}
-          <RevealSlot revealed={showTitle} minHeight={titleMinHeight}>
+          <RevealSlot timeline={timeline} startTime={schedule.titleStart} minHeight={titleMinHeight}>
             {showsNumber ? (
               <View style={styles.numberBlock}>
                 <Text style={styles.eyebrow}>{numberBlock!.eyebrow}</Text>
@@ -558,9 +514,10 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
                     invisible against this screen's own dark backdrop for those specifically. */}
                 <AchievementCount
                   value={achievement.value ?? 0}
-                  active={showTitle}
                   duration={countDuration}
                   color={meta.color.useAccentText ? kindAccentColor : kindColor}
+                  timeline={timeline}
+                  startTime={schedule.titleStart}
                 />
                 <Text style={styles.unitCaption}>{numberBlock!.unit}</Text>
               </View>
@@ -573,7 +530,12 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
               this (task woven in inline), followed by a lighthearted reaction (FLAVOR_TEXT) --
               merged into a single inline-wrapping element per explicit user direction, rather
               than two separately-spaced lines. */}
-          <RevealSlot revealed={showDescription} minHeight={80} style={styles.descriptionBlock}>
+          <RevealSlot
+            timeline={timeline}
+            startTime={schedule.descriptionStart}
+            minHeight={80}
+            style={styles.descriptionBlock}
+          >
             <DescriptionText achievement={achievement} taskColor={achievement.taskColor ?? kindColor} />
           </RevealSlot>
 
@@ -593,7 +555,12 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
               used to live here too, as an in-flow text link -- moved out to its own fixed corner
               button (see the close-button JSX above), so it no longer contributes to this slot's
               own height. */}
-          <RevealSlot revealed={showHint} minHeight={48 + historyListHeight} style={styles.metaBlock}>
+          <RevealSlot
+            timeline={timeline}
+            startTime={schedule.historyStart}
+            minHeight={48 + historyListHeight}
+            style={styles.metaBlock}
+          >
             <View style={styles.metaDivider} />
             {showHistoryList ? (
               <View style={styles.unlockedHistoryHeader}>
@@ -623,56 +590,346 @@ const CelebrationContent: React.FC<{ achievement: Achievement; onDismiss: () => 
           </RevealSlot>
         </View>
 
-        {showEmblem && (
-          <Confetti key={achievement.id} baseColor={kindColor} glowColor={kindGlowColor} accentColor={kindAccentColor} />
-        )}
+        <Confetti
+          baseColor={kindColor}
+          glowColor={kindGlowColor}
+          accentColor={kindAccentColor}
+          timeline={timeline}
+          startTime={schedule.emblemStart}
+        />
       </View>
+    </View>
+  );
+};
+
+interface BatchDockItemProps {
+  achievement: Achievement;
+  index: number;
+  isFocused: boolean;
+  focus: SharedValue<number>;
+  onSelect: (index: number) => void;
+}
+
+const BatchDockItem: React.FC<BatchDockItemProps> = React.memo(({
+  achievement,
+  index,
+  isFocused,
+  focus,
+  onSelect,
+}) => {
+  const meta = ACHIEVEMENT_META[achievement.kind];
+  const dropProgress = useSharedValue(0);
+
+  useEffect(() => {
+    // Closest trailing emblem lands first, then the rest follow outward. Easing.in is deliberate:
+    // the requested physical read is slow release -> accelerating fall -> an abrupt stop at the
+    // surface, with no rebound. Everything stays on the UI thread and each item runs only once.
+    const sequenceIndex = Math.max(0, index - 1);
+    dropProgress.value = withDelay(
+      BATCH_DOCK_REVEAL_DELAY + sequenceIndex * BATCH_DOCK_DROP_STAGGER,
+      withTiming(1, { duration: BATCH_DOCK_DROP_DURATION, easing: Easing.in(Easing.cubic) })
+    );
+    return () => cancelAnimation(dropProgress);
+  }, [dropProgress, index]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    const relativeIndex = index - focus.value;
+    const distance = Math.abs(relativeIndex);
+    // The focused lightweight emblem disappears into the full TrophyBadge occupying the center
+    // stage. Its immediate neighbors remain large; farther items compress/fade progressively,
+    // producing the magnified-center shape of a macOS Dock without running TrophyBadge's loops.
+    const focusFade = Math.min(1, distance * 1.8);
+    const trailFade = Math.max(0, 1 - Math.max(0, distance - 1) * 0.2);
+    const scale = Math.max(0.48, 1 - Math.min(distance, 3.25) * 0.15);
+    // Reserve a much wider center berth than ordinary item-to-item spacing. The extra clearance
+    // ramps from zero to full strength over the innermost half-slot, so an emblem can glide into
+    // focus continuously instead of snapping across a fixed gap at relativeIndex === 0.
+    const centerClearance = BATCH_DOCK_CENTER_CLEARANCE * Math.min(1, distance * 2);
+    const direction = relativeIndex === 0 ? 0 : Math.sign(relativeIndex);
+    const spacedDistance = Math.min(distance, 1) * BATCH_DOCK_ITEM_SPACING
+      + Math.max(0, distance - 1) * BATCH_DOCK_TRAIL_SPACING;
+    const translateX = direction * (spacedDistance + centerClearance);
+    return {
+      opacity: dropProgress.value * focusFade * trailFade,
+      zIndex: Math.max(1, 20 - Math.round(distance * 4)),
+      transform: [
+        { translateX },
+        {
+          translateY: Math.min(distance, 2) * 3
+            - (1 - dropProgress.value) * BATCH_DOCK_DROP_HEIGHT,
+        },
+        { scale },
+      ],
+    };
+  });
+
+  return (
+    <Reanimated.View style={[styles.batchDockItem, animatedStyle]}>
+      <Pressable
+        style={styles.batchDockItemButton}
+        onPress={() => onSelect(index)}
+        disabled={isFocused}
+        accessibilityRole="button"
+        accessibilityLabel={`${meta.title}, achievement ${index + 1}`}
+        accessibilityHint="Shows this achievement"
+        accessibilityState={{ selected: isFocused, disabled: isFocused }}
+      >
+        <TrophyEmblem
+          icon={meta.icon}
+          color={meta.color.base}
+          glowColor={meta.color.glow}
+          accentColor={meta.color.accent}
+          ribbonText={getRibbonText(achievement)}
+        />
+      </Pressable>
     </Reanimated.View>
   );
+});
+BatchDockItem.displayName = 'BatchDockItem';
+
+const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () => void }> = ({ achievements, onDismiss }) => {
+  const insets = useSafeAreaInsets();
+  const [pageIndex, setPageIndex] = useState(0);
+  const [viewedCount, setViewedCount] = useState(1);
+  const viewedIndices = useRef(new Set([0]));
+  const hasNavigated = useRef(false);
+  const achievement = achievements[Math.min(pageIndex, achievements.length - 1)];
+  const batchVisibility = useSharedValue(0);
+  const sceneTimeline = useSharedValue(0);
+  const dockFocus = useSharedValue(0);
+  const dockReveal = useSharedValue(0);
+
+  useEffect(() => {
+    batchVisibility.value = withTiming(1, { duration: 250 });
+    // A singleton has no dock. Avoid even scheduling its invisible delayed animation so the
+    // overwhelmingly common one-achievement path stays as close to the original cost as possible.
+    if (achievements.length > 1) {
+      dockReveal.value = withDelay(
+        BATCH_DOCK_REVEAL_DELAY,
+        withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) })
+      );
+    }
+    return () => {
+      cancelAnimation(batchVisibility);
+      cancelAnimation(dockReveal);
+    };
+  }, [achievements.length, batchVisibility, dockReveal]);
+
+  const dismissWithAnimation = useCallback(() => {
+    batchVisibility.value = withTiming(
+      0,
+      { duration: DISMISS_ANIM_DURATION, easing: Easing.in(Easing.cubic) },
+      (finished) => {
+        if (finished) runOnJS(onDismiss)();
+      }
+    );
+  }, [batchVisibility, onDismiss]);
+
+  // Back always means "leave the congratulations screen," even while the upper-right control is
+  // still advancing through an unread batch. Call through immediately instead of borrowing that
+  // control's next-or-close behavior or waiting for its visual exit animation.
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      onDismiss();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [onDismiss]);
+
+  const selectPage = useCallback((index: number) => {
+    const nextIndex = Math.max(0, Math.min(achievements.length - 1, index));
+    // Update the shared focus clock from the same input event that changes React content. Every
+    // dock item derives from this one spring, so none of the neighbors can drift out of phase.
+    hasNavigated.current = true;
+    cancelAnimation(sceneTimeline);
+    sceneTimeline.value = 0;
+    if (!viewedIndices.current.has(nextIndex)) {
+      viewedIndices.current.add(nextIndex);
+      setViewedCount(viewedIndices.current.size);
+    }
+    dockFocus.value = withSpring(nextIndex, BATCH_DOCK_SPRING);
+    setPageIndex(nextIndex);
+  }, [achievements.length, dockFocus, sceneTimeline]);
+
+  const showPrevious = useCallback(() => selectPage(pageIndex - 1), [pageIndex, selectPage]);
+  const showNext = useCallback(() => selectPage(pageIndex + 1), [pageIndex, selectPage]);
+
+  const showNextUnviewed = useCallback(() => {
+    for (let offset = 1; offset <= achievements.length; offset += 1) {
+      const candidate = (pageIndex + offset) % achievements.length;
+      if (!viewedIndices.current.has(candidate)) {
+        selectPage(candidate);
+        return;
+      }
+    }
+  }, [achievements.length, pageIndex, selectPage]);
+
+  const hasViewedAll = viewedCount >= achievements.length;
+
+  const batchVisibilityStyle = useAnimatedStyle(() => ({
+    opacity: batchVisibility.value,
+    transform: [{ scale: 0.92 + batchVisibility.value * 0.08 }],
+  }));
+
+  const dockRevealStyle = useAnimatedStyle(() => ({
+    opacity: dockReveal.value,
+    transform: [{ translateY: (1 - dockReveal.value) * 8 }],
+  }));
+
+  return (
+    <Reanimated.View style={[styles.host, batchVisibilityStyle]}>
+      {/* The backdrop, content scene, and pager all belong to the stable batch. Focus changes now
+          update the existing native scene and reset one UI-thread timeline instead of remounting
+          the badge, confetti pool, and reveal tree. */}
+      <View style={styles.batchBackdrop} pointerEvents="none" />
+      {/* This control belongs to the stable batch shell, not the keyed achievement page, so it
+          animates in once with the screen. It advances to every still-unviewed achievement before
+          becoming the ordinary close affordance; direct dock navigation is accounted for too. */}
+      <Pressable
+        onPress={hasViewedAll ? dismissWithAnimation : showNextUnviewed}
+        style={[styles.closeButton, { top: insets.top + 12 }]}
+        accessibilityRole="button"
+        accessibilityLabel={hasViewedAll ? 'Close' : 'Next achievement'}
+        accessibilityHint={hasViewedAll ? undefined : `${achievements.length - viewedCount} achievements remaining`}
+      >
+        <MaterialCommunityIcons name={hasViewedAll ? 'close' : 'chevron-right'} size={22} color="#fff" />
+      </Pressable>
+      <CelebrationContent
+        achievement={achievement}
+        emblemDelay={hasNavigated.current ? 0 : EMBLEM_DELAY}
+        timeline={sceneTimeline}
+      />
+      {achievements.length > 1 && (
+        <>
+          <View style={[styles.batchDockTrack, { top: insets.top + 8 + BATCH_DOCK_TRACK_TOP }]}>
+            {achievements.map((dockAchievement, index) => (
+              <BatchDockItem
+                key={dockAchievement.id}
+                achievement={dockAchievement}
+                index={index}
+                isFocused={index === pageIndex}
+                focus={dockFocus}
+                onSelect={selectPage}
+              />
+            ))}
+          </View>
+          <Reanimated.View
+            style={[
+              styles.batchDockNavigator,
+              { top: insets.top + 8 + BATCH_DOCK_NAV_TOP },
+              dockRevealStyle,
+            ]}
+          >
+            <Pressable
+              onPress={showPrevious}
+              disabled={pageIndex === 0}
+              hitSlop={8}
+              style={[styles.batchDockNavButton, pageIndex === 0 && styles.batchDockNavButtonDisabled]}
+              accessibilityRole="button"
+              accessibilityLabel="Previous achievement"
+              accessibilityState={{ disabled: pageIndex === 0 }}
+            >
+              <MaterialCommunityIcons name="chevron-left" size={20} color="#fff" />
+            </Pressable>
+            <Text style={styles.batchDockNavLabel}>{pageIndex + 1} of {achievements.length}</Text>
+            <Pressable
+              onPress={showNext}
+              disabled={pageIndex === achievements.length - 1}
+              hitSlop={8}
+              style={[styles.batchDockNavButton, pageIndex === achievements.length - 1 && styles.batchDockNavButtonDisabled]}
+              accessibilityRole="button"
+              accessibilityLabel="Next achievement"
+              accessibilityState={{ disabled: pageIndex === achievements.length - 1 }}
+            >
+              <MaterialCommunityIcons name="chevron-right" size={20} color="#fff" />
+            </Pressable>
+          </Reanimated.View>
+        </>
+      )}
+    </Reanimated.View>
+  );
+};
+
+interface PendingAchievementPresentationProps {
+  initialPresentation: PendingAchievementPresentationModel;
+  dismissCurrentAlert: () => void;
+  promoteCurrentAlertToCelebration: () => void;
+  dismissCelebrations: (achievementIds: string[]) => void;
+}
+
+// Snapshots the selected presentation under its priority key. A full-screen batch remains stable
+// while it is navigated; unlocks appended afterward remain queued for the next screen. An alert
+// snapshot can be preempted by full-screen work because the parent changes this component's key.
+const PendingAchievementPresentation: React.FC<PendingAchievementPresentationProps> = ({
+  initialPresentation,
+  dismissCurrentAlert,
+  promoteCurrentAlertToCelebration,
+  dismissCelebrations,
+}) => {
+  const [presentation] = useState(initialPresentation);
+
+  const dismissBatch = useCallback(() => {
+    if (presentation?.type === 'celebration') {
+      dismissCelebrations(presentation.achievements.map(achievement => achievement.id));
+    }
+  }, [dismissCelebrations, presentation]);
+
+  if (presentation.type === 'alert') {
+    return (
+      <AchievementAlert
+        achievement={presentation.achievement}
+        onDismiss={dismissCurrentAlert}
+        onPress={promoteCurrentAlertToCelebration}
+      />
+    );
+  }
+
+  return <CelebrationBatch achievements={presentation.achievements} onDismiss={dismissBatch} />;
 };
 
 // Mounted once at the app root (see _layout.tsx), a sibling of ToastBanner -- a full-screen
 // cinematic takeover, so it naturally supersedes the bottom completion toast while it's showing
 // (rather than needing to coordinate space with it, as the earlier compact banner version did).
 export const AchievementCelebration: React.FC = () => {
-  const pending = useAchievementsStore(state => state.pendingCelebrations[0]);
+  const pendingCelebrations = useAchievementsStore(state => state.pendingCelebrations);
+  const pendingAlerts = useAchievementsStore(state => state.pendingAlerts);
   const dismissCurrentCelebration = useAchievementsStore(state => state.dismissCurrentCelebration);
-  const mutedKinds = useAchievementsStore(state => state.mutedKinds);
-  const forcedCelebrationIds = useAchievementsStore(state => state.forcedCelebrationIds);
+  const dismissCurrentAlert = useAchievementsStore(state => state.dismissCurrentAlert);
+  const promoteCurrentAlertToCelebration = useAchievementsStore(
+    state => state.promoteCurrentAlertToCelebration
+  );
+  const dismissCelebrations = useAchievementsStore(state => state.dismissCelebrations);
   const celebrationsEnabled = useSettingsStore(state => state.achievementCelebrationsEnabled);
-
-  // A deliberate Trophy Case replay (queueCelebration -- see forcedCelebrationIds' own comment in
-  // achievementsStore.ts) always wins over the ambient mute setting: "the trophy case lets you
-  // open any congratulations" regardless of whether that kind is currently muted. A real live
-  // unlock (recordCompletionAchievements) never sets this, so it still falls through to the alert
-  // below exactly as muting intends.
-  const isForced = !!pending && forcedCelebrationIds.includes(pending.id);
-  const isMuted = !!pending && mutedKinds.includes(pending.kind) && !isForced;
+  const presentation = getPendingAchievementPresentation(pendingCelebrations, pendingAlerts);
 
   // Achievements are always recorded into history regardless of this setting (see
   // achievementsStore.ts) -- it only ever gates whether anything shows here at all. When it's off,
   // silently drain the queue instead of ever rendering, rather than backlogging popups for if it
   // gets re-enabled.
   useEffect(() => {
-    if (pending && !celebrationsEnabled) {
-      dismissCurrentCelebration();
-    }
-  }, [pending, celebrationsEnabled, dismissCurrentCelebration]);
+    if (celebrationsEnabled) return;
+    if (pendingCelebrations.length > 0) dismissCurrentCelebration();
+    if (pendingAlerts.length > 0) dismissCurrentAlert();
+  }, [pendingCelebrations.length, pendingAlerts.length, celebrationsEnabled, dismissCurrentCelebration, dismissCurrentAlert]);
 
-  if (!pending || !celebrationsEnabled) return null;
+  if (!presentation || !celebrationsEnabled) return null;
 
-  // A muted kind (see mutedKinds' own comment in achievementsStore.ts) still gets recorded and
-  // queued exactly like any other unlock -- it just never gets the full-screen treatment here,
-  // rendering AchievementAlert's own top-anchored notice instead (its own icon/kind-colored badge
-  // is what keeps this reading as a distinct, recognizable moment rather than a generic notice).
-  // Keying by id forces a fresh mount per achievement (both branches below), replaying the whole
-  // reveal sequence / restarting the alert's own auto-dismiss timer for each one rather than
-  // reusing a stale instance whose timers have already fired.
-  if (isMuted) {
-    return <AchievementAlert key={pending.id} achievement={pending} onDismiss={dismissCurrentCelebration} />;
-  }
+  // The key changes immediately when full-screen work appears while an alert is showing. That
+  // preempts (without dismissing) the alert; after the full batch closes, the same alert queue
+  // resumes from its original first entry with a fresh auto-dismiss timer.
+  const presentationKey = presentation.type === 'celebration'
+    ? `celebration-${presentation.achievements[0].id}`
+    : `alert-${presentation.achievement.id}`;
 
-  return <CelebrationContent key={pending.id} achievement={pending} onDismiss={dismissCurrentCelebration} />;
+  return (
+    <PendingAchievementPresentation
+      key={presentationKey}
+      initialPresentation={presentation}
+      dismissCurrentAlert={dismissCurrentAlert}
+      promoteCurrentAlertToCelebration={promoteCurrentAlertToCelebration}
+      dismissCelebrations={dismissCelebrations}
+    />
+  );
 };
 
 const styles = StyleSheet.create({
@@ -696,9 +953,11 @@ const styles = StyleSheet.create({
   // This value keeps that same safety (barely distinguishable from true black at this opacity)
   // while keeping a faint cool undertone, splitting the difference between "safe neutral" and
   // "some personality" per direct user request.
-  tint: {
+  batchBackdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(5, 8, 16, 0.92)',
+    zIndex: 999,
+    elevation: 999,
   },
   // Explicit dismiss affordance, top-right -- replaces the removed tap-anywhere Pressable (see
   // the top-of-file comment). `top` is set inline per-instance (insets.top + 12), since this
@@ -708,7 +967,8 @@ const styles = StyleSheet.create({
   closeButton: {
     position: 'absolute',
     right: 16,
-    zIndex: 10,
+    zIndex: 1003,
+    elevation: 1003,
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -732,6 +992,60 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  batchDockTrack: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: BATCH_DOCK_TRACK_HEIGHT,
+    zIndex: 1001,
+    elevation: 1001,
+    overflow: 'hidden',
+  },
+  batchDockItem: {
+    position: 'absolute',
+    left: '50%',
+    top: 16,
+    width: BATCH_DOCK_ITEM_WIDTH,
+    height: BATCH_DOCK_ITEM_HEIGHT,
+    marginLeft: -(BATCH_DOCK_ITEM_WIDTH / 2),
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  batchDockItemButton: {
+    width: BATCH_DOCK_ITEM_WIDTH,
+    height: BATCH_DOCK_ITEM_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  batchDockNavigator: {
+    position: 'absolute',
+    alignSelf: 'center',
+    zIndex: 1002,
+    elevation: 1002,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 30,
+  },
+  batchDockNavButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  batchDockNavButtonDisabled: {
+    opacity: 0.25,
+  },
+  batchDockNavLabel: {
+    minWidth: 44,
+    color: 'rgba(255, 255, 255, 0.82)',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
   // Plain View, not a ScrollView -- this screen is top-anchored and sized to fit the visible
   // viewport without scrolling (see the comment at this style's own call site for the full

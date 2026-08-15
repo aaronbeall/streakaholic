@@ -375,6 +375,12 @@ Hints"), following the existing row/card pattern in that file.
 This is the biggest lift of the three — it's real in-app purchases, which means native
 code. There's a real decision to make before writing anything:
 
+The purchase layer chosen here is also intended to support the later Pro unlock and
+Commitment Mode's consumable Streak Saves. The latter has additional transaction
+recovery, integrity, and trust requirements beyond a low-stakes tip; do not generalize
+the tip jar's client-only simplifications to it. See
+[COMMITMENT_MODE.md](COMMITMENT_MODE.md).
+
 ### Library choice
 
 | | `react-native-iap` | RevenueCat |

@@ -8,6 +8,8 @@ import { AchievementBadgeCard } from '../components/AchievementCard';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useTaskStore } from '../stores/taskStore';
 import {
+  ACHIEVEMENT_META,
+  Achievement,
   AchievementCardStatus,
   TASK_SCOPED_KIND_ORDER,
   getGroupedAchievementCardStatuses,
@@ -78,6 +80,8 @@ export const TrophiesScreen: React.FC = () => {
   const params = useLocalSearchParams<{ taskId?: string }>();
   const achievements = useAchievementsStore(state => state.achievements);
   const queueCelebration = useAchievementsStore(state => state.queueCelebration);
+  const queueCelebrations = useAchievementsStore(state => state.queueCelebrations);
+  const queueAlerts = useAchievementsStore(state => state.queueAlerts);
   const mutedKinds = useAchievementsStore(state => state.mutedKinds);
   const tasks = useTaskStore(state => state.tasks);
   const colors = useThemeColors();
@@ -148,6 +152,48 @@ export const TrophiesScreen: React.FC = () => {
     setSelectedTaskId(prev => (prev === taskId ? null : taskId));
   };
 
+  // Dev-only one-tap fixture for a single mixed unlock event: a random two-to-four achievements
+  // receive the full treatment while two behave as snoozed kinds. Full-screen work should show
+  // first as one batch; closing it should reveal the quick alerts in order, without fake history.
+  const handleTestCelebrationBatch = () => {
+    const now = Date.now();
+    const fullCelebrationCount = Math.floor(Math.random() * 3) + 2;
+    const statuses = groups.flatMap(group => group.statuses).slice(0, fullCelebrationCount + 2);
+    const previews: Achievement[] = statuses.map((status, index) => {
+      if (status.latest) {
+        return {
+          ...status.latest,
+          id: `dev-batch-${now}-${index}`,
+          dedupScope: 'preview',
+          earnedAt: new Date(now).toISOString(),
+        };
+      }
+
+      const meta = ACHIEVEMENT_META[status.kind];
+      const task = meta.scope === 'task' ? (selectedTask ?? activeTasks[0]) : undefined;
+      return {
+        id: `dev-batch-${now}-${index}`,
+        kind: status.kind,
+        taskId: task?.id,
+        taskName: task?.name ?? status.progress?.taskName,
+        taskIcon: task?.icon,
+        taskColor: task?.color ?? status.progress?.taskColor,
+        value: status.progress?.target,
+        dedupScope: 'preview',
+        earnedAt: new Date(now).toISOString(),
+      };
+    });
+
+    const celebrations = previews.slice(0, fullCelebrationCount);
+    const alerts = previews.slice(fullCelebrationCount);
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Queue the high-priority side first, then the alert side in the same event turn. This mirrors
+    // recordCompletionAchievements' mixed result without the old artificial delayed preemption.
+    queueCelebrations(celebrations);
+    queueAlerts(alerts);
+  };
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -158,7 +204,19 @@ export const TrophiesScreen: React.FC = () => {
           <Text style={styles.headerTitle}>Trophy Case</Text>
           <Text style={styles.headerSubtitle}>{unlockedCount} of {totalCount} unlocked</Text>
         </View>
-        <View style={styles.headerButton} />
+        {__DEV__ ? (
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={handleTestCelebrationBatch}
+            accessibilityRole="button"
+            accessibilityLabel="Test achievement presentation queues"
+            accessibilityHint="Shows two to four full celebrations followed by snoozed alerts"
+          >
+            <MaterialCommunityIcons name="test-tube" size={21} color={colors.text} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerButton} />
+        )}
       </View>
 
       {activeTasks.length > 1 && (

@@ -19,8 +19,8 @@ import { ACHIEVEMENT_META, Achievement } from '../utils/achievements';
 // rather than routed through the shared toast system: this is the *only* thing in the app that
 // needs a top-anchored notice, and threading a `position`/rich-content option through the shared
 // (bottom-anchored, plain-text) toast just to cover one caller wasn't worth complicating that
-// system for every other toast that will never use it. AchievementCelebration.tsx renders this in
-// place of the full-screen takeover whenever the pending achievement's kind is muted.
+// system for every other toast that will never use it. AchievementCelebration.tsx renders these
+// from their own low-priority queue whenever no full-screen celebration is waiting.
 //
 // Top-anchored specifically because it's mutually exclusive with the (bottom-anchored) completion
 // toast that so often fires at the very same moment (a task completion both logs the completion
@@ -31,10 +31,11 @@ const AUTO_DISMISS_DURATION = 4500;
 const SWIPE_DISMISS_DISTANCE = 80;
 const SWIPE_DISMISS_VELOCITY = 800;
 
-export const AchievementAlert: React.FC<{ achievement: Achievement; onDismiss: () => void }> = ({
-  achievement,
-  onDismiss,
-}) => {
+export const AchievementAlert: React.FC<{
+  achievement: Achievement;
+  onDismiss: () => void;
+  onPress: () => void;
+}> = ({ achievement, onDismiss, onPress }) => {
   const meta = ACHIEVEMENT_META[achievement.kind];
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
@@ -72,6 +73,13 @@ export const AchievementAlert: React.FC<{ achievement: Achievement; onDismiss: (
       }
     });
 
+  // Give the established horizontal pan first refusal so a swipe still dismisses reliably. A
+  // simple tap waits for that pan to fail, then promotes this alert into its full celebration.
+  const tapGesture = Gesture.Tap().onEnd((_event, success) => {
+    if (success) runOnJS(onPress)();
+  });
+  const gesture = Gesture.Exclusive(panGesture, tapGesture);
+
   const revealStyle = useAnimatedStyle(() => {
     const dragFade = 1 - Math.min(1, Math.abs(translateX.value) / screenWidth);
     return {
@@ -87,12 +95,15 @@ export const AchievementAlert: React.FC<{ achievement: Achievement; onDismiss: (
 
   return (
     <View style={styles.host} pointerEvents="box-none">
-      <GestureDetector gesture={panGesture}>
+      <GestureDetector gesture={gesture}>
         <Reanimated.View
           style={[styles.card, { top: insets.top + 12 }, revealStyle]}
+          accessible
           accessibilityLiveRegion="polite"
-          accessibilityRole="alert"
+          accessibilityRole="button"
           accessibilityLabel={`${meta.title}. ${meta.describe(achievement)}`}
+          accessibilityHint="Opens the full achievement celebration"
+          onAccessibilityTap={onPress}
         >
           <View style={[styles.iconBadge, { backgroundColor: meta.color.base }]}>
             <MaterialCommunityIcons name={meta.icon} size={18} color="#fff" />
@@ -138,9 +149,9 @@ const styles = StyleSheet.create({
   // Comfortably below ToastBanner's own host (2000) -- the two never actually overlap (this one's
   // top-anchored, ToastBanner's bottom-anchored), but keeping this below it is the more defensive
   // default if that ever changes. Well above ordinary screen content and AchievementCelebration's
-  // own full-screen host (1000) -- the two are mutually exclusive for a given pending achievement
-  // (muted kinds render this, everything else renders the full takeover), but a stale one animating
-  // out shouldn't get buried under whatever renders next regardless.
+  // own full-screen host (1000). The presenter normally makes the two mutually exclusive and
+  // preempts this alert when full-screen work arrives; the higher defensive value also prevents
+  // a stale native frame from being buried awkwardly during that handoff.
   host: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 1500,

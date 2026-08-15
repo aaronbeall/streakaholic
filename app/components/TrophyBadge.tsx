@@ -266,6 +266,10 @@ const RIBBON_ESTIMATED_HEIGHT = 24;
 // opposite of what "bounces against the surface until it comes to rest" needs. Use `Easing.bounce`
 // directly, not `Easing.out(Easing.bounce)`.
 const DROP_DURATION = 1200;
+// AchievementCelebration uses this exact duration to reveal its lightweight batch dock only after
+// the first focused badge has fully settled. Exporting the real clock avoids duplicating a magic
+// number that could drift from the badge's own intro later.
+export const TROPHY_BADGE_INTRO_DURATION = DROP_DURATION;
 const DROP_START_OFFSET_Y = -120; // how far above its resting spot the badge starts, in px
 const DROP_START_SCALE = 2.4;
 const DROP_START_ROTATION = 28; // degrees
