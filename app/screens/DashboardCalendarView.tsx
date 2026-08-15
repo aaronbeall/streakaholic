@@ -15,7 +15,7 @@ import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { buildDayConnectionInfo, getDayStreakState, getTaskStreakChains } from '../utils/reports';
 import { buildStreamLayerPath, computeStreamgraphLayers } from '../utils/streamgraph';
-import { buildCompletionCountsByDate } from '../utils/streaks';
+import { getCachedCompletionCountsByDate } from '../utils/streaks';
 
 const GRID_LABEL_WIDTH = 36;
 const GRID_CELL_SIZE = 32;
@@ -178,15 +178,15 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
   const today = useMemo(() => new Date(), []);
   const todayStr = format(today, 'yyyy-MM-dd');
 
-  // Built once per task (keyed on `tasks`, which itself only changes reference when a task is
-  // actually added/edited/completed/etc. -- see the taskStore migration notes) instead of a
-  // `.find()` scan per (task, day) cell. Both the Timeline grid (up to ~30 visible day columns x
+  // Retrieved once per task (the outer map is memoized on `tasks`, which changes reference when a
+  // task is added/edited/completed/etc. -- see the taskStore migration notes) instead of a `.find()`
+  // scan per (task, day) cell. Both the Timeline grid (up to ~30 visible day columns x
   // every selected task) and the per-task mini month grids below do many lookups against the same
   // task's completions, so this turns each into one O(completions) pass per task up front plus
   // O(1) lookups per cell after that -- and derives isCompleted from the same looked-up count
   // instead of a separate isTaskCompleted call repeating the same lookup.
   const completionCountsByTask = useMemo(
-    () => new Map(tasks.map(task => [task.id, buildCompletionCountsByDate(task.completions || [])])),
+    () => new Map(tasks.map(task => [task.id, getCachedCompletionCountsByDate(task.completions || [])])),
     [tasks]
   );
 

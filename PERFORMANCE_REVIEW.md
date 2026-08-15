@@ -67,8 +67,8 @@ When addressing an issue, check off its concrete subtasks as they land, check th
 - [ ] **PERF-003 — Reduce synchronous completion-path work**
   - [ ] Add release-like Android timing spans for completion-array construction, task stats, the task-store commit/stringification, achievement preparation/detection/persistence, and notification dispatch.
   - [ ] Record the time from `completeTask` entry to the task-store subscriber notification and to the next rendered frame.
-  - [ ] Add immutable-reference `WeakMap` caches for per-task completion-count maps, so unchanged tasks do not rescan their histories for every completion.
-  - [ ] Reuse or incrementally maintain the capped recent-completion window used by early-bird/night-owl detection instead of flattening and sorting all active histories.
+  - [x] Add immutable-reference `WeakMap` caches for per-task completion-count maps, so unchanged tasks do not rescan their histories for every completion.
+  - [x] Reuse the capped per-task recent-completion windows used by early-bird/night-owl detection instead of rescanning all active histories.
   - [ ] Measure `calculateTaskStats` separately for daily, specific-day, weekly-quota, and monthly-quota tasks with long and sparse histories.
   - [ ] Add a fast path for ordinary current-day completion only if it can exactly match the full calculation; retain the full path for backfills, undo, restore, imports, and uncertain cases.
   - [ ] Narrow persistence so one completion does not stringify every task's full history; define and test migration from the current `tasks` key.
@@ -253,9 +253,9 @@ If mounting all particles at once is visually or architecturally inconvenient, b
 | Recalculate task stats | Filter qualifying completions, create sets/maps and sorted dates, then walk calendar days or quota periods from the first completion through the requested date. | O(changed task history + elapsed calendar range); sparse multi-year histories can cost more than their entry count suggests. | Before commit |
 | Publish task state | Map the task array while preserving unchanged task references, then synchronously notify Zustand subscribers. | O(task count), normally cheap relative to history work. | Commit |
 | Persist the task store | Zustand persistence invokes `taskStorage.setItem`, whose `JSON.stringify(value)` serializes every task and every completion before `AsyncStorage.setItem` can perform its asynchronous native write. | O(all task data), plus a large temporary string allocation. | As part of the persisted store update |
-| Prepare achievement lookup maps | Filter active tasks and rebuild a completion-count map from every active task's full history. | O(all active completion history), every real completion. | After task commit, same JS turn |
+| Prepare achievement lookup maps | Addressed: retrieve runtime-read-only maps from a `WeakMap` keyed by each exact completions-array reference. Only the changed task's new array is indexed; unchanged tasks reuse their maps. | O(changed task history + active task count), rather than O(all active history). | After task commit, same JS turn |
 | Prepare achievement deduplication | Rebuild a `Set` from the complete earned-achievement history. | O(achievement history). | After task commit |
-| Detect achievements | Check task thresholds, task age, comeback, perfect day/week, global totals, active-task count, and time-of-day ratios. Until both time-of-day kinds are earned, their window can flatten and sort completions across all active tasks. | Mostly bounded rule checks after preparation, but perfect-day/week scales with active tasks and the time-of-day sort is O(H log H) for total active history H. | After task commit |
+| Detect achievements | Check task thresholds, task age, comeback, perfect day/week, global totals, active-task count, and time-of-day ratios. Addressed: the time-of-day window reuses each unchanged task's cached top-N slice and merges at most N candidates per task. | Mostly bounded rule checks; only the changed task rescans its history for a new top-N slice. | After task commit |
 | Record an unlock | If anything is earned, update the achievements store and stringify its persisted achievement history as a separate write. | O(achievement history) only on an unlock. | After task commit |
 | Reconcile reminders | Addressed: derive a deterministic desired intent and enqueue reconciliation against the observed native snapshot. An unchanged intent performs no native work; a changed occurrence is repaired serially. | Small pure comparison for ordinary updates; native work only when reminder intent changes. | After task commit |
 
@@ -266,10 +266,10 @@ The ordering also matters. The new task state cannot be published until the comp
 **Concrete scale examples**
 
 - A task with ten years of sparse specific-day history can make the stats calculation walk thousands of calendar dates even if it contains far fewer completion records.
-- With 30 active tasks containing 1,000 dated records each, one completion currently rebuilds maps over roughly 30,000 completion records for achievement checks, including 29 unchanged tasks.
+- Previously, 30 active tasks containing 1,000 dated records each made one completion rebuild indexes over roughly 30,000 records. The implemented cache now indexes the changed task's roughly 1,000 records and reuses the other 29 indexes.
 - The same completion stringifies the complete persisted `tasks` envelope. Its cost therefore increases when unrelated tasks accumulate history.
 - Updating a multi-rep completion for an existing day first searches for the record and then maps the same changed-task history to replace it.
-- Once both time-of-day achievements are permanently earned, their flatten/sort branch stops running; before then, it is another total-history operation worth measuring separately.
+- Before both time-of-day achievements are permanently earned, only the changed task rebuilds its newest-N slice; the cross-task merge is bounded by active-task count times the small window size.
 
 **Impact:** High. Habit completion is the core, frequent interaction; even moderate pauses here are disproportionately visible.
 
@@ -285,13 +285,13 @@ Instrument release-like Android builds around completion-array construction, `ca
 
 This establishes whether stats, cross-task achievement preparation, serialization, or native dispatch dominates on representative data. Development-mode React timings are not an adequate basis for redesigning durability.
 
-#### 2. Reuse immutable per-task indexes
+#### 2. Reuse immutable per-task indexes — implemented 2026-08-14
 
-Introduce a module-level `WeakMap` keyed by the exact `TaskCompletion[]` reference for `buildCompletionCountsByDate`. On one completion, only the changed task receives a new completions-array identity; every unchanged task can safely reuse its prior map. A task-ID cache without reference-aware invalidation is not safe because imports, undo, restore, or edits can replace history while retaining the same ID.
+The shared accessor now uses a module-level `WeakMap` keyed by the exact `TaskCompletion[]` reference. On one completion, only the changed task receives a new completions-array identity; every unchanged task safely reuses its prior map. No cache is keyed by task ID, so imports, undo, restore, or edits cannot retrieve an index from an older same-ID history.
 
-Use the cached maps both in screens and in live achievement detection where practical. For the time-of-day window, maintain or cache only the newest capped records required by the rule instead of flattening and sorting the entire active history. The cache must account for the active task set and each contributing completions-array identity.
+Cached maps are now used by live achievement detection, task-card calendars, task calendar, and dashboard calendar. Shared indexes are exposed through a runtime-read-only facade with no `set`, `delete`, or `clear`; the existing mutable builder remains separate for private calculations that genuinely need a fresh `Map`.
 
-Expected result: cross-task achievement preparation falls from scanning all active history on every completion to rebuilding only the changed task's index, while preserving exact perfect-day/week answers.
+The time-of-day helper similarly caches each task's frozen newest-N slice by completions-array identity, then merges at most N candidates per active task. New-reference and old-snapshot regression tests verify that replacement histories never reuse or contaminate same-task-id results.
 
 #### 3. Optimize changed-task stats carefully
 
@@ -835,7 +835,7 @@ These are initial targets to refine after collecting a baseline on the represent
 ## Verification completed during the review
 
 - TypeScript: `npx tsc --noEmit` passed.
-- Jest: 15 suites and 282 tests passed with `--runInBand --watchman=false`.
+- Jest: 15 suites and 289 tests passed with `--runInBand --watchman=false`.
 - ESLint: no errors; seven existing hook-dependency/unused-variable warnings remained.
 - Android production export: completed successfully.
 - Synthetic scaling benchmarks: completed for one-, five-, and ten-year histories; temporary benchmark code was removed afterward.

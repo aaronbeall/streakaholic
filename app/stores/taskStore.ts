@@ -5,7 +5,7 @@ import { PersistStorage, persist } from 'zustand/middleware';
 import { Task, TaskCompletion } from '../types';
 import { mergeTaskLists } from '../utils/importExport';
 import { cancelTaskNotifications, rescheduleAllTaskNotifications, scheduleTaskNotifications } from '../utils/notifications';
-import { buildCompletionCountsByDate, calculateTaskStats } from '../utils/streaks';
+import { calculateTaskStats, getCachedCompletionCountsByDate } from '../utils/streaks';
 import { useAchievementsStore } from './achievementsStore';
 import { useLastImportStore } from './lastImportStore';
 
@@ -205,14 +205,14 @@ export const useTaskStore = create<TaskStore>()(
           // usage) but never wired into this, the app's single most frequent interaction. Built
           // once per completion, scoped to non-archived tasks only (the same universe
           // detectCompletionAchievements' own perfect-day/perfect-week checks already restrict
-          // themselves to) -- costs the same O(total completions) as the linear scans it replaces
-          // would have cost anyway for a single lookup, but turns every *additional* lookup within
-          // this same call (there can be well over a dozen, across perfect-day and perfect-week
-          // together) into an O(1) map read instead of another full rescan.
+          // themselves to). The shared accessor is keyed by each exact immutable completions-array
+          // reference: only nextTask's new array is indexed now; every unchanged task reuses its
+          // existing read-only map. This retains O(1) day lookups without rescanning unrelated
+          // histories on the app's most frequent interaction.
           const completionCountsByTaskId = new Map(
             allTasksNow
               .filter(t => !t.archived)
-              .map(t => [t.id, buildCompletionCountsByDate(t.completions || [])] as const)
+              .map(t => [t.id, getCachedCompletionCountsByDate(t.completions || [])] as const)
           );
           useAchievementsStore.getState().recordCompletionAchievements(
             prevTask,

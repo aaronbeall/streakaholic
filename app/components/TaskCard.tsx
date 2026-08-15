@@ -29,7 +29,7 @@ import { TaskProgressIcon } from './TaskProgressIcon';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { getExpectedPeriodTotal } from '../utils/periodStats';
 import { getDayStreakState, getTaskStreakChains, isConnectedDay } from '../utils/reports';
-import { buildCompletionCountsByDate, getCompletionCount, getStreakBadgeStyle, isTaskCompleted } from '../utils/streaks';
+import { getCachedCompletionCountsByDate, getCompletionCount, getStreakBadgeStyle, isTaskCompleted } from '../utils/streaks';
 
 // A rough estimate of the streak *bubble*'s own rendered bounds (icon + streak count text,
 // padding -- deliberately not including the optional trophy icon, which sits outside the bubble
@@ -229,11 +229,11 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
   const firstDayOfMonth = startOfMonth(currentMonth);
   const startingDayOfWeek = getDay(firstDayOfMonth);
 
-  // Built once per task (keyed on its own `completions` reference) instead of a `.find()` scan
+  // Retrieved from the shared immutable-reference cache instead of a `.find()` scan
   // per day -- this grid does up to ~31 lookups against the same array, so this turns that into
   // one O(completions) pass plus O(1) lookups, and derives isCompleted from the same looked-up
   // count instead of also calling isTaskCompleted (which would repeat the same lookup again).
-  const completionCounts = useMemo(() => buildCompletionCountsByDate(task.completions || []), [task.completions]);
+  const completionCounts = useMemo(() => getCachedCompletionCountsByDate(task.completions || []), [task.completions]);
   const requiredTimes = task.timesPerDay || 1;
   // Memoized once per task rather than recomputed per empty cell -- getTaskStreakChains walks
   // the task's full history, so this turns a per-cell cost back into a per-render one.

@@ -975,7 +975,7 @@ export const REPEATABLE_TASK_SCOPED_KINDS = new Set<AchievementKind>(
 // be a task's *entire* completion history. Extracted 2026-08-14 alongside getTimeOfDayWindow below,
 // replacing a plain `[...all].sort(...).slice(0, n)` that scaled with total lifetime history just
 // to answer a "top 14" question.
-const selectMostRecentByCompletedAt = (items: TaskCompletion[], n: number): TaskCompletion[] => {
+const selectMostRecentByCompletedAt = (items: readonly TaskCompletion[], n: number): TaskCompletion[] => {
   const buffer: TaskCompletion[] = [];
   for (const item of items) {
     if (buffer.length < n) {
@@ -1008,17 +1008,51 @@ const insertSortedAscending = (buffer: TaskCompletion[], item: TaskCompletion): 
 // detectRetroactiveAchievements' own already-sorted-and-windowed slice (see its own comment) so the
 // replay loop still avoids re-deriving this per historical event.
 interface TimeOfDayWindow {
-  recent: TaskCompletion[]; // newest-first, capped at `window`
+  recent: readonly TaskCompletion[]; // newest-first, capped at `window`
   meetsMinSamples: boolean;
 }
+
+const recentCompletionsByArray = new WeakMap<TaskCompletion[], Map<number, readonly TaskCompletion[]>>();
+const EMPTY_RECENT_COMPLETIONS: readonly TaskCompletion[] = Object.freeze([]);
+
+// Same immutable-reference rule as streaks.ts's cached completion-count maps. Keep only a task's
+// newest `window` records, freeze the shared result, and cache it by that exact completions array.
+// A live completion replaces one task's array, so only that task rescans its full history; every
+// unchanged task contributes at most `window` cached candidates to the final cross-task merge.
+const getCachedRecentCompletions = (
+  completions: readonly TaskCompletion[],
+  window: number
+): readonly TaskCompletion[] => {
+  if (completions.length === 0 || window <= 0) return EMPTY_RECENT_COMPLETIONS;
+
+  const key = completions as TaskCompletion[];
+  let byWindow = recentCompletionsByArray.get(key);
+  const cached = byWindow?.get(window);
+  if (cached) return cached;
+
+  const recent = Object.freeze(selectMostRecentByCompletedAt(completions, window));
+  if (!byWindow) {
+    byWindow = new Map();
+    recentCompletionsByArray.set(key, byWindow);
+  }
+  byWindow.set(window, recent);
+  return recent;
+};
 
 const getTimeOfDayWindow = (
   activeTasks: Task[],
   window: number,
   minSamples: number,
-  override?: TaskCompletion[],
+  override?: readonly TaskCompletion[],
 ): TimeOfDayWindow => {
-  const recent = override ?? selectMostRecentByCompletedAt(activeTasks.flatMap(t => t.completions ?? []), window);
+  let recent = override;
+  if (!recent) {
+    const candidates: TaskCompletion[] = [];
+    for (const task of activeTasks) {
+      candidates.push(...getCachedRecentCompletions(task.completions ?? EMPTY_RECENT_COMPLETIONS, window));
+    }
+    recent = selectMostRecentByCompletedAt(candidates, window);
+  }
   return { recent, meetsMinSamples: recent.length >= minSamples };
 };
 
@@ -1035,26 +1069,23 @@ export const detectCompletionAchievements = (
   allTasksAfter: Task[],
   date: Date,
   alreadyEarnedScopes: Set<string>,
-  // Optional performance escape hatches, both purely additive -- omitted entirely by the live
-  // completion path (taskStore.ts), which gets byte-for-byte the same behavior as before either
-  // existed. detectRetroactiveAchievements' own replay loop (which calls this function once per
-  // *historical* completion, not once per real press -- potentially hundreds or thousands of
-  // times per scan) passes both to avoid rescanning/re-sorting the same data from scratch on every
-  // single call. Neither changes what's being checked, only how the data backing that check is
-  // sourced -- the actual rules (a day counts as completed once its count meets timesPerDay; the
-  // trailing window is the most recent N completions) stay defined in exactly one place, right
-  // here, whichever data source is in play.
+  // Optional performance escape hatches, both purely additive. The live taskStore path supplies
+  // immutable-reference-cached per-task count maps; detectRetroactiveAchievements' replay loop
+  // (which calls this once per historical completion) supplies its own incrementally maintained
+  // maps plus an already-windowed recent slice. If the recent override is omitted, the shared
+  // time-of-day helper below uses its own per-completions-array cache. None changes the rules --
+  // only the source of the exact same count/window data.
   options?: {
-    // Per-task completion-count-by-date maps (see buildCompletionCountsByDate in streaks.ts,
-    // already the established pattern elsewhere in this app for this exact problem) -- when
+    // Per-task completion-count-by-date maps (the live path uses streaks.ts's shared immutable-
+    // reference cache for this exact problem) -- when
     // provided, perfect-day/perfect-week's own day-completion checks read from these instead of
     // linearly rescanning each task's own `completions` array via `isTaskCompleted` every time.
-    completionCountsByTaskId?: Map<string, Map<string, number>>;
+    completionCountsByTaskId?: ReadonlyMap<string, ReadonlyMap<string, number>>;
     // An already-sorted-newest-first, already-capped-to-TIME_OF_DAY_WINDOW slice of the most
     // recent completions across every active task -- when provided, early-bird/night-owl use it
     // directly instead of flattening and re-sorting every active task's own completions from
     // scratch on every call.
-    recentCompletionsOverride?: TaskCompletion[];
+    recentCompletionsOverride?: readonly TaskCompletion[];
   },
 ): EarnedAchievement[] => {
   const nextStats = nextTask.stats;

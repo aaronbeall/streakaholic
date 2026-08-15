@@ -999,6 +999,49 @@ describe('getAchievementCardStatus', () => {
       const status = getAchievementCardStatus('early-bird', [], [task], today);
       expect(status.progress).toEqual({ current: 0, target: 7 }); // Math.ceil(14 / 2), none of the 14 most recent qualify
     });
+
+    it('rebuilds only for a replacement completion array and never reuses stale data by task id', () => {
+      const originalCompletions = Array.from({ length: 10 }, (_, i) => completionAt(`mid-${i}`, 13));
+      const originalTask = makeTask({ id: 'same-task-id', completions: originalCompletions });
+      expect(getAchievementCardStatus('early-bird', [], [originalTask], today).progress)
+        .toEqual({ current: 0, target: 5 });
+
+      // Same task id, deliberately new immutable array/reference and different values. A cache
+      // keyed by task id (or one missing reference invalidation) would incorrectly retain 0 here.
+      const replacementCompletions = [
+        ...Array.from({ length: 6 }, (_, i) => completionAt(`early-${i}`, 5)),
+        ...Array.from({ length: 4 }, (_, i) => completionAt(`later-mid-${i}`, 13)),
+      ];
+      const replacementTask = makeTask({ id: 'same-task-id', completions: replacementCompletions });
+      expect(getAchievementCardStatus('early-bird', [], [replacementTask], today).progress)
+        .toEqual({ current: 6, target: 5 });
+
+      // Re-reading the old immutable snapshot still returns its own cached answer, proving the
+      // two histories coexist without overwriting or contaminating one another.
+      expect(getAchievementCardStatus('early-bird', [], [originalTask], today).progress)
+        .toEqual({ current: 0, target: 5 });
+    });
+
+    it('merges cached per-task windows into the true global newest window', () => {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setHours(5, 0, 0, 0);
+      const oldEarly = Array.from({ length: 14 }, (_, i) => {
+        const d = new Date(yesterday);
+        d.setMinutes(i);
+        return makeCompletion(`old-early-${i}`, d);
+      });
+      const recentMidday = Array.from({ length: 14 }, (_, i) => completionAt(`recent-mid-${i}`, 13));
+      const tasks = [
+        makeTask({ id: 'old-task', completions: oldEarly }),
+        makeTask({ id: 'recent-task', completions: recentMidday }),
+      ];
+
+      // Each task contributes a cached top-14 slice, but the final top-14 must still be selected
+      // globally. All of yesterday's qualifying records should be displaced by today's records.
+      expect(getAchievementCardStatus('early-bird', [], tasks, today).progress)
+        .toEqual({ current: 0, target: 7 });
+    });
   });
 });
 

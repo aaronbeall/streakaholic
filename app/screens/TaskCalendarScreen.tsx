@@ -17,7 +17,7 @@ import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { buildDayConnectionInfo, getDayStreakState, getTaskStreakChains } from '../utils/reports';
-import { buildCompletionCountsByDate } from '../utils/streaks';
+import { getCachedCompletionCountsByDate } from '../utils/streaks';
 
 const TAP_DAY_HINT_TEXT = 'Tap a day to mark a day complete, tap again to clear it';
 
@@ -96,10 +96,10 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
   const today = format(new Date(), 'yyyy-MM-dd');
   const requiredTimes = task.timesPerDay || 1;
 
-  // Built once per task (keyed on its own `completions` reference) instead of a `.find()` scan
+  // Retrieved from the shared immutable-reference cache instead of a `.find()` scan
   // per cell -- the Month grid does up to ~31 lookups and the Year grid up to 365, all against
   // the same array, so this turns each into one O(completions) pass plus O(1) lookups per cell.
-  const completionCounts = useMemo(() => buildCompletionCountsByDate(task.completions || []), [task.completions]);
+  const completionCounts = useMemo(() => getCachedCompletionCountsByDate(task.completions || []), [task.completions]);
   // Memoized once per task rather than recomputed per empty cell -- getTaskStreakChains walks
   // the task's full history, so this turns a per-cell cost back into a per-render one.
   const streakChains = useMemo(() => getTaskStreakChains(task), [task]);

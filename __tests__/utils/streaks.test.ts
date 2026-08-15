@@ -1,6 +1,6 @@
 import { format, subDays } from 'date-fns';
 import { Task, TaskCompletion } from '../../app/types';
-import { buildCompletionCountsByDate, calculateTaskStats, getCompletionCount, isTaskCompleted, StreakScheduleInfo } from '../../app/utils/streaks';
+import { buildCompletionCountsByDate, calculateTaskStats, getCachedCompletionCountsByDate, getCompletionCount, isTaskCompleted, StreakScheduleInfo } from '../../app/utils/streaks';
 
 const makeCompletion = (id: string, date: Date, timesCompleted = 1): TaskCompletion => ({
   id,
@@ -425,5 +425,62 @@ describe('buildCompletionCountsByDate', () => {
       expect(map.get(dateString) ?? 0).toBe(getCompletionCount(task, date));
     }
     expect(map.get(format(subDays(today, 5), 'yyyy-MM-dd')) ?? 0).toBe(0);
+  });
+});
+
+describe('getCachedCompletionCountsByDate', () => {
+  it('returns the same read-only index for the exact same immutable array reference', () => {
+    const completions = [makeCompletion('a', new Date(), 2)];
+    const first = getCachedCompletionCountsByDate(completions);
+    const second = getCachedCompletionCountsByDate(completions);
+
+    expect(second).toBe(first);
+    expect(Object.isFrozen(first)).toBe(true);
+    expect((first as unknown as { set?: unknown }).set).toBeUndefined();
+    expect((first as unknown as { delete?: unknown }).delete).toBeUndefined();
+    expect((first as unknown as { clear?: unknown }).clear).toBeUndefined();
+  });
+
+  it('invalidates by array identity and never returns values from a replaced history', () => {
+    const date = new Date();
+    const dateString = format(date, 'yyyy-MM-dd');
+    const original = [makeCompletion('a', date, 1)];
+    const replacement = [{ ...original[0], timesCompleted: 3 }];
+
+    const originalIndex = getCachedCompletionCountsByDate(original);
+    const replacementIndex = getCachedCompletionCountsByDate(replacement);
+
+    expect(replacementIndex).not.toBe(originalIndex);
+    expect(originalIndex.get(dateString)).toBe(1);
+    expect(replacementIndex.get(dateString)).toBe(3);
+    expect(getCachedCompletionCountsByDate(original)).toBe(originalIndex);
+  });
+
+  it('does not collide when different tasks use different arrays with identical contents', () => {
+    const completion = makeCompletion('a', new Date(), 1);
+    const first = getCachedCompletionCountsByDate([completion]);
+    const second = getCachedCompletionCountsByDate([{ ...completion }]);
+
+    expect(second).not.toBe(first);
+    expect([...second]).toEqual([...first]);
+  });
+
+  it('shares one immutable empty index without retaining caller-created empty arrays', () => {
+    const first = getCachedCompletionCountsByDate([]);
+    const second = getCachedCompletionCountsByDate([]);
+
+    expect(second).toBe(first);
+    expect(first.size).toBe(0);
+  });
+
+  it('keeps the existing mutable builder independent from shared cached indexes', () => {
+    const completion = makeCompletion('a', new Date(), 1);
+    const completions = [completion];
+    const cached = getCachedCompletionCountsByDate(completions);
+    const mutable = buildCompletionCountsByDate(completions);
+
+    mutable.set(completion.date, 99);
+    expect(mutable.get(completion.date)).toBe(99);
+    expect(cached.get(completion.date)).toBe(1);
   });
 });

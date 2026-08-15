@@ -108,7 +108,7 @@ const getDueDayStreakChains = (schedule: StreakScheduleInfo, completedDates: Set
 // (streaks.ts) both use, rather than each independently re-walking the same period bounds.
 // requiredTimes=1 here since `completionCounts` is already built from pre-filtered qualifying
 // completions (every entry already met the task's own timesPerDay).
-const getQuotaStreakChains = (completionCounts: Map<string, number>, unit: QuotaUnit, quota: number): StreakChain[] => {
+const getQuotaStreakChains = (completionCounts: ReadonlyMap<string, number>, unit: QuotaUnit, quota: number): StreakChain[] => {
   const dates = Array.from(completionCounts.keys()).sort();
   if (dates.length === 0) return [];
 
@@ -174,7 +174,7 @@ const lastChainBefore = (chains: StreakChain[], day: Date): StreakChain | undefi
 //    Renders as a plain, less-alarming empty day.
 //
 // Takes `chains` (the caller's own already-memoized getTaskStreakChains(task) result) and
-// `completionCounts` (the caller's own already-memoized buildCompletionCountsByDate(task.
+// `completionCounts` (the caller's own already-memoized/cached completion index for task.
 // completions) result) rather than recomputing either internally -- calendar grids call this
 // once per empty cell, and both of those walk/scan the task's full history, so recomputing them
 // from scratch per cell would turn a per-render cost into a per-cell one across a whole grid.
@@ -182,7 +182,7 @@ export const getDayStreakState = (
   task: Task,
   date: Date,
   chains: StreakChain[],
-  completionCounts: Map<string, number>
+  completionCounts: ReadonlyMap<string, number>
 ): DayStreakState => {
   const day = startOfDay(date);
 
@@ -242,7 +242,7 @@ export const isConnectedDay = (
   task: Task,
   date: Date,
   chains: StreakChain[],
-  completionCounts: Map<string, number>
+  completionCounts: ReadonlyMap<string, number>
 ): boolean => {
   const today = startOfDay(new Date());
   const day = startOfDay(date);
@@ -279,7 +279,7 @@ const isChainConnectedDay = (
   task: Task,
   date: Date,
   chains: StreakChain[],
-  completionCounts: Map<string, number>
+  completionCounts: ReadonlyMap<string, number>
 ): boolean => {
   const day = startOfDay(date);
   if (day > startOfDay(new Date())) return false;
@@ -312,7 +312,7 @@ const isBridgedNeighbor = (
   day: Date,
   neighbor: Date,
   chains: StreakChain[],
-  completionCounts: Map<string, number>
+  completionCounts: ReadonlyMap<string, number>
 ): boolean => {
   if (!isChainConnectedDay(task, neighbor, chains, completionCounts)) return false;
   const dayChain = chainOf(chains, day);
@@ -352,7 +352,7 @@ export const buildDayConnectionInfo = (
   task: Task,
   dates: Date[],
   chains: StreakChain[],
-  completionCounts: Map<string, number>
+  completionCounts: ReadonlyMap<string, number>
 ): Map<string, DayConnectionInfo> => {
   const sortedDates = Array.from(new Set(dates.map(d => format(startOfDay(d), 'yyyy-MM-dd'))))
     .sort()

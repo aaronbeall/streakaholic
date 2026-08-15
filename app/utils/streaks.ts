@@ -203,7 +203,7 @@ export const getQuotaPeriodInfo = (
   date: Date,
   unit: QuotaUnit,
   quota: number,
-  completionCounts: Map<string, number>,
+  completionCounts: ReadonlyMap<string, number>,
   requiredTimes: number
 ): QuotaPeriodInfo => {
   const safeQuota = Math.max(1, quota || 1);
@@ -385,6 +385,64 @@ export const buildCompletionCountsByDate = (completions: TaskCompletion[]): Map<
     map.set(completion.date, completion.timesCompleted);
   }
   return map;
+};
+
+// A runtime-read-only facade, not merely a ReadonlyMap TypeScript annotation. Cached maps are
+// shared across components and achievement checks, so exposing Map.set/delete/clear would allow
+// one accidental cast/mutation to corrupt every later reader of the same completions-array key.
+// The backing Map is held in a native private field and cannot be reached through the returned
+// object; its iterators expose entries, not the mutable Map itself.
+class CompletionCountsView implements ReadonlyMap<string, number> {
+  readonly [Symbol.toStringTag] = 'CompletionCountsView';
+  readonly #source: Map<string, number>;
+
+  constructor(completions: readonly TaskCompletion[]) {
+    this.#source = new Map();
+    for (const completion of completions) {
+      this.#source.set(completion.date, completion.timesCompleted);
+    }
+    Object.freeze(this);
+  }
+
+  get size(): number { return this.#source.size; }
+  get(key: string): number | undefined { return this.#source.get(key); }
+  has(key: string): boolean { return this.#source.has(key); }
+  entries(): MapIterator<[string, number]> { return this.#source.entries(); }
+  keys(): MapIterator<string> { return this.#source.keys(); }
+  values(): MapIterator<number> { return this.#source.values(); }
+  [Symbol.iterator](): MapIterator<[string, number]> { return this.#source[Symbol.iterator](); }
+  forEach(
+    callbackfn: (value: number, key: string, map: ReadonlyMap<string, number>) => void,
+    thisArg?: unknown
+  ): void {
+    this.#source.forEach((value, key) => callbackfn.call(thisArg, value, key, this));
+  }
+}
+
+const completionCountsByArray = new WeakMap<TaskCompletion[], ReadonlyMap<string, number>>();
+const EMPTY_COMPLETION_COUNTS: ReadonlyMap<string, number> = new CompletionCountsView([]);
+
+// Shared only by callers holding the store's immutable completion-array references. Every action
+// that changes completion data replaces the array (complete, uncomplete, undo, restore, and import
+// merge/replace inputs), so a changed history is a guaranteed cache miss while a settings edit that
+// retains unchanged history is a safe hit. Deliberately keyed by the array object -- never task id
+// -- so replacing a task's data cannot return an index built from an older history. WeakMap also
+// lets abandoned histories be collected without manual invalidation or an unbounded id cache.
+export const getCachedCompletionCountsByDate = (
+  completions: readonly TaskCompletion[]
+): ReadonlyMap<string, number> => {
+  if (completions.length === 0) return EMPTY_COMPLETION_COUNTS;
+
+  // Task.completions is declared mutable for legacy/import compatibility, but store-owned arrays
+  // follow immutable replacement. The cast only supplies WeakMap's object key type; this function
+  // never writes to the input array.
+  const key = completions as TaskCompletion[];
+  const cached = completionCountsByArray.get(key);
+  if (cached) return cached;
+
+  const counts = new CompletionCountsView(completions);
+  completionCountsByArray.set(key, counts);
+  return counts;
 };
 
 export interface StreakBadgeStyle {

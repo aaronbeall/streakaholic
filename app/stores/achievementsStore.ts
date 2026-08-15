@@ -39,7 +39,7 @@ interface AchievementsStore {
     nextTask: Task,
     allTasks: Task[],
     date: Date,
-    completionCountsByTaskId?: Map<string, Map<string, number>>
+    completionCountsByTaskId?: ReadonlyMap<string, ReadonlyMap<string, number>>
   ) => void;
   dismissCurrentCelebration: () => void;
   // Replays an already-earned achievement's celebration on demand (TrophiesScreen -- tapping an
