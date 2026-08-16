@@ -72,6 +72,18 @@
   - [ ] Completion and streak
   - [ ] Congratulations
 - [x] Add a day status summary/explainer on task details screen (tapping `TaskHeader`'s frequency/streak badges row opens a dismissable popover with a plain-English recap -- schedule, today's own status, and how it compares to the task's best streak -- built via `app/utils/taskStatusSummary.ts`'s branching `buildTaskStatusSummary`; see CLAUDE.md)
+- [ ] Friendly analytics layer (preserve the existing depth while making it easier to interpret)
+  - [ ] Add one deterministic, local-only, schedule-aware insight near the top of Dashboard Stats
+        and per-habit Stats (e.g. habits on track, progress toward a weekly/monthly quota, a current
+        personal best, or a fair comparison with the prior equivalent period)
+  - [ ] Audit analytical labels for plain-language clarity (`Rate` → `Completion rate` or
+        `Consistency`, `Total Days` → `Days tracked`, and friendlier pattern-chart titles)
+  - [ ] Explain the icon-only Grid/Bars/Streamgraph and cumulative/per-period controls with
+        lightweight first-use help or an on-demand info sheet rather than removing advanced modes
+  - [ ] Let users tap Stats chart points/bars to inspect the exact date, value, and relevant habits,
+        matching the existing day inspection in Dashboard Calendar's Bars/Streamgraph modes
+  - [ ] Add encouraging young-data states that explain when a useful pattern will emerge instead of
+        presenting sparse/flat charts without context
 
 ## MMP
 
@@ -96,6 +108,18 @@
 - [ ] Timeline view
 - [ ] Heatmap view
 - [x] Achievements (see the MVP+ entry above — 23-kind system, Trophy Case, celebration screen; deliberately no points/ranks/upgrades layered on top yet, kept purely cosmetic per explicit design decision — a future point system could hang off the same recorded data, see below)
+- [ ] Custom goals and achievements (user-defined milestones layered on top of a habit's schedule,
+      not a replacement for its normal due/quota rules)
+  - [ ] Support useful goal types such as a target streak, lifetime completion count, completions
+        within a date range, and an optional recurring weekly/monthly target
+  - [ ] Let the user customize the goal's name, target, icon, color, linked habit(s), and optional
+        deadline while offering simple templates for common goals
+  - [ ] Show live progress on habit Stats/Dashboard and distinguish custom goals from built-in
+        Streakaholic achievements in the Trophy Case
+  - [ ] Reuse the existing full-screen celebration, achievement history, and share-card systems when
+        a custom goal is reached
+  - [ ] Preserve achievement credibility: label custom awards clearly and record whether they were
+        earned in normal or Commitment Mode rather than presenting them as built-in accomplishments
 - [ ] Points/ranks/upgrades
 - [ ] Daily summary notification (evening recap push -- completions, streaks at risk; distinct from per-task reminders, and from Home, which only covers the passive/at-a-glance case)
 - [ ] Personal leaderboard
