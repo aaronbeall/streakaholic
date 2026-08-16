@@ -2,7 +2,8 @@
 
 How to ship Streakaholic to the Google Play Store, plus the implementation record for
 **Rate this app** and a guide for the remaining **Tip jar**. For setup/dev workflow see
-[DEVELOPMENT.md](DEVELOPMENT.md); for architecture see [CLAUDE.md](CLAUDE.md).
+[DEVELOPMENT.md](DEVELOPMENT.md); for the chronological development-to-release runbook
+see [RELEASE_GUIDE.md](RELEASE_GUIDE.md); for architecture see [CLAUDE.md](CLAUDE.md).
 
 ## Readiness audit (as of 2026-08-08, updated same day)
 

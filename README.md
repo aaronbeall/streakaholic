@@ -17,6 +17,7 @@ A playful, modern habit and streak tracker for Android.
 
 ## Docs
 - [DEVELOPMENT.md](DEVELOPMENT.md)
+- [RELEASE_GUIDE.md](RELEASE_GUIDE.md)
 - [TODO.md](TODO.md)
 - [CLAUDE.md](CLAUDE.md)
 - [PUBLISHING.md](PUBLISHING.md)
