@@ -8,8 +8,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
+import * as StoreReview from 'expo-store-review';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { useToast } from '../context/ToastContext';
@@ -19,6 +20,7 @@ import { useLastImportStore } from '../stores/lastImportStore';
 import { ThemeMode, useSettingsStore } from '../stores/settingsStore';
 import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
+import { buildFeedbackEmailUrl, SUPPORT_EMAIL } from '../utils/appFeedback';
 import { createTasksExport, ParsedTasksImport, parseTasksImport } from '../utils/importExport';
 import { isTaskCompleted } from '../utils/streaks';
 
@@ -73,6 +75,38 @@ export const SettingsScreen: React.FC = () => {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const appName = Constants.expoConfig?.name ?? 'Streakaholic';
   const version = Constants.expoConfig?.version ?? '';
+
+  const handleSendFeedback = async () => {
+    const url = buildFeedbackEmailUrl({
+      appName,
+      version: Constants.nativeAppVersion ?? version,
+      buildVersion: Constants.nativeBuildVersion,
+      platform: Platform.OS,
+      platformVersion: Platform.Version,
+      environment: Constants.executionEnvironment,
+    });
+
+    try {
+      await Linking.openURL(url);
+    } catch {
+      showToast({ message: `Could not open an email app. You can email ${SUPPORT_EMAIL}.` });
+    }
+  };
+
+  const handleRateApp = async () => {
+    try {
+      // Web has no native store-review sheet. Native development builds may also report no
+      // action; a real store-distributed build is the reliable environment for testing this flow.
+      if (!(await StoreReview.hasAction())) {
+        showToast({ message: 'App store ratings are not available in this build.' });
+        return;
+      }
+
+      await StoreReview.requestReview();
+    } catch {
+      showToast({ message: 'The app store could not be opened right now.' });
+    }
+  };
 
   // A scan is only useful after data changed outside the normal completion flow. Achievements are
   // always recorded even when celebrations are hidden, so toggling that display preference has no
@@ -328,6 +362,28 @@ export const SettingsScreen: React.FC = () => {
 
         <Text style={styles.sectionTitle}>Help</Text>
         <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={handleSendFeedback}
+            accessibilityRole="button"
+            accessibilityHint="Opens an email with app and device version details filled in"
+          >
+            <MaterialCommunityIcons name="message-text-outline" size={22} color={colors.textSecondary} />
+            <Text style={styles.rowLabel}>Send Feedback</Text>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity
+            style={styles.row}
+            onPress={handleRateApp}
+            accessibilityRole="button"
+            accessibilityHint="Opens the app store rating prompt"
+          >
+            <MaterialCommunityIcons name="star-outline" size={22} color={colors.textSecondary} />
+            <Text style={styles.rowLabel}>Rate This App</Text>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
+          </TouchableOpacity>
+          <View style={styles.divider} />
           <TouchableOpacity
             style={styles.row}
             onPress={() => {
