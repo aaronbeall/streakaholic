@@ -13,15 +13,18 @@ live tester tour or as a shot list for a narrated demo video.
    that were already earned on that installation.
 4. Open **Settings → Import & Replace All Data**, choose the generated file, and then tap
    **Check Now** in the achievement prompt.
-5. Return to Home. In **Settings → Habit Cards**, enable the card background, habit name,
-   and completion counter for the clearest recording.
-6. Turn on Do Not Disturb and hide personal notifications before recording. Use a clean,
+5. In **Settings → Achievements**, make sure **Celebrate Achievements** is enabled. If
+   **Unsnooze All Celebrations** is visible, use it. The live trigger below depends on the
+   two-day-streak celebration not being snoozed.
+6. In **Settings → Habit Cards**, enable the card background, habit name, and completion
+   counter for the clearest recording, then return to Home.
+7. Turn on Do Not Disturb and hide personal notifications before recording. Use a clean,
    high-contrast wallpaper or crop to the app frame.
 
 Do not merge the demo export into an older demo dataset. Because the dates are regenerated,
 a merge can retain old records and change the intended streak states.
 
-## Core walkthrough (about 3 minutes)
+## Core walkthrough (about 4–5 minutes)
 
 ### 1. Open on motivation, not setup (20 seconds)
 
@@ -37,6 +40,8 @@ a merge can retain old records and change the intended streak states.
 - Morning Workout is complete today and carries a live streak.
 - Drink Water is halfway through its 2-of-4 daily target.
 - The fire and clock bubbles at the top summarize healthy and at-risk streaks.
+- Read Before Bed has a one-day live streak with today still due; it is deliberately staged
+  for the live celebration later in the walkthrough.
 - Learn Spanish is intentionally brand new, so the grid includes both long-term progress
   and the clean starting state.
 
@@ -63,7 +68,45 @@ remains on the known dataset.
 The clock filter should isolate **Drink Water** and **Read Before Bed**. The fire filter
 should show the comfortably current habits.
 
-### 4. Open one habit's full story (35 seconds)
+### 4. Trigger a real full-screen celebration and share it (40 seconds)
+
+**Action:** With all filters cleared and **Read Before Bed** showing its habit face, press
+and hold it once. Let the completion animation finish. It should extend the staged one-day
+run to two days and launch the full-screen **Streak Started!** celebration.
+
+Pause for the count-up, emblem reveal, and confetti. Tap **Share**, keep the habit name
+enabled, and show the generated achievement card. For a live tester tour, tap the preview's
+**Share** button once to prove it opens the native share sheet, then dismiss it. For store or
+social footage, stop at the clean preview so personal share targets do not enter the recording.
+
+**Say:**
+
+> Completing a habit can do more than tick a box. It extends the streak, unlocks a real
+> achievement, and turns that moment into a shareable card—all rendered locally on the device.
+
+Close the share preview and celebration. Do not undo this completion; the next step uses
+the newly completed state. Re-import the dataset whenever you need to rehearse this trigger
+again.
+
+### 5. Show selected weekdays and quota schedules (45 seconds)
+
+**Action:** Back on Home, press and hold the now-completed **Read Before Bed** card to open
+its detail screen. Tap the frequency/status badges beneath the large habit icon to open the
+plain-language summary. Point out that it is due only on four selected weekdays, then close
+the summary.
+
+Use the right-hand habit arrow to move to **Meal Prep** and open the same summary. Point out
+its **3 days per week** quota and the deliberately missed previous week. Move once more to
+**Deep Clean** and point out its **4 days per month** quota and its sparse, on-track rhythm.
+Return to Home.
+
+**Say:**
+
+> Schedules can follow exact weekdays, or flexible weekly and monthly quotas. A three-day
+> weekly goal does not force Monday, Wednesday, and Friday—you choose the days while the
+> app keeps the period accountable.
+
+### 6. Open one habit's full story (35 seconds)
 
 **Action:** Long-press the already-completed **Morning Workout** card. Visit its
 **Calendar**, **Stats**, and **Streaks** tabs.
@@ -79,11 +122,11 @@ should show the comfortably current habits.
 
 - Calendar: swipe to an older month to expose longer runs and breaks.
 - Stats: choose **Year**, toggle cumulative activity, and scroll through weekday and
-  time-of-day charts. Tap the share icon to show the generated progress card, then close
-  the preview without opening the system share sheet during the main recording.
+  time-of-day charts. Tap the share icon to show the generated habit-progress card and its
+  optional habit-name control, then close the preview.
 - Streaks: choose **Best** to bring the 132-day record to the top.
 
-### 5. Show aggregate analytics (45 seconds)
+### 7. Show aggregate analytics and the streamgraph (60 seconds)
 
 **Action:** Return Home and tap the bar-chart icon to open **Dashboard**.
 
@@ -95,15 +138,23 @@ should show the comfortably current habits.
 **Show:**
 
 1. **Stats:** point out total completions, active-streak ratio, best streak, completion
-   rate, and the color-coded per-habit breakdown. Switch from **Week** to **Year** so the
-   generated history fills the chart, then show the morning, afternoon, and evening peaks.
+   rate, and the color-coded per-habit breakdown. Tap the share icon to preview the
+   aggregate progress card. Close it, switch from **Week** to **Year** so the generated
+   history fills the chart, then show the morning, afternoon, and evening peaks.
 2. **Calendar:** show the grid's complete, partial, missed, and not-due states. Toggle
-   **Grid → Bars** to turn the same dates into stacked daily activity.
+   **Grid → Bars → Streamgraph**. Pause on the streamgraph so the colored habit ribbons and
+   changing total activity silhouette are readable. Tap one of the visibly broad recent
+   peaks to show the selected-day line and the per-habit detail card beneath the chart.
 3. **Streaks:** choose **Best** and point out that every historical run remains browsable.
 4. Tap one colored habit icon in the Dashboard header to demonstrate that all three tabs
    share the same filter.
 
-### 6. Finish on gamification (35 seconds)
+**Say while showing the streamgraph:**
+
+> The streamgraph turns the whole routine into one flowing picture. Each color is a habit,
+> and the shape makes bursts, quiet periods, and changes in the mix immediately visible.
+
+### 8. Finish on gamification (30 seconds)
 
 **Action:** Open the **Trophy Case** from the Dashboard or Home header.
 
@@ -119,8 +170,8 @@ should show the comfortably current habits.
 - Point out Early Bird, Night Owl, Perfect Week, New Best Streak, and Fortune 500.
 - Point out the progress toward the intentionally locked 1,000-level trophies.
 - Tap an unlocked trophy to replay its full-screen celebration.
-- From that celebration, tap **Share** to preview the branded achievement card; this is a
-  natural bridge from personal motivation to word-of-mouth growth.
+- Point out that replayed celebrations retain the same **Share** action demonstrated by the
+  live unlock earlier.
 - Use a habit icon at the top to filter the Trophy Case to one habit.
 
 **Close with:**
@@ -132,16 +183,48 @@ should show the comfortably current habits.
 Use these after the polished core tour when the audience cares about behavior rather than
 video length:
 
-- Open **Read Before Bed** to show the selected-weekday schedule and late reminder.
-- Open **Meal Prep** to explain weekly quotas and its dormant streak history.
-- Open **Deep Clean** to show a monthly quota and sparse calendar rhythm.
 - Open **Learn Spanish** to contrast a completely new habit with the populated examples.
+- Tap a habit card repeatedly to show its compact habit, calendar, and stats faces, then
+  long-press a non-habit face to open the corresponding full-screen tab.
+- Open an edit screen to show icon search, color choices, all four frequency controls,
+  multiple-times-per-day targets, and the five reminder escalation levels.
+- In a habit's monthly calendar, tap a past date to demonstrate backfilling and clearing
+  history; do this only after the polished recording because it changes the dataset.
 - Visit **Settings → Archived Habits** and show that No Sugar retains its history and can
   be restored.
 - Open the reorder control on Home and briefly demonstrate preset sorting by creation,
   usage, color, or reminder time.
 
-## Short store/social cut (45–60 seconds)
+## What is not demonstrated in the core walkthrough
+
+These features are implemented, but deliberately left out of the polished 4–5 minute path:
+
+| Area | Specific omissions |
+|---|---|
+| Habit creation and editing | Creating a habit, automatic icon suggestions and icon search, the expanded color picker, changing a schedule, name validation, the six-active-habit limit, discard-unsaved-changes protection, archive/delete confirmations, and their Undo actions |
+| Reminders | The Off/Once/Repeat/Persist/Alarm modes, changing reminder time and repeat interval, Android notification permission, and actual notification/alarm delivery |
+| Home interactions | Tapping cards to cycle through their compact habit/calendar/stats faces, long-pressing the calendar or stats face to deep-link to that tab, manual drag reordering, preset sorting, and the empty/filtered-empty states |
+| Calendar editing | Per-habit **Year** mode, directly adding/removing a past completion, multiple-rep corrections from a calendar day, future-day restrictions, and opening a task calendar from a Dashboard day/month card |
+| Analytics variants | The **Month** and **All Time** Stats ranges, every chart at every range, Dashboard mini month cards, the Streaks **Recent** sort, and loading very old streak/calendar pages |
+| Achievement presentation variants | Snoozing one achievement kind, the lightweight achievement alert used for snoozed kinds, unsnoozing, and a batch where several achievements unlock in one full-screen sequence |
+| Settings and support | System/Light/Dark theme switching; the individual card-display toggles as live before/after comparisons; export; merge import; import Undo; Send Feedback; Rate This App; **Share Streakaholic** as a store link; replaying onboarding hints; and the About/Privacy/Terms/Open Source screens |
+| Data lifecycle | Deleting a habit and restoring via Undo, archiving/restoring as a full flow, duplicate-import messaging, and malformed-import handling |
+| Developer-only tooling | The notification debug screen |
+
+The walkthrough does demonstrate all three content-card sharing surfaces: a live achievement,
+one habit's Stats, and the aggregate Dashboard. It does **not** demonstrate the separate
+**Settings → Share Streakaholic** action, which shares the app/store link rather than a progress
+image.
+
+The following roadmap items cannot be demonstrated because they are not implemented yet:
+
+- Commitment Mode (formerly Ironman/Hard Mode), locked history, Commitment achievement
+  provenance, and Streak Saves
+- Planned skips, pauses, and vacation handling
+- Pro purchase/unlimited habits, the tip jar, and any paid flow
+- Android home-screen widgets
+
+## Short store/social cut (about 60 seconds)
 
 For a short silent or captioned video, record these clips separately and assemble them in
 this order:
@@ -149,12 +232,13 @@ this order:
 | Time | Shot | On-screen caption |
 |---|---|---|
 | 0–5s | Home grid; slow pause on mixed streak states | Build momentum, one day at a time |
-| 5–12s | Hold Drink Water; ring moves 2/4 → 3/4 | Track habits your way |
-| 12–20s | Filter at-risk streaks, then return to all | Know what needs attention |
-| 20–32s | Dashboard Stats, then Calendar Grid → Bars | See your consistency clearly |
-| 32–43s | Morning Workout Streaks sorted by Best | Every streak tells a story |
-| 43–55s | Trophy Case; tap a trophy, then preview its share card | Turn progress into achievements |
-| 55–60s | Return to the Home grid | Streakaholic |
+| 5–11s | Hold Drink Water; ring moves 2/4 → 3/4 | Track habits your way |
+| 11–22s | Hold Read Before Bed; show the full Streak Started celebration | Make progress worth celebrating |
+| 22–29s | Open the achievement share preview | Share the moment |
+| 29–38s | Read Before Bed schedule summary, then Meal Prep's 3/week summary | Exact days or flexible quotas |
+| 38–51s | Dashboard Calendar Grid → Bars → Streamgraph; tap a peak | See the shape of your consistency |
+| 51–57s | Dashboard or habit Stats share preview | Your progress, ready to share |
+| 57–60s | Trophy Case, then return to Home | Streakaholic |
 
 Keep captions inside the middle 80% of the frame so vertical social crops and Play Store
 previews do not cut them off. Record taps with pointer visualization enabled only if the

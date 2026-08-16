@@ -168,9 +168,12 @@ def build_demo_export(today: date) -> dict:
     tasks.append(water)
 
     # 3. A selected-weekdays habit. Its schedule is generated so today is always a
-    # due day, while the other selected days are spread across the week. Recent due
-    # days are complete, making today's empty state an expiring streak rather than a
-    # long-dead one. Late timestamps give the time-of-day chart a clear second peak.
+    # due day, while the other selected days are spread across the week. The due day
+    # four days ago is deliberately missed and the one two days ago is complete, so
+    # today's empty state is a one-day expiring streak. Completing it live during the
+    # walkthrough crosses the repeatable two-day threshold and reliably launches the
+    # full-screen "Streak Started!" celebration. Late timestamps give the time-of-day
+    # chart a clear second peak.
     read_days = sorted({js_weekday(days_ago(offset)) for offset in (0, 2, 4, 6)})
     reading = task(
         "read-before-bed",
@@ -186,6 +189,8 @@ def build_demo_export(today: date) -> dict:
         day = days_ago(offset)
         if js_weekday(day) not in read_days:
             continue
+        if offset == 4:
+            continue  # breaks the old chain so today's completion starts a fresh two-day streak
         recent_due_day = offset <= 12
         realistic_hit = ((offset * 7 + 3) % 10) < 7
         if recent_due_day or realistic_hit:

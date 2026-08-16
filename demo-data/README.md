@@ -28,7 +28,7 @@ date-relative set into an older demo import can retain stale completion records.
 |---|---|---|
 | Morning Workout | Daily; 35-day live streak, 132-day record | Long-term consistency, a broken-and-rebuilt streak, backfill-created record, morning activity peak, reminder with repeat nags |
 | Drink Water | Daily, 4×; 2/4 today, 75-day streak at risk, 100-day record | Segmented partial progress, completion counter, expiring streak, afternoon activity peak |
-| Read Before Bed | Four selected weekdays; due and incomplete today | Specific weekday scheduling, expiring streak, realistic misses, late-night activity peak |
+| Read Before Bed | Four selected weekdays; due today with a one-day live streak | Specific weekday scheduling, late-night activity peak, and a staged live completion that triggers the full-screen 2-day-streak celebration |
 | Meal Prep | 3×/week; last week fell short | Weekly quota, expired/dormant state, multiple historical streak chains |
 | Deep Clean | 4×/month; currently on track | Monthly quota, sparse calendar history, distinct month/year chart rhythm |
 | Learn Spanish | Daily; created today with no history | Never-started state, empty progress and analytics, new-user baseline |

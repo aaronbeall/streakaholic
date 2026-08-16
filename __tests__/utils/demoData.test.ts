@@ -3,7 +3,12 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { Task } from '../../app/types';
-import { AchievementKind, detectRetroactiveAchievements } from '../../app/utils/achievements';
+import {
+  AchievementKind,
+  dedupKey,
+  detectCompletionAchievements,
+  detectRetroactiveAchievements,
+} from '../../app/utils/achievements';
 import { parseTasksImport } from '../../app/utils/importExport';
 import { calculateTaskStats, getCompletionCount } from '../../app/utils/streaks';
 
@@ -59,8 +64,7 @@ describe('generated marketing demo data', () => {
     expect(workout.stats).toMatchObject({ currentStreak: 35, bestStreak: 132, streakStatus: 'up_to_date' });
     expect(water.stats).toMatchObject({ currentStreak: 75, bestStreak: 100, streakStatus: 'expiring' });
     expect(getCompletionCount(water, anchor)).toBe(2);
-    expect(reading.stats?.streakStatus).toBe('expiring');
-    expect(reading.stats!.currentStreak).toBeGreaterThan(0);
+    expect(reading.stats).toMatchObject({ currentStreak: 1, streakStatus: 'expiring' });
     expect(mealPrep.stats?.streakStatus).toBe('expired');
     expect(mealPrep.stats!.lastStreak).toBeGreaterThan(0);
     expect(deepClean.stats?.streakStatus).toBe('up_to_date');
@@ -74,7 +78,7 @@ describe('generated marketing demo data', () => {
       const generatedByName = (name: string) => generated.find(task => task.name === name)!;
       expect(generatedByName('Morning Workout').stats).toMatchObject({ currentStreak: 35, bestStreak: 132, streakStatus: 'up_to_date' });
       expect(generatedByName('Drink Water').stats).toMatchObject({ currentStreak: 75, bestStreak: 100, streakStatus: 'expiring' });
-      expect(generatedByName('Read Before Bed').stats?.streakStatus).toBe('expiring');
+      expect(generatedByName('Read Before Bed').stats).toMatchObject({ currentStreak: 1, streakStatus: 'expiring' });
       expect(generatedByName('Meal Prep').stats?.streakStatus).toBe('expired');
       expect(generatedByName('Deep Clean').stats?.streakStatus).toBe('up_to_date');
       expect(generatedByName('Learn Spanish').stats?.streakStatus).toBe('never_started');
@@ -116,5 +120,40 @@ describe('generated marketing demo data', () => {
     expect(earned.filter(item => item.kind === 'century-club-100')).toHaveLength(1);
     expect(earned.filter(item => item.kind === 'century-club-500')).toHaveLength(1);
     expect(earned.filter(item => item.kind === 'habit-collector')).toHaveLength(1);
+  });
+
+  it('stages one live completion that launches the full-screen streak-started achievement', () => {
+    const active = tasks.filter(task => !task.archived);
+    const reading = byName('Read Before Bed');
+    const alreadyEarned = detectRetroactiveAchievements([], active, anchor);
+    const date = anchor.toISOString().slice(0, 10);
+    const completedReading: Task = {
+      ...reading,
+      completions: [
+        ...(reading.completions ?? []),
+        {
+          id: 'demo-live-reading-completion',
+          taskId: reading.id,
+          date,
+          completedAt: anchor.toISOString(),
+          timesCompleted: 1,
+        },
+      ],
+    };
+    completedReading.stats = calculateTaskStats(completedReading, completedReading.completions ?? [], anchor);
+    const allTasksAfter = active.map(task => task.id === reading.id ? completedReading : task);
+    const alreadyEarnedScopes = new Set(alreadyEarned.map(item => dedupKey(item.kind, item.dedupScope)));
+
+    const liveUnlocks = detectCompletionAchievements(
+      reading,
+      completedReading,
+      allTasksAfter,
+      anchor,
+      alreadyEarnedScopes,
+    );
+
+    expect(completedReading.stats).toMatchObject({ currentStreak: 2, streakStatus: 'up_to_date' });
+    expect(liveUnlocks.map(item => item.kind)).toEqual(['streak-2']);
+    expect(liveUnlocks[0]).toMatchObject({ taskId: reading.id, value: 2 });
   });
 });
