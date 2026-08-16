@@ -2,6 +2,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { format, parseISO } from 'date-fns';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { TrophyEmblem } from './AchievementCard';
 import { MaterialCommunityIconName } from '../types';
 import { Achievement, ACHIEVEMENT_META, getRibbonText } from '../utils/achievements';
 
@@ -36,15 +37,29 @@ export const AchievementShareCard: React.FC<{
   return (
     <ShareCardFrame accentColor={meta.color.glow}>
       <Text style={styles.eyebrow}>ACHIEVEMENT UNLOCKED</Text>
-      <View style={[styles.achievementHalo, { backgroundColor: meta.color.glow }]}>
-        <View style={[styles.achievementRing, { backgroundColor: meta.color.accent }]}>
-          <View style={[styles.achievementFace, { backgroundColor: meta.color.base }]}>
-            <MaterialCommunityIcons name={meta.icon} size={48} color={meta.color.accent} />
-          </View>
+      <View style={styles.shareEmblemStage}>
+        {/* Static echoes of TrophyBadge's animated aura. The emblem in the middle is the exact
+            non-animated component used by the Trophy Case and stats showcases; these rings and
+            bokeh sit outside it, so the canonical artwork remains shared rather than copied. */}
+        <View style={[styles.shareEmblemRing, styles.shareEmblemRingOuter, { borderColor: meta.color.glow }]} />
+        <View style={[styles.shareEmblemRing, styles.shareEmblemRingMiddle, { borderColor: meta.color.glow }]} />
+        <View style={[styles.shareEmblemRing, styles.shareEmblemRingInner, { borderColor: meta.color.accent }]} />
+
+        <View style={[styles.shareBokeh, styles.shareBokehOne, { backgroundColor: meta.color.accent }]} />
+        <View style={[styles.shareBokeh, styles.shareBokehTwo, { backgroundColor: meta.color.glow }]} />
+        <View style={[styles.shareBokeh, styles.shareBokehThree, { backgroundColor: meta.color.accent }]} />
+        <View style={[styles.shareBokeh, styles.shareBokehFour, { backgroundColor: meta.color.glow }]} />
+        <View style={[styles.shareBokeh, styles.shareBokehFive, { backgroundColor: meta.color.accent }]} />
+
+        <View style={styles.shareEmblemScaleWrap}>
+          <TrophyEmblem
+            icon={meta.icon}
+            color={meta.color.base}
+            glowColor={meta.color.glow}
+            accentColor={meta.color.accent}
+            ribbonText={getRibbonText(achievement)}
+          />
         </View>
-      </View>
-      <View style={[styles.ribbon, { backgroundColor: meta.color.base }]}>
-        <Text style={styles.ribbonText}>{getRibbonText(achievement)}</Text>
       </View>
       <Text style={styles.achievementTitle}>{meta.title}</Text>
       <Text style={styles.achievementDescription}>{description}</Text>
@@ -174,45 +189,85 @@ const styles = StyleSheet.create({
     letterSpacing: 1.6,
     textAlign: 'center',
   },
-  achievementHalo: {
-    width: 116,
-    height: 116,
-    borderRadius: 58,
+  shareEmblemStage: {
+    width: 164,
+    height: 154,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 18,
-    shadowColor: '#000',
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 8,
   },
-  achievementRing: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+  shareEmblemScaleWrap: {
+    width: 64,
+    height: 72,
     alignItems: 'center',
     justifyContent: 'center',
+    transform: [{ scale: 1.65 }],
   },
-  achievementFace: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    alignItems: 'center',
-    justifyContent: 'center',
+  shareEmblemRing: {
+    position: 'absolute',
+    borderWidth: 1,
   },
-  ribbon: {
-    minWidth: 86,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    marginTop: -8,
-    alignItems: 'center',
+  shareEmblemRingOuter: {
+    width: 158,
+    height: 158,
+    borderRadius: 79,
+    opacity: 0.12,
   },
-  ribbonText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.8,
+  shareEmblemRingMiddle: {
+    width: 136,
+    height: 136,
+    borderRadius: 68,
+    borderWidth: 2,
+    opacity: 0.16,
+  },
+  shareEmblemRingInner: {
+    width: 116,
+    height: 116,
+    borderRadius: 58,
+    opacity: 0.2,
+  },
+  shareBokeh: {
+    position: 'absolute',
+    borderRadius: 999,
+    shadowColor: '#fff',
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  shareBokehOne: {
+    width: 7,
+    height: 7,
+    top: 17,
+    right: 30,
+    opacity: 0.7,
+  },
+  shareBokehTwo: {
+    width: 4,
+    height: 4,
+    top: 45,
+    left: 14,
+    opacity: 0.55,
+  },
+  shareBokehThree: {
+    width: 3,
+    height: 3,
+    top: 9,
+    left: 51,
+    opacity: 0.75,
+  },
+  shareBokehFour: {
+    width: 8,
+    height: 8,
+    right: 11,
+    bottom: 37,
+    opacity: 0.32,
+  },
+  shareBokehFive: {
+    width: 5,
+    height: 5,
+    left: 27,
+    bottom: 21,
+    opacity: 0.55,
   },
   achievementTitle: {
     color: '#fff',
@@ -220,7 +275,7 @@ const styles = StyleSheet.create({
     lineHeight: 31,
     fontWeight: '900',
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: 10,
   },
   achievementDescription: {
     color: '#D5D9E3',

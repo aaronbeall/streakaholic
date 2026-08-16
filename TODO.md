@@ -87,6 +87,20 @@
 
 ## MMP
 
+- [ ] Finalize Streakaholic branding and launch identity
+  - [ ] Audit the existing logo/app-icon variants under `assets/images/` and `logo/`; choose one
+        canonical mark and wordmark, document which alternates are still valid, and retire ambiguous
+        duplicates so future store/website assets come from one source of truth
+  - [ ] Validate the chosen mark at launcher, adaptive-mask, notification/small-icon, splash,
+        favicon, share-card, feature-graphic, light-background, and dark-background sizes
+  - [ ] Select one canonical tagline from [MARKETING.md](MARKETING.md) (current default: “Turn habits
+        into streaks you want to keep”) and distinguish it from the category descriptor (“A playful
+        habit & streak tracker”) and supporting campaign lines such as “Habits worth celebrating”
+  - [ ] Define a compact brand guide (`BRAND.md`): canonical name/capitalization, logo usage,
+        palette, typography, tagline hierarchy, and encouraging/no-guilt voice
+  - [ ] Apply the final identity consistently across the in-app About screen, share cards/share text,
+        Play Store title/icon/feature graphic/listing, screenshots, demo videos, press kit, and
+        `streakaholic.app`
 - [ ] Monetization — see [MONETIZATION.md](MONETIZATION.md) for the actual plan (one-time
       Pro unlock + tip jar + Commitment Mode Streak Saves, no ads/subscription) and sequencing
   - [ ] Tip jar (build first — see PUBLISHING.md's implementation guide)
