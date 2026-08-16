@@ -1,7 +1,8 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Reanimated, {
+  cancelAnimation,
   Easing,
   type SharedValue,
   useAnimatedReaction,
@@ -16,14 +17,16 @@ import Reanimated, {
 } from 'react-native-reanimated';
 import tinycolor from 'tinycolor2';
 import { MaterialCommunityIconName } from '../types';
+import { getAchievementRevealProgress } from '../utils/achievementRevealTimeline';
 import { ParticleSystem } from './ParticleSystem';
 
 // A dressed-up, continuously-alive medallion for AchievementCelebration's screen -- replaces the
 // earlier static rotating-ray emblem with something with more going on: a concentric frame,
 // outward-pulsing sonar rings, a sweeping glass sheen, a gentle bob, and periodic sparkle bursts.
 // Deliberately its own component (not inlined in AchievementCelebration) since it's a fully
-// self-contained animated unit -- everything here starts on mount and loops for as long as it
-// stays mounted, with no props controlling *when* things happen beyond the icon/color it's given.
+// self-contained animated unit. Its cinematic intro is controlled by the surrounding scene's
+// elapsed-time shared value, while lightweight ambient bob/sheen loops persist across focus
+// changes; this keeps the large native tree mounted without giving up a replayable drop-in.
 
 const BADGE_SIZE = 120;
 // Exported so callers (AchievementCelebration's fixed emblem slot) can reserve exactly this much
@@ -163,6 +166,10 @@ const ShockwaveRing: React.FC<{ color: string; introProgress: SharedValue<number
       if (hasImpacted && !hadImpacted) {
         active.value = 1;
         progress.value = withTiming(1, { duration: SHOCKWAVE_DURATION, easing: SHOCKWAVE_EASING });
+      } else if (!hasImpacted && hadImpacted) {
+        cancelAnimation(progress);
+        progress.value = 0;
+        active.value = 0;
       }
     }
   );
@@ -352,7 +359,6 @@ const PULSATE_HALF_CYCLE_DURATION = 2300; // one direction of the breathe; a ful
 const PULSATE_STAGGER = 800;
 
 const SPARKLE_COUNT = 6;
-const SPARKLE_PAUSE = 1300;
 // Deliberately sparse and understated relative to ParticleSystem's own fire-themed defaults --
 // small, short-lived, barely-drifting flecks that read as a twinkle rather than a burst. No
 // swirl -- these should feel like they're glinting in place, not flying off anywhere. Colors are
@@ -400,14 +406,14 @@ const getSparkleConfig = (accentColor: string) => ({
 // the frame rings pass `BURST_START_SCALE`, see its own comment for why; the `0` default here just
 // covers the general case) and then sits still forever once settled -- it's never itself asked to
 // keep animating. `pulse` is a completely separate 0<->1
-// oscillator (bob's exact pattern) that starts `pulseDelay` after mount and runs forever; the two
+// oscillator (bob's exact pattern) that starts after each intro trigger and runs until the next
+// timeline reset; the two
 // are multiplied together in a derived value, so pulse's tiny wobble only becomes visible once
 // burst has actually reached ~1 (multiplying by a still-small burst value keeps it negligible
 // beforehand) without the two needing to be causally chained through a single shared value at all.
 const useBurstThenPulsate = (
-  delay: number,
-  burstAnimation: () => number,
-  burstDuration: number,
+  introProgress: SharedValue<number>,
+  triggerProgress: number,
   pulsateDelay: number = 0,
   initialScale: number = 0
 ) => {
@@ -415,21 +421,42 @@ const useBurstThenPulsate = (
   const pulse = useSharedValue(0);
   const active = useSharedValue(0);
 
-  useEffect(() => {
-    active.value = withDelay(delay, withTiming(1, { duration: 0 }));
-    burst.value = withDelay(delay, burstAnimation());
-    pulse.value = withDelay(
-      delay + burstDuration + pulsateDelay,
-      withRepeat(withTiming(1, { duration: PULSATE_HALF_CYCLE_DURATION, easing: Easing.inOut(Easing.sin) }), -1, true)
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useAnimatedReaction(
+    () => introProgress.value >= triggerProgress,
+    (hasTriggered, hadTriggered) => {
+      if (hasTriggered && !hadTriggered) {
+        active.value = 1;
+        burst.value = withSpring(1, BURST_SPRING_CONFIG);
+        pulse.value = withDelay(
+          BURST_SETTLE_ESTIMATE + pulsateDelay,
+          withRepeat(
+            withTiming(1, {
+              duration: PULSATE_HALF_CYCLE_DURATION,
+              easing: Easing.inOut(Easing.sin),
+            }),
+            -1,
+            true
+          )
+        );
+      } else if (!hasTriggered && hadTriggered) {
+        cancelAnimation(burst);
+        cancelAnimation(pulse);
+        burst.value = initialScale;
+        pulse.value = 0;
+        active.value = 0;
+      }
+    }
+  );
 
   const scale = useDerivedValue(() => burst.value * (1 + (pulse.value - 0.5) * 2 * PULSATE_AMPLITUDE));
   return { scale, active };
 };
 
-const PulseRing: React.FC<{ delay: number; color: string }> = ({ delay, color }) => {
+const PulseRing: React.FC<{
+  triggerTime: number;
+  color: string;
+  timeline: SharedValue<number>;
+}> = ({ triggerTime, color, timeline }) => {
   const progress = useSharedValue(0);
   // `progress`'s own resting value (0, before its delayed animation below actually starts) is NOT
   // a safely-invisible frame -- by design, progress=0 is a pulse ring's *most visible* moment
@@ -442,14 +469,24 @@ const PulseRing: React.FC<{ delay: number; color: string }> = ({ delay, color })
   // `delay` elapses, then an instant flip to 1.
   const active = useSharedValue(0);
 
-  useEffect(() => {
-    progress.value = withDelay(
-      delay,
-      withRepeat(withTiming(1, { duration: PULSE_DURATION, easing: Easing.out(Easing.cubic) }), -1, false)
-    );
-    active.value = withDelay(delay, withTiming(1, { duration: 0 }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useAnimatedReaction(
+    () => timeline.value >= triggerTime,
+    (hasTriggered, hadTriggered) => {
+      if (hasTriggered && !hadTriggered) {
+        progress.value = 0;
+        active.value = 1;
+        progress.value = withRepeat(
+          withTiming(1, { duration: PULSE_DURATION, easing: Easing.out(Easing.cubic) }),
+          -1,
+          false
+        );
+      } else if (!hasTriggered && hadTriggered) {
+        cancelAnimation(progress);
+        progress.value = 0;
+        active.value = 0;
+      }
+    }
+  );
 
   const style = useAnimatedStyle(() => {
     const size = PULSE_MIN_SIZE + (PULSE_MAX_SIZE - PULSE_MIN_SIZE) * progress.value;
@@ -467,13 +504,25 @@ const PulseRing: React.FC<{ delay: number; color: string }> = ({ delay, color })
 
 // One frame ring. It is mounted from the start but stays transparent until its UI-thread delay;
 // no JavaScript timer/state/mount round-trip can shift its impact timing.
-const BurstRing: React.FC<{ ring: (typeof FRAME_RINGS)[number]; color: string; delay: number; pulsateDelay: number }> = ({
+const BurstRing: React.FC<{
+  ring: (typeof FRAME_RINGS)[number];
+  color: string;
+  delay: number;
+  pulsateDelay: number;
+  introProgress: SharedValue<number>;
+}> = ({
   ring,
   color,
   delay,
   pulsateDelay,
+  introProgress,
 }) => {
-  const burst = useBurstThenPulsate(delay, () => withSpring(1, BURST_SPRING_CONFIG), BURST_SETTLE_ESTIMATE, pulsateDelay, BURST_START_SCALE);
+  const burst = useBurstThenPulsate(
+    introProgress,
+    delay / DROP_DURATION,
+    pulsateDelay,
+    BURST_START_SCALE
+  );
 
   const style = useAnimatedStyle(() => ({
     opacity: ring.opacity * burst.active.value,
@@ -499,8 +548,17 @@ const BurstRing: React.FC<{ ring: (typeof FRAME_RINGS)[number]; color: string; d
 };
 
 // The big filled background circle uses the same pre-mounted, UI-delayed burst as the rings.
-const Halo: React.FC<{ color: string; delay: number }> = ({ color, delay }) => {
-  const halo = useBurstThenPulsate(delay, () => withSpring(1, BURST_SPRING_CONFIG), BURST_SETTLE_ESTIMATE, 0, BURST_START_SCALE);
+const Halo: React.FC<{
+  color: string;
+  delay: number;
+  introProgress: SharedValue<number>;
+}> = ({ color, delay, introProgress }) => {
+  const halo = useBurstThenPulsate(
+    introProgress,
+    delay / DROP_DURATION,
+    0,
+    BURST_START_SCALE
+  );
 
   const style = useAnimatedStyle(() => ({
     opacity: 0.3 * halo.active.value,
@@ -534,6 +592,11 @@ interface TrophyBadgeProps {
   // caller's job (see AchievementCelebration's getRibbonText) to always have *something* to put on
   // it, not this component's job to gracefully omit one.
   ribbonText: string;
+  // The surrounding congratulations screen owns one elapsed-time clock. Keeping this badge
+  // mounted and deriving its intro from that clock lets focus changes replay the drop/shockwave
+  // without destroying and rebuilding the badge's large native animation tree.
+  timeline: SharedValue<number>;
+  introStart: number;
 }
 
 // Wrapped in React.memo (2026-08-13, a performance-review finding) -- every prop here is a plain
@@ -545,7 +608,15 @@ interface TrophyBadgeProps {
 // all. The underlying Reanimated animations were never at risk of glitching either way (they run
 // on the UI thread via shared values, unaffected by JS-thread re-renders), this was purely wasted
 // reconciliation work.
-export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({ icon, color, glowColor, accentColor, ribbonText }) => {
+export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({
+  icon,
+  color,
+  glowColor,
+  accentColor,
+  ribbonText,
+  timeline,
+  introStart,
+}) => {
   const glow = glowColor ?? color;
   const accent = accentColor ?? color;
   // Memoized (2026-08-13) -- previously a fresh object every render, which defeated
@@ -573,19 +644,11 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({ icon, color
   // One linear UI-thread clock drives both the badge's bounce curve and the shockwave's impact
   // threshold. Keeping elapsed intro time in one shared value prevents independent delays from
   // drifting relative to the visible motion.
-  const introProgress = useSharedValue(0);
-  const [sparkleKey, setSparkleKey] = useState(0);
-  // Gates the *first* appearance of the sparkle burst -- per direct follow-up ("it shouldn't
-  // appear until after the whole intro animation has completed"), sparkles used to mount (and
-  // start spawning, staggered over their own spawnWindow) from frame one, well before the badge
-  // had even finished falling. `DROP_DURATION` is the exact moment `introProgress`'s own withTiming
-  // finishes -- not just IMPACT_DELAY (the first touchdown, before the decaying rebounds -- what
-  // the frame rings/halo/shimmer all key off, since those are meant to burst in reaction to
-  // impact) but the point the whole bounce sequence has fully settled to rest, matching "the
-  // whole intro animation" rather than just its first beat. Once shown, the periodic re-burst
-  // cycle (sparkleKey / handleSparkleComplete below) is unaffected -- this only delays the start.
-  const [showSparkles, setShowSparkles] = useState(false);
-
+  const introProgress = useDerivedValue(() => getAchievementRevealProgress(
+    timeline.value,
+    introStart,
+    DROP_DURATION
+  ));
   useEffect(() => {
     bob.value = withRepeat(withTiming(1, { duration: BOB_DURATION, easing: Easing.inOut(Easing.sin) }), -1, true);
     // Starts at IMPACT_DELAY -- see the SHEEN_SWEEP_DURATION comment above for why this (not the
@@ -605,16 +668,7 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({ icon, color
       );
     badgePhase.value = withDelay(IMPACT_DELAY, sheenLoop());
     ribbonPhase.value = withDelay(IMPACT_DELAY + RIBBON_START_OFFSET, sheenLoop());
-    introProgress.value = withTiming(1, { duration: DROP_DURATION, easing: Easing.linear });
-    const sparkleTimer = setTimeout(() => setShowSparkles(true), DROP_DURATION);
-    return () => {
-      clearTimeout(sparkleTimer);
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleSparkleComplete = useCallback(() => {
-    setTimeout(() => setSparkleKey(k => k + 1), SPARKLE_PAUSE);
   }, []);
 
   const bobStyle = useAnimatedStyle(() => ({
@@ -644,7 +698,10 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({ icon, color
     const translateY = DROP_START_OFFSET_Y * remaining;
     const scale = 1 + (DROP_START_SCALE - 1) * remaining;
     const rotate = DROP_START_ROTATION * remaining;
-    return { transform: [{ translateY }, { scale }, { rotate: `${rotate}deg` }] };
+    return {
+      opacity: introProgress.value > 0 ? 1 : 0,
+      transform: [{ translateY }, { scale }, { rotate: `${rotate}deg` }],
+    };
   });
 
   return (
@@ -663,12 +720,13 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({ icon, color
             color={i === 0 ? accent : glow}
             delay={IMPACT_DELAY + i * BURST_RING_STAGGER}
             pulsateDelay={(i + 1) * PULSATE_STAGGER}
+            introProgress={introProgress}
           />
         </View>
       ))}
 
       <View style={styles.centeredFill}>
-        <Halo color={glow} delay={IMPACT_DELAY} />
+        <Halo color={glow} delay={IMPACT_DELAY} introProgress={introProgress} />
       </View>
 
       {/* The one-shot shockwave reads the same introProgress value as the badge's drop transform,
@@ -680,7 +738,11 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({ icon, color
 
       {PULSE_POOL.map(i => (
         <View key={i} style={styles.centeredFill}>
-          <PulseRing delay={IMPACT_DELAY + i * PULSE_STAGGER} color={glow} />
+          <PulseRing
+            triggerTime={introStart + IMPACT_DELAY + i * PULSE_STAGGER}
+            color={glow}
+            timeline={timeline}
+          />
         </View>
       ))}
 
@@ -752,9 +814,12 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({ icon, color
           Without this, the sparkle burst rendered clustered up near the stack's top-left corner
           instead of over the emblem+glow -- confirmed and fixed directly, not just theorized. */}
       <View style={styles.sparkleOrigin} pointerEvents="none">
-        {showSparkles && (
-          <ParticleSystem key={sparkleKey} count={SPARKLE_COUNT} particles={sparkleConfig} onComplete={handleSparkleComplete} />
-        )}
+        <ParticleSystem
+          count={SPARKLE_COUNT}
+          particles={sparkleConfig}
+          timeline={timeline}
+          startTime={introStart + DROP_DURATION}
+        />
       </View>
     </Reanimated.View>
   );

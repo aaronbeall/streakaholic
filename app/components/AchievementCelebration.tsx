@@ -33,11 +33,11 @@ import {
   getAchievementRevealSchedule,
 } from '../utils/achievementRevealTimeline';
 
-// Sequential reveal timeline (all delays measured from mount) -- widened considerably per explicit
+// Sequential reveal timeline (all delays measured from the current focus's timeline start) -- widened considerably per explicit
 // user direction ("much more spaced out... give a lot more emphasis to each") from an earlier,
-// much snappier first pass. JS setTimeouts still drive *when* each piece reveals (not Reanimated's
-// own animation-finished callbacks -- see TaskCard's completion-pop history in CLAUDE.md for why
-// those aren't trusted for real control flow on Android); only the *reveal itself* is animated.
+// much snappier first pass. One linear Reanimated elapsed-time value now drives every reveal phase
+// and the counter directly on the UI thread. JavaScript only swaps the focused achievement and
+// starts that clock once; there are no mid-sequence timers, phase state changes, or React commits.
 //
 // No auto-dismiss timer -- this screen stays up until the user dismisses it.
 // A real "stinger" (a short sting that plays and vanishes on its own) is the wrong model for what
@@ -282,16 +282,11 @@ DescriptionText.displayName = 'DescriptionText';
 // CelebrationContent's staged reveal updates) and every other prop is a primitive, so this avoids
 // needlessly re-filtering/re-sorting/re-rendering the list as the presentation unfolds.
 const UnlockHistoryList: React.FC<{
-  kind: AchievementKind;
-  allAchievements: Achievement[];
+  instances: Achievement[];
   kindIcon: MaterialCommunityIconName;
   kindColor: string;
   maxHeight: number;
-}> = React.memo(({ kind, allAchievements, kindIcon, kindColor, maxHeight }) => {
-  const instances = allAchievements
-    .filter(a => a.kind === kind)
-    .sort((a, b) => b.earnedAt.localeCompare(a.earnedAt));
-
+}> = React.memo(({ instances, kindIcon, kindColor, maxHeight }) => {
   if (instances.length <= 1) return null;
 
   return (
@@ -335,17 +330,18 @@ UnlockHistoryList.displayName = 'UnlockHistoryList';
 
 interface CelebrationContentProps {
   achievement: Achievement;
+  kindHistory: Achievement[];
   emblemDelay: number;
   timeline: SharedValue<number>;
 }
 
 const CelebrationContent: React.FC<CelebrationContentProps> = ({
   achievement,
+  kindHistory,
   emblemDelay,
   timeline,
 }) => {
   const insets = useSafeAreaInsets();
-  const allAchievements = useAchievementsStore(state => state.achievements);
   const muteKind = useAchievementsStore(state => state.muteKind);
   const unmuteKind = useAchievementsStore(state => state.unmuteKind);
   const isMuted = useAchievementsStore(state => state.mutedKinds.includes(achievement.kind));
@@ -370,7 +366,7 @@ const CelebrationContent: React.FC<CelebrationContentProps> = ({
   // HISTORY_MAX_VISIBLE_ROWS (see that constant's own comment) -- computed once here (stable for
   // this achievement's whole lifetime, same as `titleMinHeight` above) so RevealSlot's minHeight
   // never needs to change after mount.
-  const kindInstanceCount = allAchievements.filter(a => a.kind === achievement.kind).length;
+  const kindInstanceCount = kindHistory.length;
   const showHistoryList = kindInstanceCount > 1;
   const historyListHeight = showHistoryList
     ? Math.min(kindInstanceCount, HISTORY_MAX_VISIBLE_ROWS) * HISTORY_ROW_HEIGHT
@@ -580,8 +576,7 @@ const CelebrationContent: React.FC<CelebrationContentProps> = ({
             )}
             {showHistoryList && (
               <UnlockHistoryList
-                kind={achievement.kind}
-                allAchievements={allAchievements}
+                instances={kindHistory}
                 kindIcon={meta.icon}
                 kindColor={kindColor}
                 maxHeight={historyListHeight}
@@ -590,13 +585,6 @@ const CelebrationContent: React.FC<CelebrationContentProps> = ({
           </RevealSlot>
         </View>
 
-        <Confetti
-          baseColor={kindColor}
-          glowColor={kindGlowColor}
-          accentColor={kindAccentColor}
-          timeline={timeline}
-          startTime={schedule.emblemStart}
-        />
       </View>
     </View>
   );
@@ -689,18 +677,41 @@ BatchDockItem.displayName = 'BatchDockItem';
 
 const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () => void }> = ({ achievements, onDismiss }) => {
   const insets = useSafeAreaInsets();
+  const allAchievements = useAchievementsStore(state => state.achievements);
   const [pageIndex, setPageIndex] = useState(0);
   const [viewedCount, setViewedCount] = useState(1);
   const viewedIndices = useRef(new Set([0]));
   const hasNavigated = useRef(false);
   const achievement = achievements[Math.min(pageIndex, achievements.length - 1)];
+  const firstAchievementMeta = ACHIEVEMENT_META[achievements[0].kind];
   const batchVisibility = useSharedValue(0);
   const sceneTimeline = useSharedValue(0);
+  const confettiTimeline = useSharedValue(0);
   const dockFocus = useSharedValue(0);
   const dockReveal = useSharedValue(0);
+  const historiesByKind = useMemo(() => {
+    const result = new Map<AchievementKind, Achievement[]>();
+    for (const item of allAchievements) {
+      const instances = result.get(item.kind);
+      if (instances) instances.push(item);
+      else result.set(item.kind, [item]);
+    }
+    for (const instances of result.values()) {
+      instances.sort((a, b) => b.earnedAt.localeCompare(a.earnedAt));
+    }
+    return result;
+  }, [allAchievements]);
 
   useEffect(() => {
     batchVisibility.value = withTiming(1, { duration: 250 });
+    // Confetti is a one-shot entrance for the congratulations window itself, not for an
+    // individual achievement page. Its independent clock starts once with the batch and keeps
+    // running if the user navigates; no focus change can restart it.
+    const confettiEnd = EMBLEM_DELAY + ACHIEVEMENT_REVEAL_TIMING.confettiDuration;
+    confettiTimeline.value = withTiming(confettiEnd, {
+      duration: confettiEnd,
+      easing: Easing.linear,
+    });
     // A singleton has no dock. Avoid even scheduling its invisible delayed animation so the
     // overwhelmingly common one-achievement path stays as close to the original cost as possible.
     if (achievements.length > 1) {
@@ -711,9 +722,10 @@ const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () =>
     }
     return () => {
       cancelAnimation(batchVisibility);
+      cancelAnimation(confettiTimeline);
       cancelAnimation(dockReveal);
     };
-  }, [achievements.length, batchVisibility, dockReveal]);
+  }, [achievements.length, batchVisibility, confettiTimeline, dockReveal]);
 
   const dismissWithAnimation = useCallback(() => {
     batchVisibility.value = withTiming(
@@ -796,9 +808,19 @@ const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () =>
       </Pressable>
       <CelebrationContent
         achievement={achievement}
+        kindHistory={historiesByKind.get(achievement.kind) ?? []}
         emblemDelay={hasNavigated.current ? 0 : EMBLEM_DELAY}
         timeline={sceneTimeline}
       />
+      <View style={styles.confettiHost} pointerEvents="none">
+        <Confetti
+          baseColor={firstAchievementMeta.color.base}
+          glowColor={firstAchievementMeta.color.glow}
+          accentColor={firstAchievementMeta.color.accent}
+          timeline={confettiTimeline}
+          startTime={EMBLEM_DELAY}
+        />
+      </View>
       {achievements.length > 1 && (
         <>
           <View style={[styles.batchDockTrack, { top: insets.top + 8 + BATCH_DOCK_TRACK_TOP }]}>
@@ -992,6 +1014,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  confettiHost: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1001,
+    elevation: 1001,
   },
   batchDockTrack: {
     position: 'absolute',

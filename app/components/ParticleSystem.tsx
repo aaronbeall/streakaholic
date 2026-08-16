@@ -2,12 +2,14 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Reanimated, {
   Easing,
   interpolateColor,
+  type SharedValue,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withTiming,
 } from "react-native-reanimated";
 import tinycolor from "tinycolor2";
+import { getAchievementRevealProgress } from "../utils/achievementRevealTimeline";
 
 interface Particle {
   id: number;
@@ -84,6 +86,11 @@ interface ParticleSystemProps {
     end: { x: number; y: number };
     radius: number;
   };
+  // Optional externally-owned elapsed-time clock. Used by the congratulations badge so its
+  // sparkle burst replays in lockstep with the persistent scene instead of using JS completion
+  // timers and keyed remounts. Ordinary task-card particles keep their existing autonomous mode.
+  timeline?: SharedValue<number>;
+  startTime?: number;
 }
 
 // React Native has no additive/`plus` blend mode for plain Views (that needs a GPU canvas lib
@@ -97,12 +104,22 @@ const GLOW_OPACITY_CAP = 0.35;
 // see `growth` below. Short relative to `life` (1000ms+), so it reads as a quick "spawn" beat
 // before the normal drift/shrink/fade takes over, not a separate visible phase of its own.
 const GROWTH_DURATION = 70;
+const PARTICLE_GROWTH_EASING = Easing.out(Easing.cubic);
+const PARTICLE_LIFE_EASING = Easing.bezier(0.4, 0, 0.2, 1).factory();
 // How much faster the hot->cool color transition runs than the overall life/opacity fade --
 // 1.6 means color finishes shifting to its cooled end at ~63% of life, while the particle's
 // still fairly opaque, rather than the reddest color only ever landing right as it vanishes.
 const COLOR_SHIFT_SPEED = 1.6;
 
-const ParticleComponent = React.memo(({ particle }: { particle: Particle }) => {
+const ParticleComponent = React.memo(({
+  particle,
+  timeline,
+  startTime = 0,
+}: {
+  particle: Particle;
+  timeline?: SharedValue<number>;
+  startTime?: number;
+}) => {
   const progress = useSharedValue(1);
   // Independent of `progress` (which drives the whole drift/shrink/fade/color countdown) --
   // this only ramps the particle's *scale* in from 0, in parallel with `progress`'s own decay.
@@ -112,6 +129,7 @@ const ParticleComponent = React.memo(({ particle }: { particle: Particle }) => {
   const growth = useSharedValue(0);
 
   React.useEffect(() => {
+    if (timeline) return;
     // Every particle is mounted with the burst, but remains at scale 0 until its UI-thread
     // delay expires. Keeping the stagger inside Reanimated avoids the former JS setTimeout +
     // React state update for every particle while preserving the same randomized spawn timing.
@@ -183,7 +201,21 @@ const ParticleComponent = React.memo(({ particle }: { particle: Particle }) => {
   }, [particle]);
 
   const wrapperAnimatedStyle = useAnimatedStyle(() => {
-    const t = 1 - progress.value;
+    const t = timeline
+      ? PARTICLE_LIFE_EASING(getAchievementRevealProgress(
+        timeline.value,
+        startTime + particle.spawnDelay,
+        particle.life
+      ))
+      : 1 - progress.value;
+    const currentProgress = 1 - t;
+    const currentGrowth = timeline
+      ? PARTICLE_GROWTH_EASING(getAchievementRevealProgress(
+        timeline.value,
+        startTime + particle.spawnDelay,
+        GROWTH_DURATION
+      ))
+      : growth.value;
     // Swirl builds rather than decays -- negligible near the start of life, growing toward the
     // end (a real ember tends to drift fairly straight at first, then curl more as it cools and
     // loses momentum) -- applied along the particle's own perpendicular axis so it curls around
@@ -208,7 +240,7 @@ const ParticleComponent = React.memo(({ particle }: { particle: Particle }) => {
             particle.driftY * t +
             particle.perpY * swirlOffset,
         },
-        { scale: growth.value * progress.value },
+        { scale: currentGrowth * currentProgress },
       ],
     };
   });
@@ -226,14 +258,21 @@ const ParticleComponent = React.memo(({ particle }: { particle: Particle }) => {
   // phase, so opacity always starts at a true 100% (matching growth being size-only, not an
   // opacity fade-in too) while still flickering at a per-particle-unique rate after that.
   const particleAnimatedStyle = useAnimatedStyle(() => {
-    const t = 1 - progress.value;
+    const t = timeline
+      ? PARTICLE_LIFE_EASING(getAchievementRevealProgress(
+        timeline.value,
+        startTime + particle.spawnDelay,
+        particle.life
+      ))
+      : 1 - progress.value;
+    const currentProgress = 1 - t;
     const flicker = 0.85 + 0.15 * Math.cos(t * (18 + particle.swirlPhase * 2));
     // Reaches its cooled end color well before `t` hits 1 (i.e. before life is fully over and
     // opacity has faded to nothing) -- otherwise the reddest part of the transition only ever
     // lands right as the particle is already vanishing, and barely reads as red at all.
     const colorT = Math.min(t * COLOR_SHIFT_SPEED, 1);
     return {
-      opacity: progress.value * flicker,
+      opacity: currentProgress * flicker,
       backgroundColor: interpolateColor(
         colorT,
         [0, 1],
@@ -243,11 +282,18 @@ const ParticleComponent = React.memo(({ particle }: { particle: Particle }) => {
   });
 
   const glowAnimatedStyle = useAnimatedStyle(() => {
-    const t = 1 - progress.value;
+    const t = timeline
+      ? PARTICLE_LIFE_EASING(getAchievementRevealProgress(
+        timeline.value,
+        startTime + particle.spawnDelay,
+        particle.life
+      ))
+      : 1 - progress.value;
+    const currentProgress = 1 - t;
     const flicker = 0.85 + 0.15 * Math.cos(t * (18 + particle.swirlPhase * 2));
     const colorT = Math.min(t * COLOR_SHIFT_SPEED, 1);
     return {
-      opacity: progress.value * flicker * GLOW_OPACITY_CAP,
+      opacity: currentProgress * flicker * GLOW_OPACITY_CAP,
       backgroundColor: interpolateColor(
         colorT,
         [0, 1],
@@ -357,6 +403,8 @@ export const ParticleSystem = React.memo(
     onComplete,
     particles = EMPTY_PARTICLE_CONFIG,
     spawnArea,
+    timeline,
+    startTime = 0,
   }: ParticleSystemProps) => {
     const config = useMemo(
       () => ({ ...defaultParticles, ...particles }),
@@ -421,7 +469,9 @@ export const ParticleSystem = React.memo(
       const glowColorEnd = getRandomColor(glowCool, config.colorVariance);
 
       return {
-        id: Math.random(),
+        // Stable by pool position (assigned below). Controlled/replayable particles can refresh
+        // their colors/geometry without forcing React to replace the native particle views.
+        id: 0,
         originX,
         originY,
         size: particleSize,
@@ -447,17 +497,28 @@ export const ParticleSystem = React.memo(
       };
     }, [config, hasSpawnArea, spawnArea]);
 
-    // Lazy initializer -- runs exactly once per mount. The previous render-time
+    // Autonomous callers retain a lazy initializer that runs exactly once per mount. The previous render-time
     // `if (particleState.length === 0) setParticleState(...)` check forced a wasted extra render
     // pass on every mount, and (combined with `ParticleSystem` never actually calling `onComplete`,
     // fixed below) meant a still-mounted instance from an earlier celebration never regenerated
     // fresh particles for a later one. Sorting by `spawnDelay` preserves the burst's existing
     // visual stacking order: particles that appear later are also rendered above earlier ones.
-    const [particleState] = useState<Particle[]>(() =>
-      Array.from({ length: count }, createParticle).sort(
+    // Controlled callers derive a refreshed pool when their authored config changes, but stable
+    // index ids preserve the existing native particle views while their props/worklets update.
+    const buildParticlePool = useCallback(() =>
+      Array.from({ length: count }, (_unused, index) => ({
+        ...createParticle(),
+        id: index,
+      })).sort(
         (a, b) => a.spawnDelay - b.spawnDelay,
-      ),
+      ), [count, createParticle]
     );
+    const [autonomousParticleState] = useState<Particle[]>(buildParticlePool);
+    const controlledParticleState = useMemo(
+      () => (timeline ? buildParticlePool() : autonomousParticleState),
+      [autonomousParticleState, buildParticlePool, timeline]
+    );
+    const particleState = timeline ? controlledParticleState : autonomousParticleState;
 
     // Reanimated's own animation-completion callbacks aren't reliable enough to drive real control
     // flow on Android (the same lesson `TaskCard`'s completion-pop animation learned the hard way --
@@ -466,6 +527,7 @@ export const ParticleSystem = React.memo(
     // the latest a particle could still be spawning (`spawnWindow`) plus its own worst-case life --
     // long enough that every particle is guaranteed to have finished fading out.
     useEffect(() => {
+      if (timeline) return;
       const maxLife = config.spawnWindow + config.life + config.lifeVariance;
       const timeout = setTimeout(() => onComplete?.(), maxLife);
       return () => clearTimeout(timeout);
@@ -477,7 +539,12 @@ export const ParticleSystem = React.memo(
     return (
       <>
         {particleState.map((particle) => (
-          <ParticleComponent key={particle.id} particle={particle} />
+          <ParticleComponent
+            key={particle.id}
+            particle={particle}
+            timeline={timeline}
+            startTime={startTime}
+          />
         ))}
       </>
     );

@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useWindowDimensions } from 'react-native';
 import Reanimated, {
   type SharedValue,
   useAnimatedStyle,
+  useSharedValue,
 } from 'react-native-reanimated';
 import tinycolor from 'tinycolor2';
 import { getAchievementRevealProgress } from '../utils/achievementRevealTimeline';
@@ -60,7 +61,7 @@ const randomBetween = (min: number, max: number) => min + Math.random() * (max -
 const ConfettiPieceView: React.FC<{
   piece: ConfettiPiece;
   screenHeight: number;
-  color: string;
+  color: SharedValue<string>;
   timeline: SharedValue<number>;
   startTime: number;
 }> = React.memo(({ piece, screenHeight, color, timeline, startTime }) => {
@@ -83,6 +84,7 @@ const ConfettiPieceView: React.FC<{
     const opacity = Math.min(1, progress * 8) * Math.min(1, (1 - progress) * 4);
     return {
       opacity,
+      backgroundColor: color.value,
       transform: [
         { translateX: piece.startX + sway },
         { translateY },
@@ -100,7 +102,6 @@ const ConfettiPieceView: React.FC<{
           left: 0,
           width: piece.size,
           height: piece.isCircle ? piece.size : piece.size * 0.4,
-          backgroundColor: color,
           borderRadius: piece.isCircle ? piece.size / 2 : 2,
         },
         style,
@@ -124,15 +125,14 @@ interface ConfettiProps {
   startTime: number;
 }
 
-// Mounted fresh per celebration (the caller keys it by achievement id), full-screen, non-
-// interactive -- pointerEvents is left to the caller's wrapping host since this component only
-// ever renders the pieces themselves.
+// Mounted once per congratulations batch, full-screen and non-interactive. Focus changes keep the
+// same native piece pool and reset its external timeline; only five shared palette values change.
 //
 // Wrapped in React.memo (2026-08-13, a performance-review finding) -- same reasoning as
 // TrophyBadge's own identical change: every prop here is a primitive, stable across re-renders
-// unless the achievement itself changes, so staged celebration reveal updates do not needlessly
-// re-diff all 60 already mount-only-animated confetti pieces. The hero count itself now runs via
-// native animated props and no longer rerenders its parent on every displayed integer.
+// unless the achievement itself changes. Each piece is also memoized around stable geometry,
+// timeline, and shared palette-slot props, so even an achievement color change skips React
+// reconciliation for all 60 pieces.
 export const Confetti: React.FC<ConfettiProps> = React.memo(({
   count = 60,
   baseColor = '#FFD700',
@@ -146,6 +146,26 @@ export const Confetti: React.FC<ConfettiProps> = React.memo(({
     () => buildPalette(baseColor, glowColor, accentColor),
     [accentColor, baseColor, glowColor]
   );
+  // Five shared color slots let a new achievement recolor the persistent pool with five UI-value
+  // assignments. Every piece keeps the same SharedValue prop, so React.memo can skip reconciling
+  // all 60 native pieces when focus changes.
+  const palette0 = useSharedValue(palette[0]);
+  const palette1 = useSharedValue(palette[1]);
+  const palette2 = useSharedValue(palette[2]);
+  const palette3 = useSharedValue(palette[3]);
+  const palette4 = useSharedValue(palette[4]);
+  const sharedPalette = useMemo(
+    () => [palette0, palette1, palette2, palette3, palette4],
+    [palette0, palette1, palette2, palette3, palette4]
+  );
+
+  useEffect(() => {
+    palette0.value = palette[0];
+    palette1.value = palette[1];
+    palette2.value = palette[2];
+    palette3.value = palette[3];
+    palette4.value = palette[4];
+  }, [palette, palette0, palette1, palette2, palette3, palette4]);
 
   const pieces = useMemo<ConfettiPiece[]>(() => {
     return Array.from({ length: count }, (_, i) => ({
@@ -173,7 +193,7 @@ export const Confetti: React.FC<ConfettiProps> = React.memo(({
           key={piece.id}
           piece={piece}
           screenHeight={height}
-          color={palette[piece.colorIndex]}
+          color={sharedPalette[piece.colorIndex]}
           timeline={timeline}
           startTime={startTime}
         />
