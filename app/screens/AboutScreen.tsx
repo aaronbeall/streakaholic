@@ -12,6 +12,7 @@ const CREDITS: { name: string; note: string }[] = [
   { name: 'react-native-reanimated', note: 'Animations' },
   { name: 'react-native-svg', note: 'Progress rings and charts' },
   { name: 'react-native-chart-kit', note: 'Dashboard and stats charts' },
+  { name: 'react-native-view-shot', note: 'Shareable progress images' },
   { name: 'react-native-gesture-handler', note: 'Press-and-hold and swipe gestures' },
   { name: 'date-fns', note: 'Date math' },
   { name: 'tinycolor2', note: 'Color picker and particle effects' },

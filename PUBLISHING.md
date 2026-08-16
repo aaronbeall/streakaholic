@@ -205,6 +205,15 @@ paths run for real)
       file picker actually lets you select it (a real Dropbox-specific MIME-type bug was
       fixed here — worth reconfirming after any picker-related change).
 
+**Sharing**
+- [ ] Settings → Share Streakaholic opens the native share sheet with the HTTPS store URL.
+- [ ] Share an achievement from both a fresh celebration and a Trophy Case replay; confirm the
+      preview matches the PNG received by Messages/social apps.
+- [ ] Share task Stats with "Include habit name" both on and off; confirm the hidden-name image
+      contains no task name.
+- [ ] Share Dashboard Stats and confirm the image is sharp, correctly cropped, and has no screen
+      navigation or share-preview controls in it.
+
 **Gestures & haptics**
 - [ ] Toast swipe-to-dismiss (either direction) actually dismisses it.
 - [ ] Haptic feedback fires at each documented point (see `CLAUDE.md`'s Haptics section):

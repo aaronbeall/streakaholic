@@ -6,6 +6,8 @@ import { Dimensions, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent,
 import { AchievementsPreviewCard } from '../components/AchievementsPreviewCard';
 import { EmptyState } from '../components/EmptyState';
 import { LazyMount } from '../components/LazyMount';
+import { DashboardStatsShareCard } from '../components/ShareCards';
+import { SharePreviewModal } from '../components/SharePreviewModal';
 import { CompletionsOverTimeChartCard, HistogramChartCard } from '../components/StatsCharts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
@@ -50,6 +52,7 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
   const router = useRouter();
   const [timeRange, setTimeRange] = useState<TimeFrame>('week');
   const [isCumulative, setIsCumulative] = useState(true);
+  const [shareVisible, setShareVisible] = useState(false);
   // Measured from the actual rendered container rather than guessed from Dimensions.get('window')
   // minus a hardcoded constant -- see TaskStatsView for why.
   const [chartAreaWidth, setChartAreaWidth] = useState(Dimensions.get('window').width - 32);
@@ -190,6 +193,7 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
   }
 
   return (
+    <>
     <ScrollView
       style={styles.content}
       contentContainerStyle={{ paddingBottom: insets.bottom }}
@@ -199,6 +203,14 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
     >
       <View ref={contentRef}>
       <View style={styles.heroBlock}>
+        <TouchableOpacity
+          style={styles.heroShareButton}
+          onPress={() => setShareVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Share dashboard progress"
+        >
+          <MaterialCommunityIcons name="share-variant" size={19} color={colors.textSecondary} />
+        </TouchableOpacity>
         <View style={styles.heroEyebrowRow}>
           <MaterialCommunityIcons name="check-decagram" size={16} color={ACCENT} />
           <Text style={styles.heroEyebrow}>Total Completions</Text>
@@ -331,6 +343,22 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
       </View>
       </View>
     </ScrollView>
+    <SharePreviewModal
+      visible={shareVisible}
+      title="Share progress"
+      filename="streakaholic-progress"
+      onClose={() => setShareVisible(false)}
+    >
+      <DashboardStatsShareCard
+        totalCompletions={stats.totalCompletions}
+        activeStreaks={activeStreakCount}
+        habitCount={tasks.length}
+        bestStreak={stats.bestStreak}
+        completionRate={stats.completionRate}
+        since={earliestCreatedAt ? format(parseISO(earliestCreatedAt), 'MMM yyyy') : '—'}
+      />
+    </SharePreviewModal>
+    </>
   );
 };
 
@@ -343,6 +371,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     paddingTop: 8,
     paddingBottom: 20,
+  },
+  heroShareButton: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.iconButtonBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
   },
   heroEyebrowRow: {
     flexDirection: 'row',

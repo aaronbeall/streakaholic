@@ -19,6 +19,8 @@ import Svg, { RNSVGTSpan, Text as SvgText } from 'react-native-svg';
 import { AchievementAlert } from '../components/AchievementAlert';
 import { TrophyEmblem } from '../components/AchievementCard';
 import { Confetti } from '../components/Confetti';
+import { AchievementShareCard } from '../components/ShareCards';
+import { SharePreviewModal } from '../components/SharePreviewModal';
 import { TROPHY_BADGE_INTRO_DURATION, TROPHY_BADGE_STACK_SIZE, TrophyBadge } from '../components/TrophyBadge';
 import { useToast } from '../context/ToastContext';
 import { useAchievementsStore } from '../stores/achievementsStore';
@@ -333,6 +335,7 @@ interface CelebrationContentProps {
   kindHistory: Achievement[];
   emblemDelay: number;
   timeline: SharedValue<number>;
+  onShare?: () => void;
 }
 
 const CelebrationContent: React.FC<CelebrationContentProps> = ({
@@ -340,6 +343,7 @@ const CelebrationContent: React.FC<CelebrationContentProps> = ({
   kindHistory,
   emblemDelay,
   timeline,
+  onShare,
 }) => {
   const insets = useSafeAreaInsets();
   const muteKind = useAchievementsStore(state => state.muteKind);
@@ -382,6 +386,17 @@ const CelebrationContent: React.FC<CelebrationContentProps> = ({
     () => getAchievementRevealSchedule({ showsNumber, countDuration, emblemDelay }),
     [countDuration, emblemDelay, showsNumber]
   );
+  const shareRevealStyle = useAnimatedStyle(() => {
+    const reveal = Easing.out(Easing.cubic)(getAchievementRevealProgress(
+      timeline.value,
+      schedule.descriptionStart,
+      ACHIEVEMENT_REVEAL_TIMING.revealDuration
+    ));
+    return {
+      opacity: reveal,
+      transform: [{ translateY: (1 - reveal) * -8 }],
+    };
+  });
 
   // The title slot's own minHeight used to be one fixed value shared by both variants -- tuned
   // against the taller numberBlock (eyebrow + huge number + unit caption), it left a comeback's
@@ -441,6 +456,18 @@ const CelebrationContent: React.FC<CelebrationContentProps> = ({
         accessibilityLiveRegion="polite"
         accessibilityLabel={`${meta.title}. ${meta.describe(achievement)}`}
       >
+        {onShare && (
+          <Reanimated.View style={[styles.celebrationShareButton, { top: insets.top + 12 }, shareRevealStyle]}>
+            <Pressable
+              style={styles.cornerButtonFill}
+              onPress={onShare}
+              accessibilityRole="button"
+              accessibilityLabel={`Share ${meta.title}`}
+            >
+              <MaterialCommunityIcons name="share-variant" size={18} color="#fff" />
+            </Pressable>
+          </Reanimated.View>
+        )}
         {/* Mute toggle, stacked directly under the close button (2026-08-12) -- replaces an
             earlier in-flow text link ("show a quick alert next time instead"), per direct user
             direction for a smaller icon button reflecting current state rather than a one-shot
@@ -680,6 +707,8 @@ const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () =>
   const allAchievements = useAchievementsStore(state => state.achievements);
   const [pageIndex, setPageIndex] = useState(0);
   const [viewedCount, setViewedCount] = useState(1);
+  const [shareVisible, setShareVisible] = useState(false);
+  const [includeTaskNameInShare, setIncludeTaskNameInShare] = useState(true);
   const viewedIndices = useRef(new Set([0]));
   const hasNavigated = useRef(false);
   const achievement = achievements[Math.min(pageIndex, achievements.length - 1)];
@@ -811,6 +840,7 @@ const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () =>
         kindHistory={historiesByKind.get(achievement.kind) ?? []}
         emblemDelay={hasNavigated.current ? 0 : EMBLEM_DELAY}
         timeline={sceneTimeline}
+        onShare={achievement.dedupScope === 'preview' ? undefined : () => setShareVisible(true)}
       />
       <View style={styles.confettiHost} pointerEvents="none">
         <Confetti
@@ -868,6 +898,22 @@ const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () =>
           </Reanimated.View>
         </>
       )}
+      <SharePreviewModal
+        visible={shareVisible}
+        title="Share achievement"
+        filename={`streakaholic-${achievement.kind}`}
+        onClose={() => setShareVisible(false)}
+        option={achievement.taskName ? {
+          label: 'Include habit name',
+          value: includeTaskNameInShare,
+          onValueChange: setIncludeTaskNameInShare,
+        } : undefined}
+      >
+        <AchievementShareCard
+          achievement={achievement}
+          includeTaskName={includeTaskNameInShare}
+        />
+      </SharePreviewModal>
     </Reanimated.View>
   );
 };
@@ -995,6 +1041,22 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  celebrationShareButton: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 1003,
+    elevation: 1003,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    overflow: 'hidden',
+  },
+  cornerButtonFill: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

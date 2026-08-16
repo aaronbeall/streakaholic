@@ -10,7 +10,7 @@ import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import * as StoreReview from 'expo-store-review';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, ScrollView, Share, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { useToast } from '../context/ToastContext';
@@ -120,6 +120,28 @@ export const SettingsScreen: React.FC = () => {
       await Linking.openURL(`${storeUrl}${separator}action=write-review`);
     } catch {
       showToast({ message: 'The app store could not be opened right now.' });
+    }
+  };
+
+  const handleShareApp = async () => {
+    const androidPackage = Constants.expoConfig?.android?.package;
+    const playStoreUrl = Constants.expoConfig?.android?.playStoreUrl
+      ?? (androidPackage ? `https://play.google.com/store/apps/details?id=${androidPackage}` : null);
+    const appStoreUrl = Constants.expoConfig?.ios?.appStoreUrl;
+    const destinationUrl = Platform.OS === 'ios'
+      ? (appStoreUrl ?? 'https://metamodernmonkey.com')
+      : (playStoreUrl ?? 'https://metamodernmonkey.com');
+
+    try {
+      await Share.share({
+        title: `Share ${appName}`,
+        message: `Build habits worth celebrating with ${appName}.\n${destinationUrl}`,
+        url: Platform.OS === 'ios' ? destinationUrl : undefined,
+      }, {
+        dialogTitle: `Share ${appName}`,
+      });
+    } catch {
+      showToast({ message: 'The share sheet could not be opened right now.' });
     }
   };
 
@@ -396,6 +418,17 @@ export const SettingsScreen: React.FC = () => {
           >
             <MaterialCommunityIcons name="star-outline" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>Rate This App</Text>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity
+            style={styles.row}
+            onPress={handleShareApp}
+            accessibilityRole="button"
+            accessibilityHint="Opens the system share sheet with a link to Streakaholic"
+          >
+            <MaterialCommunityIcons name="share-variant-outline" size={22} color={colors.textSecondary} />
+            <Text style={styles.rowLabel}>Share Streakaholic</Text>
             <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
           </TouchableOpacity>
           <View style={styles.divider} />

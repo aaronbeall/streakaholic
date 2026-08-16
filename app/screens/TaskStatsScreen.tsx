@@ -4,6 +4,8 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Dimensions, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AchievementsPreviewCard } from '../components/AchievementsPreviewCard';
+import { HabitStatsShareCard } from '../components/ShareCards';
+import { SharePreviewModal } from '../components/SharePreviewModal';
 import { LazyMount } from '../components/LazyMount';
 import { CompletionsOverTimeChartCard, HistogramChartCard } from '../components/StatsCharts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,6 +49,8 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
   const router = useRouter();
   const [timeRange, setTimeRange] = useState<TimeFrame>('month');
   const [isCumulative, setIsCumulative] = useState(true);
+  const [shareVisible, setShareVisible] = useState(false);
+  const [includeNameInShare, setIncludeNameInShare] = useState(true);
   // Measured from the actual rendered container rather than guessed from Dimensions.get('window')
   // minus a hardcoded constant -- that guess didn't account precisely for the content padding,
   // which is what left charts clipping on the right edge on some devices. The fallback here (used
@@ -170,6 +174,14 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
       >
         <View ref={contentRef}>
         <View style={styles.heroBlock}>
+          <TouchableOpacity
+            style={styles.heroShareButton}
+            onPress={() => setShareVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`Share ${task.name} progress`}
+          >
+            <MaterialCommunityIcons name="share-variant" size={19} color={colors.textSecondary} />
+          </TouchableOpacity>
           <View style={styles.heroEyebrowRow}>
             <MaterialCommunityIcons name="check-decagram" size={16} color={task.color} />
             <Text style={styles.heroEyebrow}>Total Completions</Text>
@@ -289,6 +301,29 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
         </View>
         </View>
       </ScrollView>
+      <SharePreviewModal
+        visible={shareVisible}
+        title="Share habit progress"
+        filename={`streakaholic-${task.id}-progress`}
+        onClose={() => setShareVisible(false)}
+        option={{
+          label: 'Include habit name',
+          value: includeNameInShare,
+          onValueChange: setIncludeNameInShare,
+        }}
+      >
+        <HabitStatsShareCard
+          name={task.name}
+          includeName={includeNameInShare}
+          icon={task.icon}
+          color={task.color}
+          currentStreak={currentStreak}
+          bestStreak={bestStreak}
+          totalCompletions={totalCompletions}
+          completionRate={task.stats?.completionRate || 0}
+          since={format(parseISO(task.createdAt), 'MMM yyyy')}
+        />
+      </SharePreviewModal>
     </View>
   );
 };
@@ -310,6 +345,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     paddingTop: 8,
     paddingBottom: 20,
+  },
+  heroShareButton: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.iconButtonBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
   },
   heroEyebrowRow: {
     flexDirection: 'row',

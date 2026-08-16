@@ -16,7 +16,9 @@
 ## MVP+
 
 - [x] Calendar year map (`TaskCalendarView`'s Year mode — grid-of-months with per-day dots; plus `DashboardCalendarView`'s aggregate infinite calendar grid across tasks)
-- [ ] Sharing
+- [x] Sharing (native system share sheet for a public store-link invitation; locally rendered,
+      previewed PNG cards for achievement unlocks/replays, individual habit Stats, and aggregate
+      Dashboard Stats; task-scoped cards can omit the habit name for privacy)
 - [x] Reminders/notifications (`app/utils/notifications.ts` -- per-task `notifications: { level, time }`, escalating 0-4 exactly per the nag levels below, always scheduling only the single next due-and-incomplete occurrence and rescheduling on every relevant task mutation + app foreground/hydrate, rather than relying on OS-level recurring triggers. New tasks default to Level 1; existing tasks are never silently upgraded. Level 4 deliberately stops short of a true full-screen alarm — see CLAUDE.md for why. Not yet confirmed on-device, and needs a dev-client rebuild to test at all.)
   - [x] Nag level: 0=none, 1=dismissable notification, 2=repeated dismissable notifications, 3=ongoing notification, 4=alarm and ongoing notification
   - [x] Set time

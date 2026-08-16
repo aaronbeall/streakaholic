@@ -1329,10 +1329,12 @@ export const detectCompletionAchievements = (
 //     unchanged as detectCompletionAchievements' own `date` parameter, driving perfect-day/
 //     perfect-week/anniversary's date-scoped logic exactly as it already does live.
 //
-// Two kinds are deliberately NOT part of this replay, and keep their own simple current-snapshot
-// check instead, since replay wouldn't add anything: `task-age` (anniversary -- pure calendar
-// time, unaffected by completion history, and one-time regardless) and `active-task-count`
-// (habit-collector -- driven by task *existence*, not completions, and also one-time).
+// Three one-time strategy families also get a simple current-snapshot check before the replay,
+// since their qualifying state cannot hide an earlier crossing: `task-age` (anniversary -- pure
+// calendar time), `active-task-count` (habit-collector -- driven by task existence), and
+// `total-completions-sum` (Century Club tiers -- a lifetime aggregate). The last one is especially
+// important for imported history: replay intentionally avoids recomputing every other task's full
+// stats on every event, while the imported tasks already carry their current stats from taskStore.
 //
 // A real, inherent limitation shared with the old snapshot-only version: this can only see each
 // task's *current* configuration (frequency, schedule, archived state) -- there's no historical
@@ -1387,6 +1389,7 @@ export const detectRetroactiveAchievements = (
       if (alreadyEarnedScopes.has(dedupKey(kind, task.id))) continue;
       if (hasReachedTaskAge(task, days, today)) {
         earned.push({ kind, ...taskMeta(task), value: days, dedupScope: task.id });
+        alreadyEarnedScopes.add(dedupKey(kind, task.id));
       }
     }
   }
@@ -1394,7 +1397,25 @@ export const detectRetroactiveAchievements = (
   // Habit collector (active-task-count) -- also not completion-driven; same reasoning.
   for (const { kind, target } of ACTIVE_TASK_COUNT_ENTRIES) {
     if (alreadyEarnedScopes.has(dedupKey(kind, 'global'))) continue;
-    if (activeTasks.length >= target) earned.push({ kind, value: target, dedupScope: 'global' });
+    if (activeTasks.length >= target) {
+      earned.push({ kind, value: target, dedupScope: 'global' });
+      alreadyEarnedScopes.add(dedupKey(kind, 'global'));
+    }
+  }
+
+  // Century Club tiers are one-time and monotonic in normal use, so a current aggregate is
+  // sufficient to catch imported history. Import runs calculateTaskStats before offering this
+  // scan, which means every task here has the exact qualifying total the live detector uses.
+  const currentCompletionSum = activeTasks.reduce(
+    (sum, task) => sum + (task.stats?.totalCompletions ?? 0),
+    0,
+  );
+  for (const { kind, target } of TOTAL_COMPLETIONS_SUM_ENTRIES) {
+    if (alreadyEarnedScopes.has(dedupKey(kind, 'global'))) continue;
+    if (currentCompletionSum >= target) {
+      earned.push({ kind, value: target, dedupScope: 'global' });
+      alreadyEarnedScopes.add(dedupKey(kind, 'global'));
+    }
   }
 
   // The chronological replay itself -- one event per (task, completion), ordered by completedAt
