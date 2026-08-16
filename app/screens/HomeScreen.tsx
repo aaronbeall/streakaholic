@@ -176,7 +176,7 @@ const HomeHeader = React.memo(({
           accessibilityRole="button"
           accessibilityLabel="Dashboard"
         >
-          <MaterialCommunityIcons name="chart-bar" size={24} color={colors.text} />
+          <MaterialCommunityIcons name="view-dashboard" size={24} color={colors.text} />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.headerButtonSecondary}
