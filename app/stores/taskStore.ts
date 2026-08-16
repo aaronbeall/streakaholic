@@ -8,6 +8,7 @@ import { cancelTaskNotifications, rescheduleAllTaskNotifications, scheduleTaskNo
 import { calculateTaskStats, getCachedCompletionCountsByDate } from '../utils/streaks';
 import { useAchievementsStore } from './achievementsStore';
 import { useLastImportStore } from './lastImportStore';
+import { useSettingsStore } from './settingsStore';
 
 // Fire-and-forget -- scheduling touches the native Notifications API and none of this store's
 // mutators are async, matching how recordCompletionAchievements is already called synchronously
@@ -221,6 +222,12 @@ export const useTaskStore = create<TaskStore>()(
             date,
             completionCountsByTaskId
           );
+          // Review engagement is deliberately narrower than task history: only a genuine action
+          // for today counts. Imports and backfilled calendar dates bypass this path entirely,
+          // while undo/restore operations don't increment it elsewhere in the store.
+          if (dateString === format(new Date(), 'yyyy-MM-dd')) {
+            useSettingsStore.getState().recordReviewCompletion(dateString);
+          }
           // A completion can affect whether today's reminder should still be pending. The
           // notification layer compares the newly desired occurrence/content with its observed
           // native snapshot, so partial reps and other no-intent-change updates stop here without

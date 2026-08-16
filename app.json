@@ -17,7 +17,8 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.metamodernmonkey.Streakaholic"
+      "package": "com.metamodernmonkey.Streakaholic",
+      "playStoreUrl": "https://play.google.com/store/apps/details?id=com.metamodernmonkey.Streakaholic"
     },
     "web": {
       "bundler": "metro",

@@ -1,8 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { create } from 'zustand';
 import { PersistStorage, persist } from 'zustand/middleware';
 import type { TaskDetailTab } from '../components/TaskHeader';
 import type { DashboardTab } from '../screens/DashboardScreen';
+import {
+  DEFAULT_REVIEW_PROMPT_STATE,
+  recordReviewCompletion,
+  ReviewPromptState,
+  shouldRequestReview,
+} from '../utils/reviewPrompt';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -44,6 +51,7 @@ export interface AppSettings {
   // permanently change the remembered preference.
   dashboardLastTab: DashboardTab;
   taskDetailLastTab: TaskDetailTab;
+  reviewPrompt: ReviewPromptState;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -55,6 +63,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   onboardingHintsSeen: DEFAULT_ONBOARDING_HINTS_SEEN,
   dashboardLastTab: 'stats',
   taskDetailLastTab: 'calendar',
+  reviewPrompt: DEFAULT_REVIEW_PROMPT_STATE,
 };
 
 interface SettingsStore extends AppSettings {
@@ -72,6 +81,14 @@ interface SettingsStore extends AppSettings {
   resetOnboardingHints: (preserve?: Partial<OnboardingHintsSeen>) => void;
   setDashboardLastTab: (tab: DashboardTab) => void;
   setTaskDetailLastTab: (tab: TaskDetailTab) => void;
+  // Only current-day, user-initiated completions call this. Imports, retroactive edits, undo, and
+  // restore operations don't manufacture engagement toward a review prompt.
+  recordReviewCompletion: (date: string) => void;
+  // Transient coordination flag: eligibility is persisted, but an unfinished request should not
+  // survive a process restart and surprise someone immediately on launch.
+  reviewRequestPending: boolean;
+  markReviewRequested: (version: string) => void;
+  clearPendingReviewRequest: () => void;
 }
 
 type PersistedSettingsState = AppSettings;
@@ -102,9 +119,10 @@ const settingsStorage: PersistStorage<PersistedSettingsState> = {
 
 export const useSettingsStore = create<SettingsStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...DEFAULT_SETTINGS,
       hasHydrated: false,
+      reviewRequestPending: false,
       setHasHydrated: (value) => set({ hasHydrated: value }),
       setThemeMode: (themeMode) => set({ themeMode }),
       setShowCardBackground: (showCardBackground) => set({ showCardBackground }),
@@ -119,6 +137,25 @@ export const useSettingsStore = create<SettingsStore>()(
       }),
       setDashboardLastTab: (dashboardLastTab) => set({ dashboardLastTab }),
       setTaskDetailLastTab: (taskDetailLastTab) => set({ taskDetailLastTab }),
+      recordReviewCompletion: (date) => {
+        const state = get();
+        const reviewPrompt = recordReviewCompletion(state.reviewPrompt, date);
+        const appVersion = Constants.nativeAppVersion ?? Constants.expoConfig?.version ?? 'unknown';
+        const reviewRequestPending = state.reviewRequestPending
+          || shouldRequestReview(reviewPrompt, appVersion);
+
+        if (reviewPrompt === state.reviewPrompt && reviewRequestPending === state.reviewRequestPending) return;
+        set({ reviewPrompt, reviewRequestPending });
+      },
+      markReviewRequested: (version) => set(state => ({
+        reviewPrompt: {
+          ...state.reviewPrompt,
+          lastRequestAt: new Date().toISOString(),
+          lastRequestVersion: version,
+        },
+        reviewRequestPending: false,
+      })),
+      clearPendingReviewRequest: () => set({ reviewRequestPending: false }),
     }),
     {
       name: 'appSettings',
@@ -132,6 +169,7 @@ export const useSettingsStore = create<SettingsStore>()(
         onboardingHintsSeen: state.onboardingHintsSeen,
         dashboardLastTab: state.dashboardLastTab,
         taskDetailLastTab: state.taskDetailLastTab,
+        reviewPrompt: state.reviewPrompt,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

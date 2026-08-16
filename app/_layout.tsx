@@ -1,8 +1,10 @@
 import * as Notifications from 'expo-notifications';
-import { router, Stack } from 'expo-router';
+import Constants from 'expo-constants';
+import { router, Stack, usePathname } from 'expo-router';
+import * as StoreReview from 'expo-store-review';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect } from 'react';
-import { ActivityIndicator, AppState, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, AppState, InteractionManager, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AchievementCelebration } from './components/AchievementCelebration';
 import { ToastBanner } from './components/ToastBanner';
@@ -129,6 +131,61 @@ function LoadingScreen() {
   );
 }
 
+const REVIEW_PROMPT_SETTLE_DELAY_MS = 2000;
+
+function ReviewPromptCoordinator() {
+  const pathname = usePathname();
+  const requestPending = useSettingsStore(state => state.reviewRequestPending);
+  const markReviewRequested = useSettingsStore(state => state.markReviewRequested);
+  const clearPendingRequest = useSettingsStore(state => state.clearPendingReviewRequest);
+  const achievementUiIdle = useAchievementsStore(
+    state => state.pendingCelebrations.length === 0 && state.pendingAlerts.length === 0
+  );
+  const [appState, setAppState] = useState(AppState.currentState);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', setAppState);
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    if (!requestPending || !achievementUiIdle || appState !== 'active' || pathname !== '/') return;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const interaction = InteractionManager.runAfterInteractions(() => {
+      timer = setTimeout(async () => {
+        if (cancelled || AppState.currentState !== 'active') return;
+
+        try {
+          if (!(await StoreReview.hasAction())) {
+            clearPendingRequest();
+            return;
+          }
+
+          // Record the attempt before crossing into the native API. Stores may legitimately
+          // suppress the sheet because of their own quota and provide no "was shown" signal;
+          // retrying after every subsequent completion would therefore be both noisy and wrong.
+          const version = Constants.nativeAppVersion ?? Constants.expoConfig?.version ?? 'unknown';
+          markReviewRequested(version);
+          await StoreReview.requestReview();
+        } catch (error) {
+          clearPendingRequest();
+          console.warn('Failed to request an app review', error);
+        }
+      }, REVIEW_PROMPT_SETTLE_DELAY_MS);
+    });
+
+    return () => {
+      cancelled = true;
+      interaction.cancel();
+      if (timer) clearTimeout(timer);
+    };
+  }, [appState, achievementUiIdle, clearPendingRequest, markReviewRequested, pathname, requestPending]);
+
+  return null;
+}
+
 // Settings, tasks, lastImport, and achievements are all Zustand `persist` stores backed by
 // AsyncStorage -- without this gate, the first frame renders with each store's default in-memory
 // state (wrong theme override, an empty task list flashing the "no tasks yet" empty state) before
@@ -208,6 +265,7 @@ export default function Layout() {
         <AppGate />
         <ToastBanner />
         <AchievementCelebration />
+        <ReviewPromptCoordinator />
       </ToastProvider>
     </GestureHandlerRootView>
   );

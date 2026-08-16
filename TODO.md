@@ -80,7 +80,10 @@
   - [ ] Commitment Mode + paid Streak Saves (locked history, visible/non-completing saves,
         and mode-specific achievement credibility — see [COMMITMENT_MODE.md](COMMITMENT_MODE.md))
   - [ ] ~~AdMob~~ — decided against, see MONETIZATION.md
-- [ ] Rate this app
+- [x] Rate this app (Settings' manual action opens the store review listing directly; a separate
+      native in-app request becomes eligible after 10 genuine current-day completions across 5
+      active days, waits for achievement/navigation UI to settle, runs once per app version, and
+      observes a 90-day cross-version cooldown)
 - [ ] Widgets
 - [ ] Sync (Drive or Dropbox)
 - [x] About (privacy, ToS, credits, etc) (`app/about.tsx` → `AboutScreen` — app identity/version/icon, a Privacy Policy and Terms of Service reflecting the app's actual local-only/no-tracking architecture, and an Open Source credits list of the libraries actually used; linked from Settings' About row, which now navigates instead of just displaying name/version inline. Placeholder legal-style text — review/replace before an actual store submission)

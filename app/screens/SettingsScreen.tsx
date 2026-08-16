@@ -95,14 +95,29 @@ export const SettingsScreen: React.FC = () => {
 
   const handleRateApp = async () => {
     try {
-      // Web has no native store-review sheet. Native development builds may also report no
-      // action; a real store-distributed build is the reliable environment for testing this flow.
-      if (!(await StoreReview.hasAction())) {
-        showToast({ message: 'App store ratings are not available in this build.' });
+      if (Platform.OS === 'android') {
+        const packageName = Constants.expoConfig?.android?.package;
+        if (!packageName) throw new Error('Missing Android package name');
+
+        const marketUrl = `market://details?id=${packageName}&showAllReviews=true`;
+        const webUrl = `https://play.google.com/store/apps/details?id=${packageName}&showAllReviews=true`;
+        try {
+          await Linking.openURL(marketUrl);
+        } catch {
+          await Linking.openURL(webUrl);
+        }
         return;
       }
 
-      await StoreReview.requestReview();
+      // A manually tapped row must be deterministic; the native prompt is quota-controlled and
+      // can silently show nothing. On iOS, expo-store-review reads the configured App Store URL.
+      const storeUrl = StoreReview.storeUrl();
+      if (!storeUrl) {
+        showToast({ message: 'The app store rating page is not configured yet.' });
+        return;
+      }
+      const separator = storeUrl.includes('?') ? '&' : '?';
+      await Linking.openURL(`${storeUrl}${separator}action=write-review`);
     } catch {
       showToast({ message: 'The app store could not be opened right now.' });
     }

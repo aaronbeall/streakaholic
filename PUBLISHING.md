@@ -1,7 +1,7 @@
 # Publishing
 
-How to ship Streakaholic to the Google Play Store, plus guides for two features that
-matter for launch: **Rate this app** and **Tip jar**. For setup/dev workflow see
+How to ship Streakaholic to the Google Play Store, plus the implementation record for
+**Rate this app** and a guide for the remaining **Tip jar**. For setup/dev workflow see
 [DEVELOPMENT.md](DEVELOPMENT.md); for architecture see [CLAUDE.md](CLAUDE.md).
 
 ## Readiness audit (as of 2026-08-08, updated same day)
@@ -317,56 +317,31 @@ Internal testing exists, there's no reason to keep doing it that way.
 
 ---
 
-## 2. Add "Rate this app"
+## 2. Rate this app (implemented)
 
 Two complementary pieces — a contextual native prompt, and a manual settings row.
 
 ### a. Contextual in-app review prompt
 
-1. Install the package:
-   ```bash
-   npx expo install expo-store-review
-   ```
-2. Trigger it at a meaningful moment — e.g. in `HomeScreen`, when a task's streak hits a
-   new best (you already compute `currentStreak === bestStreak` for the trophy badge
-   elsewhere, so the signal already exists):
-   ```ts
-   import * as StoreReview from 'expo-store-review';
+`expo-store-review` is installed. `settingsStore` persists bounded engagement metadata and
+makes a native request eligible after 10 genuine current-day completion actions across 5
+distinct active days. Imports, retroactive calendar edits, undo, and restore operations do not
+count. `ReviewPromptCoordinator` in `_layout.tsx` waits until the app is active on Home, all
+achievement celebrations/alerts have cleared, React Native interactions have settled, and a
+further two-second pause has elapsed before calling the native API.
 
-   const maybePromptReview = async () => {
-     if (await StoreReview.hasAction()) {
-       await StoreReview.requestReview();
-     }
-   };
-   ```
-3. **Don't** call this on every completion — Android's in-app review API throttles how
-   often it'll actually show a prompt regardless of how often you call it, but you should
-   still be deliberate about *when* you ask (a happy moment, not mid-task-list-scroll).
-   Consider a simple cooldown in `settingsStore` (e.g. a `lastReviewPromptAt` timestamp)
-   so you're not calling it every single time the trigger condition is met.
-4. Note the API's real limitation: you can't detect whether the prompt was shown, what
-   rating was given, or force it to appear — that's by design (Google doesn't want apps
-   gaming their own review prompts).
+An attempt is recorded before entering the native API because the stores can silently suppress
+their sheet and do not expose whether it appeared or whether a rating was submitted. Requests are
+limited to once per app version with a 90-day cross-version cooldown. Eligibility rules live in
+`app/utils/reviewPrompt.ts` with focused unit coverage.
 
 ### b. Manual "Rate this app" row in Settings
 
-Gives users an explicit way to do it anytime, and doesn't hit the native API's throttling
-since it deep-links straight to the Play Store listing:
-
-```ts
-import { Linking } from 'react-native';
-
-const PLAY_STORE_URL = 'market://details?id=com.metamodernmonkey.Streakaholic';
-const PLAY_STORE_WEB_FALLBACK = 'https://play.google.com/store/apps/details?id=com.metamodernmonkey.Streakaholic';
-
-const handleRateApp = async () => {
-  const canOpen = await Linking.canOpenURL(PLAY_STORE_URL);
-  await Linking.openURL(canOpen ? PLAY_STORE_URL : PLAY_STORE_WEB_FALLBACK);
-};
-```
-
-Add this as a row in `SettingsScreen`'s Help section (alongside "Replay Onboarding
-Hints"), following the existing row/card pattern in that file.
+The Help section's explicit **Rate This App** row does not call the quota-controlled native API,
+which could make a user-tapped button silently do nothing. Android opens the Play Store review
+listing via `market://`, falling back to its HTTPS listing; `app.json` also records that Play Store
+URL. iOS uses its configured App Store URL with `action=write-review` once an App Store product URL
+has been assigned.
 
 ---
 
