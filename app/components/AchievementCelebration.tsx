@@ -92,6 +92,9 @@ const HISTORY_MAX_VISIBLE_ROWS = 4;
 // >=296px of available space) without needing to resolve against an ancestor chain of
 // shrink-to-fit, `alignItems: 'center'` containers.
 const HISTORY_LIST_WIDTH = 260;
+const LOCKED_PREVIEW_COLOR = '#77777f';
+const LOCKED_PREVIEW_GLOW = '#a0a0a8';
+const LOCKED_PREVIEW_ACCENT = '#d0d0d5';
 
 type NativeSvgTextAnimatedProps = { content?: string };
 const AnimatedSvgTSpan = Reanimated.createAnimatedComponent(RNSVGTSpan);
@@ -180,6 +183,105 @@ const RevealSlot: React.FC<{
   return (
     <View style={{ minHeight, alignItems: 'center', justifyContent: 'center' }}>
       <Reanimated.View style={[style, animatedStyle]}>{children}</Reanimated.View>
+    </View>
+  );
+};
+
+const LockedPreviewProgress: React.FC<{
+  current: number;
+  target: number;
+  timeline: SharedValue<number>;
+  startTime: number;
+}> = React.memo(({ current, target, timeline, startTime }) => {
+  const finalFraction = target > 0 ? Math.min(1, current / target) : 0;
+  const fillStyle = useAnimatedStyle(() => {
+    const reveal = Easing.out(Easing.cubic)(getAchievementRevealProgress(
+      timeline.value,
+      startTime,
+      700
+    ));
+    return { width: `${finalFraction * reveal * 100}%` };
+  });
+
+  return (
+    <View style={styles.lockedProgressBlock}>
+      <View style={styles.lockedProgressTrack}>
+        <Reanimated.View style={[styles.lockedProgressFill, fillStyle]} />
+      </View>
+      <Text style={styles.lockedProgressLabel}>{current.toLocaleString()} / {target.toLocaleString()}</Text>
+    </View>
+  );
+});
+LockedPreviewProgress.displayName = 'LockedPreviewProgress';
+
+// Locked achievements are informative previews, not counterfeit unlock moments. This avoids the
+// TrophyBadge impact loops, count-up, particles, confetti, sharing and mute state. One short
+// UI-thread clock fades a static gray emblem and its content in sequence, then fills progress.
+const LockedAchievementPreview: React.FC<{
+  achievement: Achievement;
+  timeline: SharedValue<number>;
+}> = ({ achievement, timeline }) => {
+  const insets = useSafeAreaInsets();
+  const meta = ACHIEVEMENT_META[achievement.kind];
+  const schedule = useMemo(
+    () => ({ emblem: 80, title: 320, description: 520, progress: 760, end: 1500 }),
+    []
+  );
+
+  useEffect(() => {
+    cancelAnimation(timeline);
+    timeline.value = 0;
+    timeline.value = withTiming(schedule.end, { duration: schedule.end, easing: Easing.linear });
+    return () => cancelAnimation(timeline);
+  }, [achievement.id, schedule.end, timeline]);
+
+  return (
+    <View
+      style={[styles.lockedPreviewContent, { paddingTop: insets.top + 42, paddingBottom: insets.bottom + 20 }]}
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+      accessibilityLabel={`${meta.title}, locked. ${meta.describe(achievement)}`}
+    >
+      <RevealSlot timeline={timeline} startTime={schedule.emblem} minHeight={150}>
+        <View style={styles.lockedPreviewEmblemScale}>
+          <TrophyEmblem
+            icon={meta.icon}
+            color={LOCKED_PREVIEW_COLOR}
+            glowColor={LOCKED_PREVIEW_GLOW}
+            accentColor={LOCKED_PREVIEW_ACCENT}
+            ribbonText={getRibbonText(achievement)}
+          />
+          <View style={styles.lockedPreviewLockBadge}>
+            <MaterialCommunityIcons name="lock" size={13} color="#fff" />
+          </View>
+        </View>
+      </RevealSlot>
+
+      <RevealSlot timeline={timeline} startTime={schedule.title} minHeight={76}>
+        <Text style={styles.lockedPreviewEyebrow}>LOCKED ACHIEVEMENT</Text>
+        <Text style={styles.lockedPreviewTitle}>{meta.title}</Text>
+      </RevealSlot>
+
+      <RevealSlot
+        timeline={timeline}
+        startTime={schedule.description}
+        minHeight={94}
+        style={styles.lockedPreviewDescriptionBlock}
+      >
+        <Text style={styles.lockedPreviewDescription}>{meta.describe(achievement)}</Text>
+        <Text style={styles.lockedPreviewHint}>Keep going to add this emblem to your Trophy Case.</Text>
+      </RevealSlot>
+
+      {achievement.previewProgress && (
+        <RevealSlot timeline={timeline} startTime={schedule.progress} minHeight={72}>
+          <LockedPreviewProgress
+            current={achievement.previewProgress.current}
+            target={achievement.previewProgress.target}
+            timeline={timeline}
+            startTime={schedule.progress}
+          />
+        </RevealSlot>
+      )}
     </View>
   );
 };
@@ -379,7 +481,8 @@ const CelebrationContent: React.FC<CelebrationContentProps> = ({
   // See handleToggleMute's own comment for why this covers repeatable kinds AND task-scoped
   // one-time kinds, excluding only global one-time kinds (which can never recur at all) and
   // preview instances (nothing real to mute yet).
-  const showMuteToggle = (meta.repeatable || meta.scope === 'task') && achievement.dedupScope !== 'preview';
+  const isPreview = achievement.dedupScope.endsWith('preview');
+  const showMuteToggle = (meta.repeatable || meta.scope === 'task') && !isPreview;
 
   const countDuration = showsNumber ? getAchievementCountUpDuration(achievement.value ?? 0) : 0;
   const schedule = useMemo(
@@ -598,7 +701,7 @@ const CelebrationContent: React.FC<CelebrationContentProps> = ({
               // never-persisted Achievement built purely to demo the celebration, flagged by its
               // own dedupScope: 'preview'.
               <Text style={styles.unlockedLabel}>
-                {achievement.dedupScope === 'preview' ? 'Locked' : `Unlocked ${format(parseISO(achievement.earnedAt), 'MMM d, yyyy')}`}
+                {isPreview ? 'Preview' : `Unlocked ${format(parseISO(achievement.earnedAt), 'MMM d, yyyy')}`}
               </Text>
             )}
             {showHistoryList && (
@@ -712,6 +815,8 @@ const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () =>
   const viewedIndices = useRef(new Set([0]));
   const hasNavigated = useRef(false);
   const achievement = achievements[Math.min(pageIndex, achievements.length - 1)];
+  const isLockedPreview = achievement.dedupScope === 'locked-preview';
+  const isLockedPreviewBatch = achievements[0].dedupScope === 'locked-preview';
   const firstAchievementMeta = ACHIEVEMENT_META[achievements[0].kind];
   const batchVisibility = useSharedValue(0);
   const sceneTimeline = useSharedValue(0);
@@ -736,11 +841,13 @@ const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () =>
     // Confetti is a one-shot entrance for the congratulations window itself, not for an
     // individual achievement page. Its independent clock starts once with the batch and keeps
     // running if the user navigates; no focus change can restart it.
-    const confettiEnd = EMBLEM_DELAY + ACHIEVEMENT_REVEAL_TIMING.confettiDuration;
-    confettiTimeline.value = withTiming(confettiEnd, {
-      duration: confettiEnd,
-      easing: Easing.linear,
-    });
+    if (!isLockedPreviewBatch) {
+      const confettiEnd = EMBLEM_DELAY + ACHIEVEMENT_REVEAL_TIMING.confettiDuration;
+      confettiTimeline.value = withTiming(confettiEnd, {
+        duration: confettiEnd,
+        easing: Easing.linear,
+      });
+    }
     // A singleton has no dock. Avoid even scheduling its invisible delayed animation so the
     // overwhelmingly common one-achievement path stays as close to the original cost as possible.
     if (achievements.length > 1) {
@@ -754,7 +861,7 @@ const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () =>
       cancelAnimation(confettiTimeline);
       cancelAnimation(dockReveal);
     };
-  }, [achievements.length, batchVisibility, confettiTimeline, dockReveal]);
+  }, [achievements.length, batchVisibility, confettiTimeline, dockReveal, isLockedPreviewBatch]);
 
   const dismissWithAnimation = useCallback(() => {
     batchVisibility.value = withTiming(
@@ -835,22 +942,28 @@ const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () =>
       >
         <MaterialCommunityIcons name={hasViewedAll ? 'close' : 'chevron-right'} size={22} color="#fff" />
       </Pressable>
-      <CelebrationContent
-        achievement={achievement}
-        kindHistory={historiesByKind.get(achievement.kind) ?? []}
-        emblemDelay={hasNavigated.current ? 0 : EMBLEM_DELAY}
-        timeline={sceneTimeline}
-        onShare={achievement.dedupScope === 'preview' ? undefined : () => setShareVisible(true)}
-      />
-      <View style={styles.confettiHost} pointerEvents="none">
-        <Confetti
-          baseColor={firstAchievementMeta.color.base}
-          glowColor={firstAchievementMeta.color.glow}
-          accentColor={firstAchievementMeta.color.accent}
-          timeline={confettiTimeline}
-          startTime={EMBLEM_DELAY}
+      {isLockedPreview ? (
+        <LockedAchievementPreview achievement={achievement} timeline={sceneTimeline} />
+      ) : (
+        <CelebrationContent
+          achievement={achievement}
+          kindHistory={historiesByKind.get(achievement.kind) ?? []}
+          emblemDelay={hasNavigated.current ? 0 : EMBLEM_DELAY}
+          timeline={sceneTimeline}
+          onShare={achievement.dedupScope === 'dev-preview' ? undefined : () => setShareVisible(true)}
         />
-      </View>
+      )}
+      {!isLockedPreview && (
+        <View style={styles.confettiHost} pointerEvents="none">
+          <Confetti
+            baseColor={firstAchievementMeta.color.base}
+            glowColor={firstAchievementMeta.color.glow}
+            accentColor={firstAchievementMeta.color.accent}
+            timeline={confettiTimeline}
+            startTime={EMBLEM_DELAY}
+          />
+        </View>
+      )}
       {achievements.length > 1 && (
         <>
           <View style={[styles.batchDockTrack, { top: insets.top + 8 + BATCH_DOCK_TRACK_TOP }]}>
@@ -969,18 +1082,20 @@ export const AchievementCelebration: React.FC = () => {
   const dismissCelebrations = useAchievementsStore(state => state.dismissCelebrations);
   const celebrationsEnabled = useSettingsStore(state => state.achievementCelebrationsEnabled);
   const presentation = getPendingAchievementPresentation(pendingCelebrations, pendingAlerts);
+  const isUserRequestedPreview = presentation?.type === 'celebration' &&
+    presentation.achievements[0]?.dedupScope.endsWith('preview');
 
   // Achievements are always recorded into history regardless of this setting (see
   // achievementsStore.ts) -- it only ever gates whether anything shows here at all. When it's off,
   // silently drain the queue instead of ever rendering, rather than backlogging popups for if it
   // gets re-enabled.
   useEffect(() => {
-    if (celebrationsEnabled) return;
+    if (celebrationsEnabled || isUserRequestedPreview) return;
     if (pendingCelebrations.length > 0) dismissCurrentCelebration();
     if (pendingAlerts.length > 0) dismissCurrentAlert();
-  }, [pendingCelebrations.length, pendingAlerts.length, celebrationsEnabled, dismissCurrentCelebration, dismissCurrentAlert]);
+  }, [pendingCelebrations.length, pendingAlerts.length, celebrationsEnabled, dismissCurrentCelebration, dismissCurrentAlert, isUserRequestedPreview]);
 
-  if (!presentation || !celebrationsEnabled) return null;
+  if (!presentation || (!celebrationsEnabled && !isUserRequestedPreview)) return null;
 
   // The key changes immediately when full-screen work appears while an alert is showing. That
   // preempts (without dismissing) the alert; after the full batch closes, the same alert queue
@@ -1150,6 +1265,84 @@ const styles = StyleSheet.create({
     // even earlier 28) specifically to help the whole screen fit without scrolling on a shorter
     // device -- every RevealSlot's own minHeight below was tightened for the same reason.
     gap: 12,
+  },
+  lockedPreviewContent: {
+    flex: 1,
+    zIndex: 1000,
+    elevation: 1000,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    gap: 10,
+  },
+  lockedPreviewEmblemScale: {
+    transform: [{ scale: 1.75 }],
+  },
+  lockedPreviewLockBadge: {
+    position: 'absolute',
+    right: -3,
+    top: 31,
+    width: 21,
+    height: 21,
+    borderRadius: 11,
+    backgroundColor: '#5b5b62',
+    borderWidth: 2,
+    borderColor: '#d0d0d5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lockedPreviewEyebrow: {
+    color: 'rgba(255, 255, 255, 0.48)',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    textAlign: 'center',
+    marginBottom: 7,
+  },
+  lockedPreviewTitle: {
+    color: 'rgba(255, 255, 255, 0.72)',
+    fontSize: 28,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  lockedPreviewDescriptionBlock: {
+    alignItems: 'center',
+    gap: 10,
+  },
+  lockedPreviewDescription: {
+    color: 'rgba(255, 255, 255, 0.72)',
+    fontSize: 17,
+    fontWeight: '600',
+    textAlign: 'center',
+    maxWidth: 320,
+  },
+  lockedPreviewHint: {
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  lockedProgressBlock: {
+    width: 260,
+    alignItems: 'center',
+    gap: 9,
+  },
+  lockedProgressTrack: {
+    width: '100%',
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  lockedProgressFill: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: LOCKED_PREVIEW_COLOR,
+  },
+  lockedProgressLabel: {
+    color: 'rgba(255, 255, 255, 0.55)',
+    fontSize: 13,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   emblemSlot: {
     width: TROPHY_BADGE_STACK_SIZE,

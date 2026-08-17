@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { Achievement, AchievementKind, dedupKey, detectCompletionAchievements, detectRetroactiveAchievements } from '../utils/achievements';
+import { Achievement, AchievementKind, dedupKey, detectCompletionAchievements, detectRetroactiveAchievements, detectTaskCreatedAchievements } from '../utils/achievements';
 import {
   partitionAchievementPresentations,
   promoteFirstAchievementAlert,
@@ -38,6 +38,9 @@ interface AchievementsStore {
     date: Date,
     completionCountsByTaskId?: ReadonlyMap<string, ReadonlyMap<string, number>>
   ) => void;
+  // Called only after a genuinely new habit is created. Keeps Habit Collector and any future
+  // roster-size awards entirely off the ordinary completion path.
+  recordTaskCreatedAchievements: (activeTasksAfter: Task[]) => void;
   dismissCurrentCelebration: () => void;
   dismissCurrentAlert: () => void;
   // Opens the current quick alert as a full-screen celebration without changing whether its kind
@@ -131,6 +134,29 @@ export const useAchievementsStore = create<AchievementsStore>()(
         // setting only ever gates whether AchievementCelebration shows its screen, never whether the
         // Trophy Case's history stays complete. Decide the ephemeral presentation queue now so a
         // later mute-setting change cannot alter an unlock already waiting to be shown.
+        set(state => {
+          const { celebrations, alerts } = partitionAchievementPresentations(recorded, state.mutedKinds);
+          return {
+            achievements: [...state.achievements, ...recorded],
+            pendingCelebrations: [...state.pendingCelebrations, ...celebrations],
+            pendingAlerts: [...state.pendingAlerts, ...alerts],
+          };
+        });
+      },
+
+      recordTaskCreatedAchievements: (activeTasksAfter) => {
+        const alreadyEarnedScopes = new Set(
+          get().achievements.map(a => dedupKey(a.kind, a.dedupScope))
+        );
+        const newlyEarned = detectTaskCreatedAchievements(activeTasksAfter, alreadyEarnedScopes);
+        if (newlyEarned.length === 0) return;
+
+        const earnedAt = new Date().toISOString();
+        const recorded: Achievement[] = newlyEarned.map((achievement, index) => ({
+          ...achievement,
+          id: `${Date.now()}-created-${index}`,
+          earnedAt,
+        }));
         set(state => {
           const { celebrations, alerts } = partitionAchievementPresentations(recorded, state.mutedKinds);
           return {

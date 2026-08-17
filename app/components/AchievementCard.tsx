@@ -210,26 +210,28 @@ const EarnerIconRow: React.FC<{ earners: AchievementEarner[]; styles: ReturnType
 };
 // ============================================================================================
 
-// Builds a fake, throwaway Achievement so a *locked* card can preview its celebration on tap, the
-// same way an unlocked card replays its real one. Restored (2026-08-12) after being removed and
-// then explicitly asked back in as a permanent feature -- then, per direct user direction
-// (2026-08-13), scoped to dev builds only (see `canPreviewLocked`/`__DEV__` at this component's own
-// call site) rather than shipping to real users, alongside the same day's notification-debug
-// screen. Never written to real history either way: queueCelebration only appends to the ephemeral
-// `pendingCelebrations` queue, never to `achievements` -- so this is safe to tap freely without
-// polluting the Trophy Case's actual record. Uses whatever task context the card's own live
-// progress calculation already found (the closest-to-earning task, if any); `taskIcon` is left
-// undefined since AchievementCardStatus's progress data doesn't carry one -- DescriptionText
-// already renders fine without it, just without the inline icon.
-const buildPreviewAchievement = (status: AchievementCardStatus): Achievement => ({
-  id: `preview-${status.kind}-${Date.now()}`,
-  kind: status.kind,
-  taskName: status.progress?.taskName,
-  taskColor: status.progress?.taskColor,
-  value: status.progress?.target,
-  dedupScope: 'preview',
-  earnedAt: new Date().toISOString(),
-});
+// Builds a fake, throwaway Achievement for a locked Trophy Case card. Ordinary taps use the
+// purpose-built subdued preview; a dev-only long press can request the full congratulations view
+// for visual testing. Neither mode is persisted -- queueCelebration only touches the ephemeral UI
+// queue. The progress snapshot comes from the status already computed for this card.
+const buildPreviewAchievement = (
+  status: AchievementCardStatus,
+  mode: 'locked-preview' | 'dev-preview' = 'locked-preview'
+): Achievement => {
+  const meta = ACHIEVEMENT_META[status.kind];
+  return {
+    id: `preview-${status.kind}-${Date.now()}`,
+    kind: status.kind,
+    taskName: status.progress?.taskName,
+    taskColor: status.progress?.taskColor,
+    value: meta.lockedPreviewValue ?? status.progress?.target,
+    previewProgress: status.progress
+      ? { current: status.progress.current, target: status.progress.target }
+      : undefined,
+    dedupScope: mode,
+    earnedAt: new Date().toISOString(),
+  };
+};
 
 interface AchievementBadgeCardProps {
   status: AchievementCardStatus;
@@ -279,17 +281,15 @@ export const AchievementBadgeCard: React.FC<AchievementBadgeCardProps> = React.m
   const progressFillColor = meta.color.base;
   const progressPct = progress ? Math.min(1, progress.current / progress.target) * 100 : 0;
 
-  // Unlocked cards replay their real celebration; locked cards preview a synthetic one instead of
-  // being a no-op -- but only in dev builds (`__DEV__`, a real RN/Metro global, false in a release
-  // build). A real user tapping a locked card in production just gets nothing, matching this
-  // component's own original locked-card behavior before the preview feature existed.
-  const canPreviewLocked = __DEV__;
-  const isDisabled = !unlocked && !canPreviewLocked;
-
   const handlePlay = () => {
-    if (isDisabled) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPlay(unlocked && latest ? latest : buildPreviewAchievement(status));
+  };
+
+  const handleDevFullPreview = () => {
+    if (!__DEV__ || unlocked) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onPlay(buildPreviewAchievement(status, 'dev-preview'));
   };
 
   return (
@@ -297,15 +297,14 @@ export const AchievementBadgeCard: React.FC<AchievementBadgeCardProps> = React.m
       <TouchableOpacity
         style={[styles.card, cardWidth !== undefined && { width: cardWidth }]}
         onPress={handlePlay}
-        disabled={isDisabled}
+        onLongPress={__DEV__ && !unlocked ? handleDevFullPreview : undefined}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityState={{ disabled: isDisabled }}
         accessibilityLabel={
           unlocked ? `Replay ${meta.title} celebration`
-            : canPreviewLocked ? `Preview ${meta.title} celebration`
-              : `${meta.title}, locked`
+            : `Preview locked achievement ${meta.title}`
         }
+        accessibilityHint={__DEV__ && !unlocked ? 'Long press to test the full congratulations view' : undefined}
       >
         <View style={styles.badgeWrap}>
           {unlocked ? (

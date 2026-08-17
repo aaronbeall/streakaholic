@@ -1,4 +1,4 @@
-import { differenceInCalendarDays, format, parseISO, subDays } from 'date-fns';
+import { addDays, differenceInCalendarDays, eachDayOfInterval, endOfMonth, format, isSameDay, parseISO, startOfMonth, startOfWeek, subDays } from 'date-fns';
 import { MaterialCommunityIconName, Task, TaskCompletion } from '../types';
 import { calculateTaskStats, isDueOnDate, isTaskCompleted } from './streaks';
 import { MAX_ACTIVE_TASKS } from './taskLimits';
@@ -11,8 +11,11 @@ export type AchievementKind =
   | 'new-best-streak'
   | 'anniversary'
   | 'milestone-10' | 'milestone-50' | 'milestone-100' | 'milestone-1000'
-  | 'century-club-100' | 'century-club-500' | 'century-club-1000'
-  | 'perfect-day' | 'perfect-week'
+  | 'century-club-100' | 'century-club-500' | 'century-club-1000' | 'century-club-10000'
+  | 'perfect-day' | 'perfect-week' | 'perfect-month'
+  | 'weekend-warrior' | 'weekday-hero'
+  | 'weekly-overachiever' | 'monthly-overachiever'
+  | 'unstoppable' | 'streak-addict'
   | 'comeback'
   | 'habit-collector'
   | 'early-bird' | 'night-owl';
@@ -30,6 +33,10 @@ export interface Achievement {
   // The value driving the achievement's own description (a streak length, a completion count) --
   // not used for dedup itself, that's dedupScope's job.
   value?: number;
+  // Ephemeral Trophy Case preview data. Real earned achievements never set this field; locked
+  // cards attach their already-computed current/target snapshot while queuing a non-persisted
+  // preview, so opening it never triggers another achievement scan or history walk.
+  previewProgress?: { current: number; target: number };
   // Uniquely identifies *what* this achievement instance is scoped to, e.g. `milestone-100:{taskId}`
   // or `perfect-day:2026-08-10` -- checked against already-earned achievements before recording a
   // new one, so a one-time kind can never be earned twice for the same scope. Repeatable kinds
@@ -85,9 +92,9 @@ export type ProgressStrategy =
   // (`days`) -- unlike every other strategy here, this measures sheer elapsed time rather than
   // anything the user actively did, so it's not affected by streaks breaking/resetting at all.
   | { type: 'task-age'; days: number }
-  // Progress = the current consecutive-perfect-day count ending today (every due, non-archived
-  // task completed each of those days), capped at `days`. Covers perfect-week.
-  | { type: 'perfect-day-streak'; days: number }
+  // Progress inside the current fixed calendar window. Global variants count completed due-task
+  // opportunities; task variants count completed calendar days for one eligible task.
+  | { type: 'calendar-window'; window: 'week' | 'month' | 'weekend' | 'weekdays'; scope: 'global' | 'specific-days-task'; minDuePerDay?: number; minDistinctTasks?: number; requireEveryDay?: boolean }
   // Progress = the live sum of `totalCompletions` across every active task, capped at `target` --
   // a global, cross-task aggregate rather than any single task's own stat. Covers the three
   // century-club-N tiers.
@@ -95,6 +102,11 @@ export type ProgressStrategy =
   // Progress = the current number of active (non-archived) tasks, capped at `target`. Covers
   // habit-collector.
   | { type: 'active-task-count'; target: number }
+  // Progress for a weekly/monthly quota habit toward ceil(quota * multiplier) qualifying days in
+  // its current calendar period. The target varies by task, so the closest ratio wins.
+  | { type: 'quota-overage'; unit: 'week' | 'month'; multiplier: number }
+  // Number of simultaneous healthy streaks across active habits.
+  | { type: 'active-streak-count'; target: number }
   // Progress = how many of the most recent `window` completions (across every active task,
   // combined) fall before/after `hour` (in the device's own local time), against a target of
   // "at least half of them." Shared by early-bird (`direction: 'before'`) and night-owl
@@ -161,6 +173,13 @@ interface AchievementMeta {
   triggerSuffix?: (value: number) => string;
   triggerStandalone?: (value: number | undefined) => string;
   progressStrategy: ProgressStrategy;
+  // Optional emblem value for a locked preview when progress units differ from the earned
+  // achievement's ribbon units (Perfect Week tracks due check-ins but still awards seven days).
+  lockedPreviewValue?: number;
+  // The mutation/date boundary that is allowed to evaluate this kind. This is both executable
+  // routing data and an audit-friendly declaration: expensive calendar rules cannot accidentally
+  // drift back into every ordinary completion.
+  trigger: 'completion' | 'task-created' | 'friday-completion' | 'saturday-completion' | 'sunday-completion' | 'month-end-completion';
   // The achievement's own visual identity, a three-color set per explicit user direction ("for
   // each one I want 3 colors: base, glow, and accent... use a thematic color scheme and make these
   // really pop") -- everywhere *except* a task's own inline name/icon within the celebration's
@@ -344,6 +363,9 @@ const FIRST_STREAK_THRESHOLD = 2;
 // since several are read from more than one place (both an ACHIEVEMENT_META entry's own
 // progressStrategy and the matching bespoke detection block below).
 const PERFECT_WEEK_DAYS = 7;
+const OVERACHIEVER_MULTIPLIER = 1.5;
+const STREAK_ADDICT_TARGET = 6;
+const RANGE_SWEEP_MIN_DISTINCT_TASKS = 4;
 // A day/week with only one due task still trivially "wins" without this -- per explicit user
 // direction (2026-08-12), a genuine "perfect" day needs a little more actually riding on it. 2 is
 // the smallest change that rules out the trivial one-task case without meaningfully raising the
@@ -403,6 +425,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'fixed', text: 'FIRST STEP' },
     triggerStandalone: () => 'You just logged your very first completion.',
     progressStrategy: { type: 'fixed-threshold', metric: 'totalCompletions', target: 1 },
+    trigger: 'completion',
     color: { theme: 'Ruby', base: '#C62828', glow: '#FF1744', accent: '#FFEBEE' }, // first-completion
   },
   'streak-2': {
@@ -419,6 +442,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DAYS' },
     triggerSuffix: v => ` started a ${v.toLocaleString()}-day streak.`,
     progressStrategy: { type: 'fixed-threshold', metric: 'currentStreak', target: FIRST_STREAK_THRESHOLD },
+    trigger: 'completion',
     color: { theme: 'Fire', base: '#E64A19', glow: '#FF7043', accent: '#FFC400' }, // streak-2
   },
   'streak-5': {
@@ -432,6 +456,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DAYS' },
     triggerSuffix: v => ` reached a ${v.toLocaleString()}-day streak.`,
     progressStrategy: { type: 'fixed-threshold', metric: 'currentStreak', target: 5 },
+    trigger: 'completion',
     color: { theme: 'Intense Fire', base: '#FF6D00', glow: '#FFAB40', accent: '#FFEA00' }, // streak-5
   },
   'streak-10': {
@@ -445,6 +470,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DAYS' },
     triggerSuffix: v => ` reached a ${v.toLocaleString()}-day streak.`,
     progressStrategy: { type: 'fixed-threshold', metric: 'currentStreak', target: 10 },
+    trigger: 'completion',
     color: { theme: 'Blazing Fire', base: '#FF8F00', glow: '#FFC107', accent: '#FFF59D' }, // streak-10
   },
   'streak-25': {
@@ -458,6 +484,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DAYS' },
     triggerSuffix: v => ` reached a ${v.toLocaleString()}-day streak.`,
     progressStrategy: { type: 'fixed-threshold', metric: 'currentStreak', target: 25 },
+    trigger: 'completion',
     color: { theme: 'Raging Fire', base: '#FF3D00', glow: '#FF9800', accent: '#FFEB3B' }, // streak-25
   },
   'streak-50': {
@@ -471,6 +498,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DAYS' },
     triggerSuffix: v => ` reached a ${v.toLocaleString()}-day streak.`,
     progressStrategy: { type: 'fixed-threshold', metric: 'currentStreak', target: 50 },
+    trigger: 'completion',
     // Reworked again (2026-08-12), per direct user redirect: rather than a fresh, distinct
     // concept (the char-red/white-hot-core take just above didn't land either), this now starts
     // directly from streak-25's own Raging Fire triple (#FF3D00/#FF9800/#FFEB3B) and pushes each
@@ -490,6 +518,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DAYS' },
     triggerSuffix: v => ` reached a ${v.toLocaleString()}-day streak.`,
     progressStrategy: { type: 'fixed-threshold', metric: 'currentStreak', target: 100 },
+    trigger: 'completion',
     color: { theme: 'Magic Fire', base: '#7B1FA2', glow: '#BA68C8', accent: '#F50057' }, // streak-100
   },
   'streak-1000': {
@@ -503,6 +532,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DAYS' },
     triggerSuffix: v => ` reached a ${v.toLocaleString()}-day streak.`,
     progressStrategy: { type: 'fixed-threshold', metric: 'currentStreak', target: 1000 },
+    trigger: 'completion',
     color: { theme: 'Cosmic Fire', base: '#AA00FF', glow: '#E040FB', accent: '#00E5FF' }, // streak-1000
   },
   'new-best-streak': {
@@ -520,6 +550,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DAYS' },
     triggerSuffix: v => ` just beat its own personal best with a ${v.toLocaleString()}-day streak.`,
     progressStrategy: { type: 'ratio-to-own-best' },
+    trigger: 'completion',
     // Gilded (2026-08-12), replacing Topaz -- mirrors century-club's own Obsidian structure (a
     // dark, near-neutral base/glow with a single bright accent carrying all the color), just warm
     // instead of cold: a shadowed bronze-black base and antique-bronze glow, with the accent kept
@@ -542,6 +573,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DAYS' },
     triggerSuffix: v => ` has been going strong for ${v.toLocaleString()} days.`,
     progressStrategy: { type: 'task-age', days: 365 },
+    trigger: 'completion',
     // Diamond's own exact color set, reassigned here per explicit user direction ("keep the
     // Diamond color scheme and come up with a new achievement it could be used for") once
     // new-best-streak moved to its own Topaz theme -- a diamond's real-world cultural association
@@ -561,6 +593,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DONE' },
     triggerSuffix: v => ` logged its ${v.toLocaleString()}th completion.`,
     progressStrategy: { type: 'fixed-threshold', metric: 'totalCompletions', target: 10 },
+    trigger: 'completion',
     color: { theme: 'Bronze', base: '#8D5524', glow: '#C87F3D', accent: '#FFB74D' }, // milestone-10
   },
   // New tier (2026-08-12), slotted between the original 10/100/1000 -- Silver's own color set
@@ -576,6 +609,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DONE' },
     triggerSuffix: v => ` logged its ${v.toLocaleString()}th completion.`,
     progressStrategy: { type: 'fixed-threshold', metric: 'totalCompletions', target: 50 },
+    trigger: 'completion',
     color: { theme: 'Silver', base: '#607D8B', glow: '#B0BEC5', accent: '#E1F5FE' }, // milestone-50
   },
   // Gold's own color set moved down here from milestone-1000 unchanged (see the medal-progression
@@ -591,6 +625,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DONE' },
     triggerSuffix: v => ` logged its ${v.toLocaleString()}th completion.`,
     progressStrategy: { type: 'fixed-threshold', metric: 'totalCompletions', target: 100 },
+    trigger: 'completion',
     color: { theme: 'Gold', base: '#B8860B', glow: '#DAA520', accent: '#FFF9C4' }, // milestone-100
   },
   // A genuinely new top-tier metal (2026-08-12), not a moved-down existing theme -- 1000 used to
@@ -608,6 +643,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DONE' },
     triggerSuffix: v => ` logged its ${v.toLocaleString()}th completion.`,
     progressStrategy: { type: 'fixed-threshold', metric: 'totalCompletions', target: 1000 },
+    trigger: 'completion',
     color: { theme: 'Platinum', base: '#37474F', glow: '#90A4AE', accent: '#ECEFF1' }, // milestone-1000
   },
   'perfect-day': {
@@ -630,6 +666,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
         ? `All ${v.toLocaleString()} habits due today were completed.`
         : 'Every habit due today was completed.',
     progressStrategy: { type: 'today-progress' },
+    trigger: 'completion',
     color: { theme: 'Emerald', base: '#00A86B', glow: '#00E676', accent: '#E8F5E9' }, // perfect-day
   },
   comeback: {
@@ -644,6 +681,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'fixed', text: 'COMEBACK' },
     triggerSuffix: () => ' is back on track after a lapsed streak.',
     progressStrategy: { type: 'readiness', isReady: task => task.stats?.streakStatus === 'expired' },
+    trigger: 'completion',
     color: { theme: 'Amethyst', base: '#6A1B9A', glow: '#D500F9', accent: '#EA80FC' }, // comeback
   },
 
@@ -678,8 +716,106 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     numberBlock: { eyebrow: 'Perfect Week', unit: 'DAYS PERFECT' },
     ribbon: { kind: 'count', unit: 'DAYS' },
     triggerStandalone: v => `You completed every habit, ${(v ?? PERFECT_WEEK_DAYS).toLocaleString()} days in a row.`,
-    progressStrategy: { type: 'perfect-day-streak', days: PERFECT_WEEK_DAYS },
+    progressStrategy: { type: 'calendar-window', window: 'week', scope: 'global', minDuePerDay: PERFECT_DAY_MIN_DUE_TASKS },
+    lockedPreviewValue: PERFECT_WEEK_DAYS,
+    trigger: 'saturday-completion',
     color: { theme: 'Sapphire', base: '#1565C0', glow: '#42A5F5', accent: '#E3F2FD' }, // perfect-week
+  },
+  'perfect-month': {
+    icon: 'calendar-month',
+    title: 'Perfect Month!',
+    describe: () => 'Every due habit completed for an entire calendar month',
+    repeatable: true,
+    scope: 'global',
+    flavorText: 'An entire page of the calendar, spotless.',
+    numberBlock: { eyebrow: 'Perfect Month', unit: 'DAYS PERFECT' },
+    ribbon: { kind: 'fixed', text: 'FLAWLESS' },
+    triggerStandalone: v => `You completed every due habit from the first through the last day of a ${(v ?? 0).toLocaleString()}-day month.`,
+    progressStrategy: { type: 'calendar-window', window: 'month', scope: 'global', minDuePerDay: PERFECT_DAY_MIN_DUE_TASKS },
+    trigger: 'month-end-completion',
+    color: { theme: 'Moonstone', base: '#455A64', glow: '#90CAF9', accent: '#E3F2FD' },
+  },
+  'weekend-warrior': {
+    icon: 'sword-cross',
+    title: 'Weekend Warrior!',
+    describe: () => 'Completed every due check-in for 4+ scheduled habits across Saturday and Sunday',
+    repeatable: false,
+    scope: 'global',
+    flavorText: 'Rest days are apparently for other people.',
+    ribbon: { kind: 'fixed', text: 'WEEKEND' },
+    triggerStandalone: v => `You completed all ${(v ?? 0).toLocaleString()} habit check-ins due across a weekend covering both days and at least 4 habits.`,
+    progressStrategy: { type: 'calendar-window', window: 'weekend', scope: 'global', minDistinctTasks: RANGE_SWEEP_MIN_DISTINCT_TASKS, requireEveryDay: true },
+    trigger: 'sunday-completion',
+    color: { theme: 'Sunset', base: '#EF6C00', glow: '#FFB300', accent: '#FFF176' },
+  },
+  'weekday-hero': {
+    icon: 'account-hard-hat',
+    title: 'Clocked In!',
+    describe: () => 'Put in a perfect workweek across 4+ scheduled habits',
+    repeatable: false,
+    scope: 'global',
+    flavorText: 'Five days on the clock. Zero loose ends.',
+    ribbon: { kind: 'fixed', text: 'CLOCKED IN' },
+    triggerStandalone: v => `You completed all ${(v ?? 0).toLocaleString()} habit check-ins due across a Monday-through-Friday workweek covering every day and at least 4 habits.`,
+    progressStrategy: { type: 'calendar-window', window: 'weekdays', scope: 'global', minDistinctTasks: RANGE_SWEEP_MIN_DISTINCT_TASKS, requireEveryDay: true },
+    trigger: 'friday-completion',
+    color: { theme: 'Indigo', base: '#3949AB', glow: '#7986CB', accent: '#E8EAF6' },
+  },
+  'weekly-overachiever': {
+    icon: 'rocket-launch',
+    title: 'Weekly Overachiever!',
+    describe: a => `Exceeded "${taskName(a)}"’s weekly quota by 50%`,
+    repeatable: false,
+    scope: 'task',
+    flavorText: 'The quota was a floor, not a ceiling.',
+    numberBlock: { eyebrow: 'Weekly Overachiever', unit: 'DAYS COMPLETED' },
+    ribbon: { kind: 'fixed', text: '150%' },
+    triggerSuffix: v => ` reached ${v.toLocaleString()} completed days in one week — 50% beyond its quota.`,
+    progressStrategy: { type: 'quota-overage', unit: 'week', multiplier: OVERACHIEVER_MULTIPLIER },
+    trigger: 'completion',
+    color: { theme: 'Lime Burst', base: '#558B2F', glow: '#8BC34A', accent: '#F4FF81' },
+  },
+  'monthly-overachiever': {
+    icon: 'chart-line-variant',
+    title: 'Monthly Overachiever!',
+    describe: a => `Exceeded "${taskName(a)}"’s monthly quota by 50%`,
+    repeatable: false,
+    scope: 'task',
+    flavorText: 'You did extra credit on your own assignment.',
+    numberBlock: { eyebrow: 'Monthly Overachiever', unit: 'DAYS COMPLETED' },
+    ribbon: { kind: 'fixed', text: '150%' },
+    triggerSuffix: v => ` reached ${v.toLocaleString()} completed days in one month — 50% beyond its quota.`,
+    progressStrategy: { type: 'quota-overage', unit: 'month', multiplier: OVERACHIEVER_MULTIPLIER },
+    trigger: 'completion',
+    color: { theme: 'Electric Cyan', base: '#00838F', glow: '#00BCD4', accent: '#84FFFF' },
+  },
+  unstoppable: {
+    icon: 'run-fast',
+    title: 'Unstoppable!',
+    describe: a => `Completed "${taskName(a)}" every day of a calendar week`,
+    repeatable: false,
+    scope: 'task',
+    flavorText: 'Scheduled or not, you showed up anyway.',
+    numberBlock: { eyebrow: 'Unstoppable', unit: 'DAYS COMPLETED' },
+    ribbon: { kind: 'count', unit: 'DAYS' },
+    triggerSuffix: v => ` was completed on all ${v.toLocaleString()} days from Sunday through Saturday.`,
+    progressStrategy: { type: 'calendar-window', window: 'week', scope: 'specific-days-task' },
+    trigger: 'saturday-completion',
+    color: { theme: 'Velocity', base: '#C62828', glow: '#FF5252', accent: '#FFEB3B' },
+  },
+  'streak-addict': {
+    icon: 'fire-circle',
+    title: 'Streak Addict!',
+    describe: () => `Kept ${STREAK_ADDICT_TARGET} active streaks going at once`,
+    repeatable: false,
+    scope: 'global',
+    flavorText: 'At this point, consistency may be contagious.',
+    numberBlock: { eyebrow: 'Streak Addict', unit: 'ACTIVE STREAKS' },
+    ribbon: { kind: 'count', unit: 'STREAKS' },
+    triggerStandalone: v => `You have ${(v ?? STREAK_ADDICT_TARGET).toLocaleString()} active streaks running concurrently.`,
+    progressStrategy: { type: 'active-streak-count', target: STREAK_ADDICT_TARGET },
+    trigger: 'completion',
+    color: { theme: 'Wildfire', base: '#AD1457', glow: '#FF4081', accent: '#FFD740' },
   },
   // Three global, lifetime-*sum* tiers of totalCompletions across every active task (2026-08-12,
   // split from a single 1,000-target "Century Club" kind, per explicit user direction to "add a
@@ -709,7 +845,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
   // outright ("meh, try something else") with Garnet, a deep-red gemstone giving the middle tier
   // its own distinct warm identity rather than sharing Cobalt's cool blue-grey family.
   'century-club-100': {
-    icon: 'trophy-outline',
+    icon: 'seal-variant',
     title: 'Century Club!',
     describe: () => 'Logged 100 completions across all your habits',
     repeatable: false,
@@ -719,12 +855,13 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DONE' },
     triggerStandalone: v => `You've logged ${(v ?? 100).toLocaleString()} completions across all your habits.`,
     progressStrategy: { type: 'total-completions-sum', target: 100 },
+    trigger: 'completion',
     // Cobalt -- a deep blue-grey stone base with a vivid sky-blue mineral-glint accent (colors
     // unchanged from the prior "Slate" pass, just the theme's own name corrected).
     color: { theme: 'Cobalt', base: '#263238', glow: '#546E7A', accent: '#40C4FF', useAccentText: true }, // century-club-100
   },
   'century-club-500': {
-    icon: 'trophy',
+    icon: 'diamond-stone',
     title: 'Fortune 500!',
     describe: () => 'Logged 500 completions across all your habits',
     repeatable: false,
@@ -734,6 +871,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DONE' },
     triggerStandalone: v => `You've logged ${(v ?? 500).toLocaleString()} completions across all your habits.`,
     progressStrategy: { type: 'total-completions-sum', target: 500 },
+    trigger: 'completion',
     // Garnet -- a deep, dark garnet-red base with a warm amber-gold accent (jewelry convention:
     // garnet is classically set in gold), giving this middle tier a warm identity distinct from
     // Cobalt's cool blue-grey and Obsidian's neutral near-black.
@@ -750,9 +888,24 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'DONE' },
     triggerStandalone: v => `You've logged ${(v ?? 1000).toLocaleString()} completions across all your habits.`,
     progressStrategy: { type: 'total-completions-sum', target: 1000 },
+    trigger: 'completion',
     // Obsidian -- the original single kind's own color set, unchanged; the darkest, rarest stone
     // for the top tier.
     color: { theme: 'Obsidian', base: '#212121', glow: '#616161', accent: '#FFD54F', useAccentText: true }, // century-club-1000
+  },
+  'century-club-10000': {
+    icon: 'infinity',
+    title: 'Infinity Club!',
+    describe: () => 'Logged an absurd 10,000 completions across all your habits',
+    repeatable: false,
+    scope: 'global',
+    flavorText: 'This is no longer discipline. This is a force of nature.',
+    numberBlock: { eyebrow: 'Infinity Club', unit: 'TOTAL COMPLETIONS' },
+    ribbon: { kind: 'count', unit: 'DONE' },
+    triggerStandalone: v => `You've logged ${(v ?? 10000).toLocaleString()} completions across all your habits. Insane.`,
+    progressStrategy: { type: 'total-completions-sum', target: 10000 },
+    trigger: 'completion',
+    color: { theme: 'Singularity', base: '#111827', glow: '#00E5FF', accent: '#F500FF', useAccentText: true },
   },
   // Reaching the free-tier's own active-task cap (MAX_ACTIVE_TASKS, taskLimits.ts) for the first
   // time -- an engagement milestone, not a performance one. One-time global moment, matching
@@ -770,6 +923,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'count', unit: 'HABITS' },
     triggerStandalone: v => `You're now tracking ${(v ?? MAX_ACTIVE_TASKS).toLocaleString()} habits at once.`,
     progressStrategy: { type: 'active-task-count', target: MAX_ACTIVE_TASKS },
+    trigger: 'task-created',
     color: { theme: 'Turquoise', base: '#00BFA5', glow: '#64FFDA', accent: '#E0F7FA' }, // habit-collector
   },
   // A behavior-pattern moment, not a task-performance one -- fires the first time at least half
@@ -790,6 +944,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'fixed', text: 'EARLY BIRD' },
     triggerStandalone: v => `${(v ?? 0).toLocaleString()} of your last ${TIME_OF_DAY_WINDOW} completions landed before 7am.`,
     progressStrategy: { type: 'time-of-day-ratio', hour: EARLY_BIRD_HOUR, direction: 'before', window: TIME_OF_DAY_WINDOW, minSamples: TIME_OF_DAY_MIN_SAMPLES },
+    trigger: 'completion',
     color: { theme: 'Dawn', base: '#FF8A65', glow: '#FFAB91', accent: '#FFF176' }, // early-bird
   },
   // Night Owl's exact mirror -- same `time-of-day-ratio` strategy, `direction: 'after'` instead
@@ -806,6 +961,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     ribbon: { kind: 'fixed', text: 'NIGHT OWL' },
     triggerStandalone: v => `${(v ?? 0).toLocaleString()} of your last ${TIME_OF_DAY_WINDOW} completions landed after 9pm.`,
     progressStrategy: { type: 'time-of-day-ratio', hour: NIGHT_OWL_HOUR, direction: 'after', window: TIME_OF_DAY_WINDOW, minSamples: TIME_OF_DAY_MIN_SAMPLES },
+    trigger: 'completion',
     color: { theme: 'Midnight', base: '#10102B', glow: '#5C6BC0', accent: '#283593', useAccentText: true }, // night-owl
   },
 };
@@ -832,11 +988,14 @@ const ACHIEVEMENT_ORDER_INDEX: Record<AchievementKind, number> = {
   'first-completion': 0, 'streak-2': 1, 'streak-5': 2, 'streak-10': 3, 'streak-25': 4, 'streak-50': 5,
   'streak-100': 6, 'streak-1000': 7, 'new-best-streak': 8, anniversary: 9,
   'milestone-10': 10, 'milestone-50': 11, 'milestone-100': 12, 'milestone-1000': 13,
-  'century-club-100': 14, 'century-club-500': 15, 'century-club-1000': 16,
-  'perfect-day': 17, 'perfect-week': 18,
-  comeback: 19,
-  'habit-collector': 20,
-  'early-bird': 21, 'night-owl': 22,
+  'century-club-100': 14, 'century-club-500': 15, 'century-club-1000': 16, 'century-club-10000': 17,
+  'perfect-day': 18, 'perfect-week': 19, 'perfect-month': 20,
+  'weekend-warrior': 21, 'weekday-hero': 22,
+  'weekly-overachiever': 23, 'monthly-overachiever': 24, unstoppable: 25,
+  'streak-addict': 26,
+  comeback: 27,
+  'habit-collector': 28,
+  'early-bird': 29, 'night-owl': 30,
 };
 
 export const ACHIEVEMENT_KIND_ORDER: AchievementKind[] = (Object.keys(ACHIEVEMENT_META) as AchievementKind[])
@@ -1056,6 +1215,92 @@ const getTimeOfDayWindow = (
   return { recent, meetsMinSamples: recent.length >= minSamples };
 };
 
+const getCalendarWindowBounds = (
+  date: Date,
+  window: Extract<ProgressStrategy, { type: 'calendar-window' }>['window']
+): { start: Date; end: Date } => {
+  const weekStart = startOfWeek(date, { weekStartsOn: 0 });
+  switch (window) {
+    case 'week':
+      return { start: weekStart, end: addDays(weekStart, 6) };
+    case 'month':
+      return { start: startOfMonth(date), end: endOfMonth(date) };
+    case 'weekdays':
+      return { start: addDays(weekStart, 1), end: addDays(weekStart, 5) };
+    case 'weekend': {
+      // A Sunday closes the weekend that began yesterday; on every other day, progress points at
+      // the next Saturday/Sunday pair. This makes Sunday-boundary detection and the live card
+      // describe the same two-day window.
+      if (date.getDay() === 0) return { start: subDays(date, 1), end: date };
+      const saturday = addDays(weekStart, 6);
+      return { start: saturday, end: addDays(saturday, 1) };
+    }
+  }
+};
+
+interface CalendarOpportunityProgress {
+  completed: number;
+  due: number;
+  meetsDailyMinimum: boolean;
+  scheduledTaskCount: number;
+  fullyCompletedTaskCount: number;
+  daysWithDue: number;
+}
+
+const getGlobalCalendarProgress = (
+  tasks: Task[],
+  start: Date,
+  end: Date,
+  isCompletedOnDate: (task: Task, date: Date) => boolean,
+  minDuePerDay = 0,
+): CalendarOpportunityProgress => {
+  let completed = 0;
+  let due = 0;
+  let meetsDailyMinimum = true;
+  let daysWithDue = 0;
+  const scheduledTaskIds = new Set<string>();
+  const incompleteTaskIds = new Set<string>();
+  for (const day of eachDayOfInterval({ start, end })) {
+    let dueThatDay = 0;
+    for (const task of tasks) {
+      if (!isDueOnDate(task, day)) continue;
+      due++;
+      dueThatDay++;
+      scheduledTaskIds.add(task.id);
+      if (isCompletedOnDate(task, day)) completed++;
+      else incompleteTaskIds.add(task.id);
+    }
+    if (dueThatDay > 0) daysWithDue++;
+    if (dueThatDay < minDuePerDay) meetsDailyMinimum = false;
+  }
+  return {
+    completed,
+    due,
+    meetsDailyMinimum,
+    scheduledTaskCount: scheduledTaskIds.size,
+    fullyCompletedTaskCount: Array.from(scheduledTaskIds).filter(id => !incompleteTaskIds.has(id)).length,
+    daysWithDue,
+  };
+};
+
+const completedDaysInPeriod = (
+  task: Task,
+  start: Date,
+  end: Date,
+  isCompletedOnDate: (task: Task, date: Date) => boolean,
+): number => eachDayOfInterval({ start, end }).filter(day => isCompletedOnDate(task, day)).length;
+
+const qualifiesGlobalCalendarWindow = (
+  progress: CalendarOpportunityProgress,
+  strategy: Extract<ProgressStrategy, { type: 'calendar-window' }>,
+  dayCount: number,
+): boolean =>
+  progress.due > 0 &&
+  progress.completed === progress.due &&
+  progress.meetsDailyMinimum &&
+  progress.scheduledTaskCount >= (strategy.minDistinctTasks ?? 0) &&
+  (!strategy.requireEveryDay || progress.daysWithDue === dayCount);
+
 // Detects newly-earned achievements from a single task completion. Pure -- given the task's
 // state immediately before and after the completion (both already carrying freshly computed
 // `.stats`), the full task list *after* the completion (needed for perfect-day, which spans every
@@ -1086,6 +1331,11 @@ export const detectCompletionAchievements = (
     // directly instead of flattening and re-sorting every active task's own completions from
     // scratch on every call.
     recentCompletionsOverride?: readonly TaskCompletion[];
+    // Retroactive replay uses a current-snapshot check for the cross-task Streak Addict rule.
+    // Reconstructing every other task's historical streak stats at every replay event would turn
+    // the scan quadratic; skipping that one aggregate inside replay avoids both false historical
+    // positives from current cached stats and a large performance regression.
+    skipActiveStreakAggregate?: boolean;
   },
 ): EarnedAchievement[] => {
   const nextStats = nextTask.stats;
@@ -1209,28 +1459,62 @@ export const detectCompletionAchievements = (
   // ============================================================================================
   const activeTasksAfter = allTasksAfter.filter(t => !t.archived);
 
-  // Perfect week -- 7 consecutive perfect days ending on `date`. Only fires on the exact day the
-  // trailing window first becomes fully perfect (today's window is perfect, but yesterday's own
-  // trailing window wasn't) -- the same "fire on the crossing, not on every day the condition
-  // stays true" convention every other kind in this file already follows; without the second
-  // check, a long perfect streak would re-fire this every single day it continues past 7, not
-  // just once when it first reaches 7.
+  // Calendar-range awards are routed by their actual closing day before any range is walked.
+  // Perfect Week is strictly Sunday-Saturday; Perfect Month is strictly first-last. Weekend and
+  // weekday awards are one-time global sweeps. Unstoppable is the deliberately stronger task rule:
+  // a specific-days habit must be completed on all seven calendar days, including bonus days.
   const isPerfectDayOn = (checkDate: Date): boolean => {
     const due = activeTasksAfter.filter(t => isDueOnDate(t, checkDate));
     return due.length >= PERFECT_DAY_MIN_DUE_TASKS && due.every(t => isCompletedOnDate(t, checkDate));
   };
-  const isPerfectWeekEndingOn = (endDate: Date): boolean => {
-    for (let i = 0; i < PERFECT_WEEK_DAYS; i++) {
-      if (!isPerfectDayOn(subDays(endDate, i))) return false;
+
+  if (date.getDay() === 5 && isFirstEarn('weekday-hero', 'global')) {
+    const { start, end } = getCalendarWindowBounds(date, 'weekdays');
+    const progress = getGlobalCalendarProgress(activeTasksAfter, start, end, isCompletedOnDate);
+    const strategy = ACHIEVEMENT_META['weekday-hero'].progressStrategy;
+    if (
+      strategy.type === 'calendar-window' && strategy.scope === 'global' &&
+      qualifiesGlobalCalendarWindow(progress, strategy, 5)
+    ) {
+      earned.push({ kind: 'weekday-hero', value: progress.due, dedupScope: 'global' });
     }
-    return true;
-  };
-  if (
-    isFirstEarn('perfect-week', dateString) &&
-    isPerfectWeekEndingOn(date) &&
-    !isPerfectWeekEndingOn(subDays(date, 1))
-  ) {
-    earned.push({ kind: 'perfect-week', value: PERFECT_WEEK_DAYS, dedupScope: dateString });
+  }
+
+  if (date.getDay() === 0 && isFirstEarn('weekend-warrior', 'global')) {
+    const { start, end } = getCalendarWindowBounds(date, 'weekend');
+    const progress = getGlobalCalendarProgress(activeTasksAfter, start, end, isCompletedOnDate);
+    const strategy = ACHIEVEMENT_META['weekend-warrior'].progressStrategy;
+    if (
+      strategy.type === 'calendar-window' && strategy.scope === 'global' &&
+      qualifiesGlobalCalendarWindow(progress, strategy, 2)
+    ) {
+      earned.push({ kind: 'weekend-warrior', value: progress.due, dedupScope: 'global' });
+    }
+  }
+
+  if (date.getDay() === 6) {
+    const { start, end } = getCalendarWindowBounds(date, 'week');
+    if (isFirstEarn('perfect-week', dateString)) {
+      const days = eachDayOfInterval({ start, end });
+      if (days.every(isPerfectDayOn)) {
+        earned.push({ kind: 'perfect-week', value: PERFECT_WEEK_DAYS, dedupScope: dateString });
+      }
+    }
+    if (
+      nextTask.frequency === 'specific_days_of_week' &&
+      isFirstEarn('unstoppable', nextTask.id) &&
+      eachDayOfInterval({ start, end }).every(day => isCompletedOnDate(nextTask, day))
+    ) {
+      earned.push({ kind: 'unstoppable', ...meta, value: PERFECT_WEEK_DAYS, dedupScope: nextTask.id });
+    }
+  }
+
+  if (isSameDay(date, endOfMonth(date)) && isFirstEarn('perfect-month', dateString)) {
+    const { start, end } = getCalendarWindowBounds(date, 'month');
+    const days = eachDayOfInterval({ start, end });
+    if (days.every(isPerfectDayOn)) {
+      earned.push({ kind: 'perfect-month', value: days.length, dedupScope: dateString });
+    }
   }
 
   // Century club -- a global lifetime sum of totalCompletions across every active task, crossing
@@ -1249,22 +1533,31 @@ export const detectCompletionAchievements = (
     earned.push({ kind, value: target, dedupScope: 'global' });
   }
 
-  // Active-task-count kinds (currently just habit-collector) -- reaching some active-task cap.
-  // Evaluated fresh on every completion, not as a crossing check, since there's no real
-  // "before/after" transition to diff here -- completing a task doesn't itself change how many
-  // tasks exist. This means it's only ever detected on the *next* completion after the
-  // cap-reaching task was actually added, not the instant it was added -- an accepted tradeoff of
-  // this feature's single trigger point (completeTask only, see taskStore.ts), not a new one
-  // introduced here. Loops over ACTIVE_TASK_COUNT_ENTRIES generically (2026-08-14, replacing a
-  // single hardcoded `if` that only ever checked 'habit-collector' against MAX_ACTIVE_TASKS
-  // directly) -- matching every other multi-kind family in this function (FIXED_THRESHOLD_ENTRIES,
-  // TASK_AGE_ENTRIES, TOTAL_COMPLETIONS_SUM_ENTRIES): a future second active-task-count kind now
-  // needs only its own ACHIEVEMENT_META entry to be detected live, same as detectRetroactiveAchievements'
-  // own already-generic loop over this same list.
-  for (const { kind, target } of ACTIVE_TASK_COUNT_ENTRIES) {
-    if (!isFirstEarn(kind, 'global')) continue;
-    if (activeTasksAfter.length >= target) {
-      earned.push({ kind, value: target, dedupScope: 'global' });
+  // Quota overachievers are task-local and only evaluated for the matching quota frequency. The
+  // count is bounded to the current 7/28-31 day period and uses the caller's O(1) day lookup map.
+  const quotaUnit = nextTask.frequency === 'days_per_week'
+    ? 'week'
+    : nextTask.frequency === 'days_per_month' ? 'month' : null;
+  if (quotaUnit) {
+    const kind: AchievementKind = quotaUnit === 'week' ? 'weekly-overachiever' : 'monthly-overachiever';
+    if (isFirstEarn(kind, nextTask.id)) {
+      const quota = quotaUnit === 'week' ? nextTask.daysPerWeek : nextTask.daysPerMonth;
+      const target = Math.ceil(Math.max(1, quota) * OVERACHIEVER_MULTIPLIER);
+      const { start, end } = getCalendarWindowBounds(date, quotaUnit);
+      const completedDays = completedDaysInPeriod(nextTask, start, end, isCompletedOnDate);
+      if (completedDays >= target) {
+        earned.push({ kind, ...meta, value: target, dedupScope: nextTask.id });
+      }
+    }
+  }
+
+  if (!options?.skipActiveStreakAggregate && isFirstEarn('streak-addict', 'global')) {
+    const activeStreaks = activeTasksAfter.filter(task =>
+      (task.stats?.currentStreak ?? 0) > 0 &&
+      (task.stats?.streakStatus === 'up_to_date' || task.stats?.streakStatus === 'expiring')
+    ).length;
+    if (activeStreaks >= STREAK_ADDICT_TARGET) {
+      earned.push({ kind: 'streak-addict', value: activeStreaks, dedupScope: 'global' });
     }
   }
 
@@ -1296,6 +1589,24 @@ export const detectCompletionAchievements = (
     }
   }
 
+  return earned;
+};
+
+// Creation-triggered achievements never ride along with the high-frequency completion path.
+// Currently this is Habit Collector; the derived entry list keeps future task-count tiers equally
+// cheap and makes task creation the only live event allowed to evaluate them.
+export const detectTaskCreatedAchievements = (
+  activeTasksAfter: Task[],
+  alreadyEarnedScopes: Set<string>,
+): EarnedAchievement[] => {
+  const earned: EarnedAchievement[] = [];
+  for (const { kind, target } of ACTIVE_TASK_COUNT_ENTRIES) {
+    if (ACHIEVEMENT_META[kind].trigger !== 'task-created') continue;
+    if (alreadyEarnedScopes.has(dedupKey(kind, 'global'))) continue;
+    if (activeTasksAfter.length >= target) {
+      earned.push({ kind, value: target, dedupScope: 'global' });
+    }
+  }
   return earned;
 };
 
@@ -1418,6 +1729,20 @@ export const detectRetroactiveAchievements = (
     }
   }
 
+  // Streak Addict is also a cross-task current-state aggregate. Exact historical replay would
+  // require recomputing every other task's stats at every event, so scan mode intentionally catches
+  // the useful import/settings case from the fully refreshed snapshot and skips it in the replay.
+  if (!alreadyEarnedScopes.has(dedupKey('streak-addict', 'global'))) {
+    const activeStreaks = activeTasks.filter(task =>
+      (task.stats?.currentStreak ?? 0) > 0 &&
+      (task.stats?.streakStatus === 'up_to_date' || task.stats?.streakStatus === 'expiring')
+    ).length;
+    if (activeStreaks >= STREAK_ADDICT_TARGET) {
+      earned.push({ kind: 'streak-addict', value: activeStreaks, dedupScope: 'global' });
+      alreadyEarnedScopes.add(dedupKey('streak-addict', 'global'));
+    }
+  }
+
   // The chronological replay itself -- one event per (task, completion), ordered by completedAt
   // (see this function's own top comment for why that's the correct order, not completion.date).
   const events: { task: Task; completion: TaskCompletion }[] = [];
@@ -1482,6 +1807,7 @@ export const detectRetroactiveAchievements = (
     const newlyEarnedNow = detectCompletionAchievements(prevTask, nextTask, allTasksAsOfNow, forDate, alreadyEarnedScopes, {
       completionCountsByTaskId,
       recentCompletionsOverride,
+      skipActiveStreakAggregate: true,
     });
 
     for (const item of newlyEarnedNow) {
@@ -1666,20 +1992,47 @@ export const getAchievementCardStatus = (
       };
     }
 
-    case 'perfect-day-streak': {
-      // Same "walk backward from today counting consecutive perfect days" logic
-      // isPerfectWeekEndingOn uses in detectCompletionAchievements above, just evaluated against
-      // `today` instead of a specific completion's own date, and against the caller's own
-      // `activeTasks` rather than re-deriving them.
-      const { days } = strategy;
-      let count = 0;
-      for (let i = 0; i < days; i++) {
-        const checkDate = subDays(today, i);
-        const due = activeTasks.filter(t => isDueOnDate(t, checkDate));
-        if (due.length < PERFECT_DAY_MIN_DUE_TASKS || !due.every(t => isTaskCompleted(t, checkDate))) break;
-        count++;
+    case 'calendar-window': {
+      const { start, end } = getCalendarWindowBounds(today, strategy.window);
+      if (strategy.scope === 'global') {
+        const progress = getGlobalCalendarProgress(
+          activeTasks,
+          start,
+          end,
+          isTaskCompleted,
+          strategy.minDuePerDay,
+        );
+        if (strategy.minDistinctTasks) {
+          const target = Math.max(strategy.minDistinctTasks, progress.scheduledTaskCount);
+          const coversRequiredDays = !strategy.requireEveryDay ||
+            progress.daysWithDue === eachDayOfInterval({ start, end }).length;
+          // Never display a completed-looking bar while a required day has no scheduled habit.
+          const current = coversRequiredDays
+            ? progress.fullyCompletedTaskCount
+            : Math.min(progress.fullyCompletedTaskCount, Math.max(0, target - 1));
+          return { ...base, progress: { current, target } };
+        }
+        return {
+          ...base,
+          progress: progress.due > 0
+            ? { current: progress.completed, target: progress.due }
+            : undefined,
+        };
       }
-      return { ...base, progress: { current: count, target: days } };
+
+      const earnedTaskIds = new Set(earnedForKind.map(a => a.taskId));
+      let best: { task: Task; current: number } | undefined;
+      for (const task of activeTasks) {
+        if (task.frequency !== 'specific_days_of_week' || earnedTaskIds.has(task.id)) continue;
+        const current = completedDaysInPeriod(task, start, end, isTaskCompleted);
+        if (!best || current > best.current) best = { task, current };
+      }
+      return {
+        ...base,
+        progress: best
+          ? { current: best.current, target: PERFECT_WEEK_DAYS, taskName: best.task.name, taskColor: best.task.color }
+          : undefined,
+      };
     }
 
     case 'total-completions-sum': {
@@ -1691,6 +2044,38 @@ export const getAchievementCardStatus = (
     case 'active-task-count': {
       const { target } = strategy;
       return { ...base, progress: { current: Math.min(activeTasks.length, target), target } };
+    }
+
+    case 'quota-overage': {
+      const earnedTaskIds = new Set(earnedForKind.map(a => a.taskId));
+      const { start, end } = getCalendarWindowBounds(today, strategy.unit);
+      let best: { task: Task; current: number; target: number } | undefined;
+      for (const task of activeTasks) {
+        const matches = strategy.unit === 'week'
+          ? task.frequency === 'days_per_week'
+          : task.frequency === 'days_per_month';
+        if (!matches || earnedTaskIds.has(task.id)) continue;
+        const quota = strategy.unit === 'week' ? task.daysPerWeek : task.daysPerMonth;
+        const target = Math.ceil(Math.max(1, quota) * strategy.multiplier);
+        const current = completedDaysInPeriod(task, start, end, isTaskCompleted);
+        if (!best || current / target > best.current / best.target) {
+          best = { task, current, target };
+        }
+      }
+      return {
+        ...base,
+        progress: best
+          ? { current: Math.min(best.current, best.target), target: best.target, taskName: best.task.name, taskColor: best.task.color }
+          : undefined,
+      };
+    }
+
+    case 'active-streak-count': {
+      const activeStreaks = activeTasks.filter(task =>
+        (task.stats?.currentStreak ?? 0) > 0 &&
+        (task.stats?.streakStatus === 'up_to_date' || task.stats?.streakStatus === 'expiring')
+      ).length;
+      return { ...base, progress: { current: Math.min(activeStreaks, strategy.target), target: strategy.target } };
     }
 
     case 'time-of-day-ratio': {

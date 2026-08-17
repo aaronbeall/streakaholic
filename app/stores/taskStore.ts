@@ -130,7 +130,9 @@ export const useTaskStore = create<TaskStore>()(
           completions: [],
           stats: calculateTaskStats(taskData, []),
         };
-        set({ tasks: [...get().tasks, newTask] });
+        const nextTasks = [...get().tasks, newTask];
+        set({ tasks: nextTasks });
+        useAchievementsStore.getState().recordTaskCreatedAchievements(nextTasks.filter(task => !task.archived));
         rescheduleFor(newTask);
       },
 

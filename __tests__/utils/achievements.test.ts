@@ -9,6 +9,7 @@ import {
   dedupKey,
   detectCompletionAchievements,
   detectRetroactiveAchievements,
+  detectTaskCreatedAchievements,
   getAchievementCardStatus,
   getAllAchievementCardStatuses,
   getGroupedAchievementCardStatuses,
@@ -127,7 +128,9 @@ describe('detectCompletionAchievements', () => {
       expect(ONE_TIME_KINDS.sort()).toEqual(
         [
           'anniversary', 'first-completion', 'milestone-10', 'milestone-50', 'milestone-100', 'milestone-1000',
-          'century-club-100', 'century-club-500', 'century-club-1000', 'habit-collector', 'early-bird', 'night-owl',
+          'century-club-100', 'century-club-500', 'century-club-1000', 'century-club-10000',
+          'habit-collector', 'early-bird', 'night-owl', 'weekend-warrior', 'weekday-hero',
+          'weekly-overachiever', 'monthly-overachiever', 'unstoppable', 'streak-addict',
         ].sort()
       );
     });
@@ -412,11 +415,12 @@ describe('detectCompletionAchievements', () => {
 
     // Every test here needs at least PERFECT_DAY_MIN_DUE_TASKS due+completed tasks per day, not
     // just one -- t2 mirrors t1's own completions exactly so both are always "perfect" together.
-    it('fires on the exact day 7 consecutive perfect days is first reached', () => {
-      const days = Array.from({ length: 7 }, (_, i) => new Date(today.getTime() - (6 - i) * 86400000));
+    it('fires for a perfect Sunday-Saturday calendar week on Saturday', () => {
+      const saturday = new Date(2026, 7, 22);
+      const days = Array.from({ length: 7 }, (_, i) => new Date(2026, 7, 16 + i));
       const t1 = makeDailyTask('t1', completionsFor('t1', days));
       const t2 = makeDailyTask('t2', completionsFor('t2', days));
-      const earned = detectCompletionAchievements(t1, t1, [t1, t2], today, new Set());
+      const earned = detectCompletionAchievements(t1, t1, [t1, t2], saturday, new Set());
       expect(kindsOf(earned)).toContain('perfect-week');
     });
 
@@ -428,26 +432,162 @@ describe('detectCompletionAchievements', () => {
       expect(kindsOf(earned)).not.toContain('perfect-week');
     });
 
-    it('does not fire again on day 8, since the crossing already happened on day 7', () => {
-      const days = Array.from({ length: 8 }, (_, i) => new Date(today.getTime() - (7 - i) * 86400000));
+    it('does not evaluate the range on a non-Saturday even when seven trailing days are perfect', () => {
+      const friday = new Date(2026, 7, 21);
+      const days = Array.from({ length: 7 }, (_, i) => new Date(2026, 7, 15 + i));
       const t1 = makeDailyTask('t1', completionsFor('t1', days));
       const t2 = makeDailyTask('t2', completionsFor('t2', days));
-      // No dedup entry needed -- the crossing check itself (today's window perfect, yesterday's
-      // own trailing window already perfect too) is what prevents the re-fire here, not dedup.
-      const earned = detectCompletionAchievements(t1, t1, [t1, t2], today, new Set());
+      const earned = detectCompletionAchievements(t1, t1, [t1, t2], friday, new Set());
       expect(kindsOf(earned)).not.toContain('perfect-week');
     });
 
     it('does not fire if any of the 7 days had an incomplete due task', () => {
-      const days = Array.from({ length: 7 }, (_, i) => new Date(today.getTime() - (6 - i) * 86400000));
+      const saturday = new Date(2026, 7, 22);
+      const days = Array.from({ length: 7 }, (_, i) => new Date(2026, 7, 16 + i));
       const t1 = makeDailyTask('t1', completionsFor('t1', days).filter((_, i) => i !== 3)); // day 4 missed
       const t2 = makeDailyTask('t2', completionsFor('t2', days));
-      const earned = detectCompletionAchievements(t1, t1, [t1, t2], today, new Set());
+      const earned = detectCompletionAchievements(t1, t1, [t1, t2], saturday, new Set());
       expect(kindsOf(earned)).not.toContain('perfect-week');
     });
   });
 
-  describe('century-club (three tiers: 100/500/1000)', () => {
+  describe('fixed calendar-range achievements', () => {
+    const taskWithDates = (id: string, dates: Date[], overrides: Partial<Task> = {}) =>
+      makeTask({
+        id,
+        completions: dates.map((date, index) => makeCompletion(`${id}-${index}`, date)),
+        ...overrides,
+      }, { currentStreak: dates.length, streakStatus: 'up_to_date' });
+
+    it('awards Weekend Warrior only from the closing Sunday when every due weekend habit is done', () => {
+      const saturday = new Date(2026, 7, 22);
+      const sunday = new Date(2026, 7, 23);
+      const tasks = ['a', 'b', 'c', 'd'].map(id => taskWithDates(id, [saturday, sunday]));
+
+      expect(kindsOf(detectCompletionAchievements(tasks[0], tasks[0], tasks, saturday, new Set())))
+        .not.toContain('weekend-warrior');
+      expect(kindsOf(detectCompletionAchievements(tasks[0], tasks[0], tasks, sunday, new Set())))
+        .toContain('weekend-warrior');
+    });
+
+    it('awards Clocked In for a complete Monday-Friday window on Friday', () => {
+      const weekdays = Array.from({ length: 5 }, (_, index) => new Date(2026, 7, 17 + index));
+      const friday = weekdays[4];
+      const tasks = ['a', 'b', 'c', 'd'].map(id => taskWithDates(id, weekdays));
+      const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, friday, new Set());
+      expect(kindsOf(earned)).toContain('weekday-hero');
+    });
+
+    it('requires four distinct scheduled habits for both range sweeps', () => {
+      const saturday = new Date(2026, 7, 22);
+      const sunday = new Date(2026, 7, 23);
+      const weekendTasks = ['a', 'b', 'c'].map(id => taskWithDates(id, [saturday, sunday]));
+      expect(kindsOf(detectCompletionAchievements(weekendTasks[0], weekendTasks[0], weekendTasks, sunday, new Set())))
+        .not.toContain('weekend-warrior');
+
+      const weekdays = Array.from({ length: 5 }, (_, index) => new Date(2026, 7, 17 + index));
+      const weekdayTasks = ['a', 'b', 'c'].map(id => taskWithDates(id, weekdays));
+      expect(kindsOf(detectCompletionAchievements(weekdayTasks[0], weekdayTasks[0], weekdayTasks, weekdays[4], new Set())))
+        .not.toContain('weekday-hero');
+    });
+
+    it('requires the schedule to touch every day in each range', () => {
+      const saturday = new Date(2026, 7, 22);
+      const sunday = new Date(2026, 7, 23);
+      const saturdayOnly = ['a', 'b', 'c', 'd'].map(id => taskWithDates(id, [saturday], {
+        frequency: 'specific_days_of_week', daysOfWeek: [6],
+      }));
+      expect(kindsOf(detectCompletionAchievements(saturdayOnly[0], saturdayOnly[0], saturdayOnly, sunday, new Set())))
+        .not.toContain('weekend-warrior');
+
+      const mondayToThursday = Array.from({ length: 4 }, (_, index) => new Date(2026, 7, 17 + index));
+      const friday = new Date(2026, 7, 21);
+      const weekdayTasks = ['a', 'b', 'c', 'd'].map(id => taskWithDates(id, mondayToThursday, {
+        frequency: 'specific_days_of_week', daysOfWeek: [1, 2, 3, 4],
+      }));
+      expect(kindsOf(detectCompletionAchievements(weekdayTasks[0], weekdayTasks[0], weekdayTasks, friday, new Set())))
+        .not.toContain('weekday-hero');
+    });
+
+    it('awards Perfect Month only on the actual final day of a fully perfect month', () => {
+      const february = Array.from({ length: 28 }, (_, index) => new Date(2026, 1, index + 1));
+      const a = taskWithDates('a', february);
+      const b = taskWithDates('b', february);
+
+      expect(kindsOf(detectCompletionAchievements(a, a, [a, b], new Date(2026, 1, 27), new Set())))
+        .not.toContain('perfect-month');
+      expect(kindsOf(detectCompletionAchievements(a, a, [a, b], new Date(2026, 1, 28), new Set())))
+        .toContain('perfect-month');
+    });
+
+    it('awards Unstoppable to a specific-days habit completed on all seven calendar days', () => {
+      const week = Array.from({ length: 7 }, (_, index) => new Date(2026, 7, 16 + index));
+      const task = taskWithDates('specific', week, {
+        frequency: 'specific_days_of_week',
+        daysOfWeek: [1, 3, 5],
+      });
+      const earned = detectCompletionAchievements(task, task, [task], week[6], new Set());
+      expect(kindsOf(earned)).toContain('unstoppable');
+    });
+  });
+
+  describe('quota overachievers', () => {
+    it('requires ceil(150% of a weekly quota)', () => {
+      const dates = Array.from({ length: 5 }, (_, index) => new Date(2026, 7, 16 + index));
+      const completions = dates.map((date, index) => makeCompletion(`w-${index}`, date));
+      const task = makeTask({
+        frequency: 'days_per_week',
+        daysPerWeek: 3,
+        completions,
+      }, { totalCompletions: 5, currentStreak: 5, streakStatus: 'up_to_date' });
+      const earned = detectCompletionAchievements(task, task, [task], dates[4], new Set());
+      expect(earned.find(item => item.kind === 'weekly-overachiever')?.value).toBe(5);
+    });
+
+    it('requires ceil(150% of a monthly quota)', () => {
+      const dates = Array.from({ length: 15 }, (_, index) => new Date(2026, 7, index + 1));
+      const completions = dates.map((date, index) => makeCompletion(`m-${index}`, date));
+      const task = makeTask({
+        frequency: 'days_per_month',
+        daysPerMonth: 10,
+        completions,
+      }, { totalCompletions: 15, currentStreak: 15, streakStatus: 'up_to_date' });
+      const earned = detectCompletionAchievements(task, task, [task], dates[14], new Set());
+      expect(earned.find(item => item.kind === 'monthly-overachiever')?.value).toBe(15);
+    });
+  });
+
+  describe('streak-addict', () => {
+    it('awards six simultaneous up-to-date or expiring streaks', () => {
+      const tasks = Array.from({ length: 6 }, (_, index) => makeTask(
+        { id: `streak-${index}` },
+        { currentStreak: index + 1, streakStatus: index % 2 ? 'expiring' : 'up_to_date' },
+      ));
+      const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
+      expect(kindsOf(earned)).toContain('streak-addict');
+    });
+
+    it('does not count an expired habit even when its cached streak length is nonzero', () => {
+      const tasks = Array.from({ length: 6 }, (_, index) => makeTask(
+        { id: `streak-${index}` },
+        { currentStreak: 3, streakStatus: index === 5 ? 'expired' : 'up_to_date' },
+      ));
+      const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
+      expect(kindsOf(earned)).not.toContain('streak-addict');
+    });
+  });
+
+  describe('century-club (four tiers: 100/500/1000/10000)', () => {
+    it('adds the absurd 10,000-completion global tier', () => {
+      const prev = makeTask({}, { totalCompletions: 9999 });
+      const next = makeTask({}, { totalCompletions: 10000 });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set([
+        dedupKey('century-club-100', 'global'),
+        dedupKey('century-club-500', 'global'),
+        dedupKey('century-club-1000', 'global'),
+      ]));
+      expect(kindsOf(earned)).toContain('century-club-10000');
+    });
     it('fires century-club-1000 once the lifetime sum of totalCompletions across all active tasks crosses 1000', () => {
       const t1 = makeTask({ id: 't1' }, { totalCompletions: 400 });
       const prevT2 = makeTask({ id: 't2' }, { totalCompletions: 599 });
@@ -514,16 +654,16 @@ describe('detectCompletionAchievements', () => {
     });
   });
 
-  describe('habit-collector', () => {
+  describe('habit-collector creation trigger', () => {
     it('fires once the active task count reaches the cap', () => {
       const tasks = Array.from({ length: 6 }, (_, i) => makeTask({ id: `t${i}` }));
-      const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
+      const earned = detectTaskCreatedAchievements(tasks, new Set());
       expect(kindsOf(earned)).toContain('habit-collector');
     });
 
     it('does not fire with fewer active tasks than the cap', () => {
       const tasks = Array.from({ length: 5 }, (_, i) => makeTask({ id: `t${i}` }));
-      const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
+      const earned = detectTaskCreatedAchievements(tasks, new Set());
       expect(kindsOf(earned)).not.toContain('habit-collector');
     });
 
@@ -532,6 +672,12 @@ describe('detectCompletionAchievements', () => {
         ...Array.from({ length: 5 }, (_, i) => makeTask({ id: `t${i}` })),
         makeTask({ id: 't5', archived: true }),
       ];
+      const earned = detectTaskCreatedAchievements(tasks.filter(task => !task.archived), new Set());
+      expect(kindsOf(earned)).not.toContain('habit-collector');
+    });
+
+    it('does not evaluate Habit Collector during an ordinary completion', () => {
+      const tasks = Array.from({ length: 6 }, (_, i) => makeTask({ id: `t${i}` }));
       const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
       expect(kindsOf(earned)).not.toContain('habit-collector');
     });
@@ -898,22 +1044,56 @@ describe('getAchievementCardStatus', () => {
     });
   });
 
-  describe('perfect-week (perfect-day-streak)', () => {
-    it('counts consecutive perfect days walking backward from today', () => {
-      const days = Array.from({ length: 3 }, (_, i) => new Date(today.getTime() - (2 - i) * 86400000));
+  describe('perfect-week (fixed calendar window)', () => {
+    it('reports completed due opportunities within the current Sunday-Saturday week', () => {
+      const saturday = new Date(2026, 7, 22);
+      const days = Array.from({ length: 3 }, (_, i) => new Date(2026, 7, 16 + i));
       const completions = days.map((d, i) => makeCompletion(`c${i}`, d));
       // Two tasks (PERFECT_DAY_MIN_DUE_TASKS) sharing the exact same completion history, so every
       // one of the 3 days is genuinely "perfect" for both, not just a single-task minimum.
       const task = makeTask({ id: 't1', completions }, { currentStreak: 3 });
       const task2 = makeTask({ id: 't2', completions: completions.map(c => ({ ...c, id: `${c.id}-2` })) }, { currentStreak: 3 });
-      const status = getAchievementCardStatus('perfect-week', [], [task, task2], today);
-      expect(status.progress).toEqual({ current: 3, target: 7 });
+      const status = getAchievementCardStatus('perfect-week', [], [task, task2], saturday);
+      expect(status.progress).toEqual({ current: 6, target: 14 });
     });
 
     it('stops counting at the first broken day', () => {
       const task = makeTask({ id: 't1', completions: [] }, { currentStreak: 0 });
       const status = getAchievementCardStatus('perfect-week', [], [task], today);
       expect(status.progress).toEqual({ current: 0, target: 7 });
+    });
+  });
+
+  describe('new achievement progress strategies', () => {
+    it('shows weekly quota overage progress against the rounded 150% target', () => {
+      const dates = Array.from({ length: 4 }, (_, index) => new Date(2026, 7, 16 + index));
+      const task = makeTask({
+        frequency: 'days_per_week',
+        daysPerWeek: 3,
+        completions: dates.map((date, index) => makeCompletion(`q-${index}`, date)),
+      });
+      const status = getAchievementCardStatus('weekly-overachiever', [], [task], dates[3]);
+      expect(status.progress).toEqual({ current: 4, target: 5, taskName: task.name, taskColor: task.color });
+    });
+
+    it('shows Unstoppable progress for the closest specific-days habit across Sunday-Saturday', () => {
+      const dates = Array.from({ length: 5 }, (_, index) => new Date(2026, 7, 16 + index));
+      const task = makeTask({
+        frequency: 'specific_days_of_week',
+        daysOfWeek: [1, 3, 5],
+        completions: dates.map((date, index) => makeCompletion(`u-${index}`, date)),
+      });
+      const status = getAchievementCardStatus('unstoppable', [], [task], new Date(2026, 7, 22));
+      expect(status.progress).toEqual({ current: 5, target: 7, taskName: task.name, taskColor: task.color });
+    });
+
+    it('shows healthy concurrent streak progress for Streak Addict', () => {
+      const tasks = Array.from({ length: 4 }, (_, index) => makeTask(
+        { id: `active-${index}` },
+        { currentStreak: 2, streakStatus: 'up_to_date' },
+      ));
+      expect(getAchievementCardStatus('streak-addict', [], tasks, today).progress)
+        .toEqual({ current: 4, target: 6 });
     });
   });
 
@@ -929,6 +1109,7 @@ describe('getAchievementCardStatus', () => {
       expect(getAchievementCardStatus('century-club-100', [], [t1, t2], today).progress).toEqual({ current: 100, target: 100 });
       expect(getAchievementCardStatus('century-club-500', [], [t1, t2], today).progress).toEqual({ current: 500, target: 500 });
       expect(getAchievementCardStatus('century-club-1000', [], [t1, t2], today).progress).toEqual({ current: 1000, target: 1000 });
+      expect(getAchievementCardStatus('century-club-10000', [], [t1, t2], today).progress).toEqual({ current: 1200, target: 10000 });
     });
   });
 
