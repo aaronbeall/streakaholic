@@ -49,6 +49,10 @@ export interface Achievement {
 // only the store can assign (a unique id, the exact moment it was actually recorded).
 export type EarnedAchievement = Omit<Achievement, 'id' | 'earnedAt'>;
 
+// Retroactive detection additionally knows when the historical event occurred. The store preserves
+// this timestamp rather than replacing every result with the time the scan happened.
+export type RetroactiveEarnedAchievement = EarnedAchievement & Pick<Achievement, 'earnedAt'>;
+
 // ============================================================================================
 // Everything below this point is the single source of truth for *how a kind behaves* -- what it
 // looks like, how it's detected, and how "how close am I" is computed for the Trophy Case.
@@ -1082,9 +1086,9 @@ const TASK_AGE_ENTRIES: { kind: AchievementKind; days: number }[] = ACHIEVEMENT_
 const hasReachedTaskAge = (task: Task, days: number, referenceDate: Date): boolean =>
   differenceInCalendarDays(referenceDate, parseISO(task.createdAt)) >= days;
 
-// Every active-task-count kind (currently just habit-collector) -- same reasoning as
-// TASK_AGE_ENTRIES: not completion-driven, so detectRetroactiveAchievements checks it directly
-// via this list rather than as part of its chronological replay. Every OTHER strategy type
+// Every active-task-count kind (currently just Habit Collector). Live detection evaluates these
+// only on task creation; retroactive detection feeds the same detector chronological creation
+// events. Every OTHER strategy type
 // (ratio-to-own-best, perfect-day-streak, total-completions-sum, time-of-day-ratio) no longer
 // needs its own derived list here -- detectRetroactiveAchievements' replay drives all of those
 // straight through detectCompletionAchievements' own existing per-strategy logic instead of
@@ -1640,12 +1644,10 @@ export const detectTaskCreatedAchievements = (
 //     unchanged as detectCompletionAchievements' own `date` parameter, driving perfect-day/
 //     perfect-week/anniversary's date-scoped logic exactly as it already does live.
 //
-// Three one-time strategy families also get a simple current-snapshot check before the replay,
-// since their qualifying state cannot hide an earlier crossing: `task-age` (anniversary -- pure
-// calendar time), `active-task-count` (habit-collector -- driven by task existence), and
-// `total-completions-sum` (Century Club tiers -- a lifetime aggregate). The last one is especially
-// important for imported history: replay intentionally avoids recomputing every other task's full
-// stats on every event, while the imported tasks already carry their current stats from taskStore.
+// Task creation, task-age thresholds, and completions all participate in one ordered event stream.
+// That gives imported achievements the timestamp of the event that actually earned them instead
+// of the timestamp of the catch-up scan. It also means Habit Collector and the global completion
+// clubs use the same historical crossings as live detection rather than present-day shortcuts.
 //
 // A real, inherent limitation shared with the old snapshot-only version: this can only see each
 // task's *current* configuration (frequency, schedule, archived state) -- there's no historical
@@ -1656,8 +1658,8 @@ export const detectRetroactiveAchievements = (
   achievements: Achievement[],
   activeTasks: Task[],
   today: Date = new Date(),
-): EarnedAchievement[] => {
-  const earned: EarnedAchievement[] = [];
+): RetroactiveEarnedAchievement[] => {
+  const earned: RetroactiveEarnedAchievement[] = [];
 
   // Ordinary exact-scope dedup -- correct as-is for every kind EXCEPT the repeatable/task-scoped
   // ones (see REPEATABLE_TASK_SCOPED_KINDS' own comment), which get the counting-based guard
@@ -1693,42 +1695,6 @@ export const detectRetroactiveAchievements = (
     alreadyRecordedCounts.set(key, (alreadyRecordedCounts.get(key) ?? 0) + 1);
   }
 
-  // Task-age (anniversary) -- not completion-driven, so not part of the replay below; see this
-  // function's own top comment for why.
-  for (const { kind, days } of TASK_AGE_ENTRIES) {
-    for (const task of activeTasks) {
-      if (alreadyEarnedScopes.has(dedupKey(kind, task.id))) continue;
-      if (hasReachedTaskAge(task, days, today)) {
-        earned.push({ kind, ...taskMeta(task), value: days, dedupScope: task.id });
-        alreadyEarnedScopes.add(dedupKey(kind, task.id));
-      }
-    }
-  }
-
-  // Habit collector (active-task-count) -- also not completion-driven; same reasoning.
-  for (const { kind, target } of ACTIVE_TASK_COUNT_ENTRIES) {
-    if (alreadyEarnedScopes.has(dedupKey(kind, 'global'))) continue;
-    if (activeTasks.length >= target) {
-      earned.push({ kind, value: target, dedupScope: 'global' });
-      alreadyEarnedScopes.add(dedupKey(kind, 'global'));
-    }
-  }
-
-  // Century Club tiers are one-time and monotonic in normal use, so a current aggregate is
-  // sufficient to catch imported history. Import runs calculateTaskStats before offering this
-  // scan, which means every task here has the exact qualifying total the live detector uses.
-  const currentCompletionSum = activeTasks.reduce(
-    (sum, task) => sum + (task.stats?.totalCompletions ?? 0),
-    0,
-  );
-  for (const { kind, target } of TOTAL_COMPLETIONS_SUM_ENTRIES) {
-    if (alreadyEarnedScopes.has(dedupKey(kind, 'global'))) continue;
-    if (currentCompletionSum >= target) {
-      earned.push({ kind, value: target, dedupScope: 'global' });
-      alreadyEarnedScopes.add(dedupKey(kind, 'global'));
-    }
-  }
-
   // Streak Addict is also a cross-task current-state aggregate. Exact historical replay would
   // require recomputing every other task's stats at every event, so scan mode intentionally catches
   // the useful import/settings case from the fully refreshed snapshot and skips it in the replay.
@@ -1738,24 +1704,59 @@ export const detectRetroactiveAchievements = (
       (task.stats?.streakStatus === 'up_to_date' || task.stats?.streakStatus === 'expiring')
     ).length;
     if (activeStreaks >= STREAK_ADDICT_TARGET) {
-      earned.push({ kind: 'streak-addict', value: activeStreaks, dedupScope: 'global' });
+      earned.push({
+        kind: 'streak-addict', value: activeStreaks, dedupScope: 'global', earnedAt: today.toISOString(),
+      });
       alreadyEarnedScopes.add(dedupKey('streak-addict', 'global'));
     }
   }
 
-  // The chronological replay itself -- one event per (task, completion), ordered by completedAt
-  // (see this function's own top comment for why that's the correct order, not completion.date).
-  const events: { task: Task; completion: TaskCompletion }[] = [];
+  type ReplayEvent =
+    | { type: 'task-created'; at: string; task: Task }
+    | { type: 'task-age-reached'; at: string; task: Task; kind: AchievementKind; days: number }
+    | { type: 'completion-added'; at: string; task: Task; completion: TaskCompletion };
+
+  const events: ReplayEvent[] = [];
   for (const task of activeTasks) {
+    // Imported/corrupt legacy data can contain a completion timestamp before createdAt. Clamping
+    // the replay-only creation event keeps that history usable without mutating the stored task.
+    const earliestCompletionAt = (task.completions ?? []).reduce<string | undefined>(
+      (earliest, completion) => !earliest || completion.completedAt < earliest ? completion.completedAt : earliest,
+      undefined,
+    );
+    const effectiveCreatedAt = earliestCompletionAt && earliestCompletionAt < task.createdAt
+      ? earliestCompletionAt
+      : task.createdAt;
+    events.push({ type: 'task-created', at: effectiveCreatedAt, task });
+
+    for (const { kind, days } of TASK_AGE_ENTRIES) {
+      const reachedAt = addDays(parseISO(task.createdAt), days);
+      if (reachedAt <= today) {
+        events.push({ type: 'task-age-reached', at: reachedAt.toISOString(), task, kind, days });
+      }
+    }
     for (const completion of task.completions ?? []) {
-      events.push({ task, completion });
+      events.push({ type: 'completion-added', at: completion.completedAt, task, completion });
     }
   }
-  events.sort((a, b) => a.completion.completedAt.localeCompare(b.completion.completedAt));
+  const eventPriority: Record<ReplayEvent['type'], number> = {
+    'task-created': 0,
+    'task-age-reached': 1,
+    'completion-added': 2,
+  };
+  events.sort((a, b) =>
+    a.at.localeCompare(b.at) ||
+    eventPriority[a.type] - eventPriority[b.type] ||
+    a.task.id.localeCompare(b.task.id)
+  );
 
-  // Each task's own completions, accumulated in completedAt order as the replay proceeds -- "what
-  // this task's own record looked like at the real moment we've replayed up through so far".
-  const runningCompletions = new Map<string, TaskCompletion[]>();
+  // The complete task snapshot as of the current replay event. Only the task receiving a
+  // completion has its stats recalculated; every other task retains the last snapshot produced
+  // when it changed. The completion aggregate and calendar checks read exact incremental/raw
+  // history, while Streak Addict is deliberately excluded below because cross-task streak status
+  // decays with time even without a task mutation.
+  const runningTasks = new Map<string, Task>();
+  const seenCompletions: TaskCompletion[] = [];
 
   // Two performance-only accumulators, threaded into detectCompletionAchievements' own optional
   // `options` (see that function's own comment on why these are safe, non-duplicative additions).
@@ -1770,17 +1771,58 @@ export const detectRetroactiveAchievements = (
   // completions-so-far on every event (O(n) per event, O(n²) overall for that task's own history).
   const completionCountsByTaskId = new Map<string, Map<string, number>>();
 
-  for (let i = 0; i < events.length; i++) {
-    const { task, completion } = events[i];
-    const recordedAt = new Date(completion.completedAt);
+  for (const event of events) {
+    if (event.type === 'task-created') {
+      const createdAt = new Date(event.at);
+      runningTasks.set(event.task.id, {
+        ...event.task,
+        completions: [],
+        stats: calculateTaskStats(event.task, [], createdAt),
+      });
+      const newlyEarnedNow = detectTaskCreatedAchievements(
+        Array.from(runningTasks.values()),
+        alreadyEarnedScopes,
+      );
+      for (const item of newlyEarnedNow) {
+        alreadyEarnedScopes.add(dedupKey(item.kind, item.dedupScope));
+        earned.push({ ...item, earnedAt: event.at });
+      }
+      continue;
+    }
+
+    if (event.type === 'task-age-reached') {
+      const key = dedupKey(event.kind, event.task.id);
+      if (!alreadyEarnedScopes.has(key)) {
+        earned.push({
+          kind: event.kind,
+          ...taskMeta(event.task),
+          value: event.days,
+          dedupScope: event.task.id,
+          earnedAt: event.at,
+        });
+        alreadyEarnedScopes.add(key);
+      }
+      continue;
+    }
+
+    const { task, completion } = event;
+    const recordedAt = new Date(event.at);
     const forDate = parseISO(completion.date);
 
-    const priorCompletions = runningCompletions.get(task.id) ?? [];
-    const prevTask: Task = { ...task, completions: priorCompletions, stats: calculateTaskStats(task, priorCompletions, recordedAt) };
+    const priorTask = runningTasks.get(task.id) ?? { ...task, completions: [] };
+    const priorCompletions = priorTask.completions ?? [];
+    const prevTask: Task = {
+      ...priorTask,
+      stats: calculateTaskStats(priorTask, priorCompletions, recordedAt),
+    };
 
     const nextCompletions = [...priorCompletions, completion];
-    runningCompletions.set(task.id, nextCompletions);
-    const nextTask: Task = { ...task, completions: nextCompletions, stats: calculateTaskStats(task, nextCompletions, recordedAt) };
+    const nextTask: Task = {
+      ...priorTask,
+      completions: nextCompletions,
+      stats: calculateTaskStats(priorTask, nextCompletions, recordedAt),
+    };
+    runningTasks.set(task.id, nextTask);
 
     const taskCounts = completionCountsByTaskId.get(task.id) ?? new Map<string, number>();
     taskCounts.set(completion.date, completion.timesCompleted);
@@ -1794,15 +1836,12 @@ export const detectRetroactiveAchievements = (
     // actually needs it. A task that didn't exist yet as of this moment (createdAt still in the
     // future) is excluded entirely, the same way a real historical moment wouldn't have known
     // about it either.
-    const allTasksAsOfNow = activeTasks
-      .filter(t => differenceInCalendarDays(recordedAt, parseISO(t.createdAt)) >= 0)
-      .map(t => (t.id === task.id ? nextTask : { ...t, completions: runningCompletions.get(t.id) ?? [] }));
+    const allTasksAsOfNow = Array.from(runningTasks.values());
 
-    // The trailing TIME_OF_DAY_WINDOW completions across every active task, up to and including
-    // this one -- `events` is already sorted ascending by completedAt, so this is a plain O(window)
-    // index slice into data already in hand, not a re-derivation from allTasksAsOfNow.
-    const windowStart = Math.max(0, i - TIME_OF_DAY_WINDOW + 1);
-    const recentCompletionsOverride = events.slice(windowStart, i + 1).map(e => e.completion).reverse();
+    // The trailing TIME_OF_DAY_WINDOW completion events across every active task, up to and
+    // including this one. Creation and age events never enter this completion-only buffer.
+    seenCompletions.push(completion);
+    const recentCompletionsOverride = seenCompletions.slice(-TIME_OF_DAY_WINDOW).reverse();
 
     const newlyEarnedNow = detectCompletionAchievements(prevTask, nextTask, allTasksAsOfNow, forDate, alreadyEarnedScopes, {
       completionCountsByTaskId,
@@ -1825,7 +1864,7 @@ export const detectRetroactiveAchievements = (
         // live store's own alreadyEarnedScopes grows across real completions.
         alreadyEarnedScopes.add(dedupKey(item.kind, item.dedupScope));
       }
-      earned.push(item);
+      earned.push({ ...item, earnedAt: event.at });
     }
   }
 

@@ -839,6 +839,32 @@ describe('detectRetroactiveAchievements', () => {
     const firstCompletionEntries = earned.filter(e => e.kind === 'first-completion');
     expect(firstCompletionEntries).toHaveLength(1);
     expect(firstCompletionEntries[0].taskId).toBeUndefined();
+    expect(firstCompletionEntries[0].earnedAt).toBe(a.completions[0].completedAt);
+  });
+
+  it('dates Habit Collector at the task-creation event that completed the roster', () => {
+    const tasks = Array.from({ length: 6 }, (_, i) => makeTask({
+      id: `habit-${i}`,
+      createdAt: new Date(`2026-01-0${i + 1}T09:00:00.000Z`).toISOString(),
+    }));
+    const earned = detectRetroactiveAchievements([], tasks, REF_TODAY);
+    const collector = earned.find(e => e.kind === 'habit-collector');
+    expect(collector?.earnedAt).toBe('2026-01-06T09:00:00.000Z');
+  });
+
+  it('dates a global completion club at the exact completion that crossed its threshold', () => {
+    const start = new Date('2026-01-10T08:00:00.000Z');
+    const completions = Array.from({ length: 100 }, (_, i): TaskCompletion => {
+      const completedAt = new Date(start.getTime() + i * 60000);
+      return makeCompletion(`club-${i}`, completedAt);
+    });
+    const task = makeTask({
+      createdAt: '2026-01-01T00:00:00.000Z',
+      completions,
+    });
+    const earned = detectRetroactiveAchievements([], [task], REF_TODAY);
+    const club = earned.find(e => e.kind === 'century-club-100');
+    expect(club?.earnedAt).toBe(completions[99].completedAt);
   });
 
   it('awards new-best-streak for a real backfill-bridged jump past an old record, and not for an unrelated task', () => {
@@ -901,7 +927,7 @@ describe('detectRetroactiveAchievements', () => {
     const task = makeTask({ id: 't1', completions: consecutiveCompletions('c', 14, 15) });
     const firstRun = detectRetroactiveAchievements([], [task], REF_TODAY);
     expect(firstRun.length).toBeGreaterThan(0);
-    const recorded: Achievement[] = firstRun.map((a, i) => ({ ...a, id: `r${i}`, earnedAt: new Date().toISOString() }));
+    const recorded: Achievement[] = firstRun.map((a, i) => ({ ...a, id: `r${i}` }));
     const secondRun = detectRetroactiveAchievements(recorded, [task], REF_TODAY);
     expect(secondRun).toEqual([]);
   });
@@ -914,6 +940,7 @@ describe('detectRetroactiveAchievements', () => {
     const anniversaries = earned.filter(e => e.kind === 'anniversary');
     expect(anniversaries).toHaveLength(1);
     expect(anniversaries[0].taskId).toBe('old');
+    expect(anniversaries[0].earnedAt).toBe('2024-12-31T00:00:00.000Z');
   });
 });
 

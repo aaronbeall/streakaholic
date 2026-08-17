@@ -215,11 +215,9 @@ export const useAchievementsStore = create<AchievementsStore>()(
 
         // Same index-suffixed id scheme as recordCompletionAchievements -- a single scan can
         // legitimately surface more than one achievement in the same synchronous call.
-        const earnedAt = new Date().toISOString();
         const recorded: Achievement[] = newlyEarned.map((achievement, index) => ({
           ...achievement,
           id: `${Date.now()}-${index}`,
-          earnedAt,
         }));
 
         set(state => ({ achievements: [...state.achievements, ...recorded] }));
