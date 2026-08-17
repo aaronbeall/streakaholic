@@ -14,7 +14,7 @@ import { useOnboardingHintTarget } from '../context/OnboardingHintsContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
-import { buildDayConnectionInfo, getCachedTaskStreakChains, getDayStreakState } from '../utils/reports';
+import { buildDayConnectionInfo, buildDayMomentumInfo, getCachedTaskStreakChains, getDayStreakState } from '../utils/reports';
 import { buildStreamLayerPath, computeStreamgraphLayers } from '../utils/streamgraph';
 import { getCachedCompletionCountsByDate } from '../utils/streaks';
 
@@ -34,6 +34,9 @@ const EMPTY_COMPLETION_COUNTS: ReadonlyMap<string, number> = new Map();
 // every task is fully done reaches exactly the same total height Grid mode's task rows already
 // occupy (tasks.length * GRID_CELL_SIZE), keeping the two modes' vertical scale consistent.
 const BAR_UNIT_HEIGHT = GRID_CELL_SIZE;
+// Pass-through momentum should remain visible without competing with a genuine completion. Kept
+// as one named tuning knob because this is a visual-weight choice we expect to revisit on-device.
+const STREAM_PASS_THROUGH_MAX_FRACTION = 0.5;
 // A small cap on the topmost segment only, not every segment -- per explicit user direction
 // ("a stacked bar chart"), segments now sit flush against each other with no per-segment gap or
 // rounding, reading as one continuous multi-color bar rather than a stack of separate rounded
@@ -279,6 +282,13 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
     ])),
     [tasks, days, streakChainsByTask, completionCountsByTask]
   );
+  const momentumInfoByTask = useMemo(
+    () => new Map(tasks.map(task => [
+      task.id,
+      buildDayMomentumInfo(task, days, completionCountsByTask.get(task.id) ?? EMPTY_COMPLETION_COUNTS),
+    ])),
+    [tasks, days, completionCountsByTask]
+  );
 
   // Don't paginate forever into empty pre-history -- stop growing once we've reached back to
   // before the earliest task even existed.
@@ -308,18 +318,17 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
     setSelectedDate(dateString);
   };
 
-  // The tapped day's per-task summary for the tooltip -- a task only appears here if it was
-  // actually completed that day (partial or full). Per explicit follow-up direction, pass-through
-  // days (a task merely staying streak-connected with zero completion, e.g. a non-due day or an
-  // open quota period) are excluded entirely now too, not just genuinely absent ones -- this
-  // tooltip is specifically about what got *done*, not the full streak-connectivity picture the
-  // calendars already show.
+  // The tapped day's per-task summary includes both real activity and zero-activity days where
+  // schedule slack legitimately carried momentum forward. Completely inactive/disconnected tasks
+  // stay out so this remains a useful summary rather than a full task roster on every date.
   const selectedDayEntries = useMemo(() => {
     if (!selectedDate) return null;
     return tasks
       .map(task => {
         const completionCount = completionCountsByTask.get(task.id)?.get(selectedDate) ?? 0;
-        if (completionCount === 0) return null;
+        const momentum = momentumInfoByTask.get(task.id)?.get(selectedDate);
+        const isPassThrough = completionCount === 0 && !!momentum?.isPassThrough;
+        if (completionCount === 0 && !isPassThrough) return null;
         const requiredTimes = task.timesPerDay || 1;
         const isCompleted = completionCount >= requiredTimes;
         const connection = dayConnectionInfoByTask.get(task.id)?.get(selectedDate);
@@ -328,11 +337,17 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
           completionCount,
           requiredTimes,
           isCompleted,
+          isPassThrough,
+          stateLabel: isPassThrough
+            ? 'Streak continues'
+            : requiredTimes > 1
+            ? `${completionCount}/${requiredTimes} done`
+            : 'Done',
           badgeValue: connection?.showStreakBadge ? connection.badgeValue : null,
         };
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-  }, [selectedDate, tasks, completionCountsByTask, dayConnectionInfoByTask]);
+  }, [selectedDate, tasks, completionCountsByTask, momentumInfoByTask, dayConnectionInfoByTask]);
 
   // Streamgraph's selection line needs the tapped day's x position within the one continuous SVG
   // (unlike Bars mode, which just checks its own renderItem's own date against selectedDate).
@@ -360,8 +375,12 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
     const values = tasks.map(task =>
       days.map(day => {
         const dateString = format(day, 'yyyy-MM-dd');
-        const completionCount = completionCountsByTask.get(task.id)?.get(dateString) ?? 0;
-        return Math.min(completionCount / (task.timesPerDay || 1), 1) * BAR_UNIT_HEIGHT;
+        const momentum = momentumInfoByTask.get(task.id)?.get(dateString);
+        if (!momentum) return 0;
+        const fraction = momentum.isPassThrough
+          ? Math.max(1 / BAR_UNIT_HEIGHT, momentum.fraction * STREAM_PASS_THROUGH_MAX_FRACTION)
+          : momentum.fraction;
+        return fraction * BAR_UNIT_HEIGHT;
       })
     );
     const layers = computeStreamgraphLayers(values);
@@ -374,7 +393,7 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
       const bottomPoints = layers[t].map((layerPoint, d) => toPoint(layerPoint, d, 'bottom'));
       return { task, path: buildStreamLayerPath(topPoints, bottomPoints) };
     });
-  }, [mainGridMode, tasks, days, completionCountsByTask, streamHeight]);
+  }, [mainGridMode, tasks, days, momentumInfoByTask, streamHeight]);
 
   const handleStreamScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
@@ -630,7 +649,7 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                         ? getDayStreakState(task, day, streakChainsByTask.get(task.id) ?? [], taskCompletionCounts ?? EMPTY_COMPLETION_COUNTS)
                         : null;
                       const isMissed = streakState === 'hardMiss';
-                      const isSkipped = streakState === 'connected';
+                    const isSkipped = !!momentumInfoByTask.get(task.id)?.get(dateString)?.isPassThrough;
                       const isSoftMissed = streakState === 'softMiss';
                       const connection = dayConnectionInfoByTask.get(task.id)?.get(dateString);
                       // Today, not yet (fully) completed, with the streak's own status saying today
@@ -738,19 +757,18 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                 {/* Streak-ending days get their final count called out separately from the plain
                     completion dot below -- the same StreakCountBadge the calendars use elsewhere. */}
                 {entry.badgeValue && <StreakCountBadge value={entry.badgeValue} iconSize={10} />}
-                {/* Same solid-fill/partial-wedge treatment as Grid mode's own gridDot, instead of
-                    text like "Completed"/"4/4" -- a fully solid circle in the task's own color
-                    reads the same "done" signal the calendars already teach, and the wedge fills
-                    proportionally for an under-quota multi-rep day. */}
-                <View style={[styles.dayTooltipDot, entry.isCompleted && { backgroundColor: entry.task.color }]}>
-                  {!entry.isCompleted && (
-                    <PartialDayPie fraction={entry.completionCount / entry.requiredTimes} color={entry.task.color} />
-                  )}
+                <View style={styles.dayTooltipState}>
+                  <MaterialCommunityIcons
+                    name={entry.isPassThrough ? 'link-variant' : entry.isCompleted ? 'check-circle' : 'progress-check'}
+                    size={16}
+                    color={entry.isPassThrough ? colors.textSecondary : entry.task.color}
+                  />
+                  <Text style={styles.dayTooltipStateText}>{entry.stateLabel}</Text>
                 </View>
               </View>
             ))
           ) : (
-            <Text style={styles.dayTooltipEmptyText}>No activity that day</Text>
+            <Text style={styles.dayTooltipEmptyText}>No activity or connected streaks that day</Text>
           )}
         </Reanimated.View>
       )}
@@ -1117,16 +1135,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontWeight: '500',
     color: colors.text,
   },
-  // Same shape/pattern as gridDot -- a grey circle that goes solid task.color when complete, or
-  // stays grey with a PartialDayPie wedge inside for an under-quota multi-rep day.
-  dayTooltipDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.border,
+  dayTooltipState: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    gap: 5,
+  },
+  dayTooltipStateText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
   dayTooltipEmptyText: {
     fontSize: 13,

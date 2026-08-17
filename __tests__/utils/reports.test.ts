@@ -1,6 +1,6 @@
 import { format, startOfDay, subDays } from 'date-fns';
 import { Task, TaskCompletion } from '../../app/types';
-import { buildDayConnectionInfo, eachDayOfRange, getCachedTaskStreakChains, getDayStreakState, getRecentStreaks, getTaskStreakChains, isConnectedDay } from '../../app/utils/reports';
+import { buildDayConnectionInfo, buildDayMomentumInfo, eachDayOfRange, getCachedTaskStreakChains, getDayStreakState, getRecentStreaks, getTaskStreakChains, isConnectedDay } from '../../app/utils/reports';
 import { calculateTaskStats } from '../../app/utils/streaks';
 
 const makeCompletion = (id: string, date: Date): TaskCompletion => ({
@@ -726,5 +726,83 @@ describe('eachDayOfRange', () => {
   it('returns a single day when start equals end', () => {
     const day = new Date(2026, 0, 1);
     expect(eachDayOfRange(day, day)).toHaveLength(1);
+  });
+});
+
+describe('buildDayMomentumInfo', () => {
+  const countsFrom = (completions: TaskCompletion[]): Map<string, number> =>
+    new Map(completions.map(completion => [completion.date, completion.timesCompleted]));
+
+  it('tapers optional weekend days and breaks on the next uncompleted due day', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 7, 10)); // Monday
+    try {
+      const friday = new Date(2026, 7, 7);
+      const saturday = new Date(2026, 7, 8);
+      const sunday = new Date(2026, 7, 9);
+      const monday = new Date(2026, 7, 10);
+      const completions = [makeCompletion('fri', friday)];
+      const task = withStats(baseTask({
+        frequency: 'specific_days_of_week',
+        daysOfWeek: [1, 2, 3, 4, 5],
+        completions,
+      }));
+      const momentum = buildDayMomentumInfo(task, [friday, saturday, sunday, monday], countsFrom(completions));
+
+      expect(momentum.get('2026-08-07')).toEqual({ isPassThrough: false, fraction: 1 });
+      expect(momentum.get('2026-08-08')).toEqual({ isPassThrough: true, fraction: 1 });
+      expect(momentum.get('2026-08-09')).toEqual({ isPassThrough: true, fraction: 0 });
+      expect(momentum.get('2026-08-10')).toEqual({ isPassThrough: false, fraction: 0 });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('resets momentum to full when the next due day is completed', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 7, 10));
+    try {
+      const friday = new Date(2026, 7, 7);
+      const monday = new Date(2026, 7, 10);
+      const completions = [makeCompletion('fri', friday), makeCompletion('mon', monday)];
+      const task = withStats(baseTask({
+        frequency: 'specific_days_of_week',
+        daysOfWeek: [1, 2, 3, 4, 5],
+        completions,
+      }));
+      const momentum = buildDayMomentumInfo(task, [friday, monday], countsFrom(completions));
+
+      expect(momentum.get('2026-08-10')).toEqual({ isPassThrough: false, fraction: 1 });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('tapers quota slack until every remaining day is mandatory', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 7, 8)); // Saturday, end of the local week
+    try {
+      const monday = new Date(2026, 7, 3);
+      const friday = new Date(2026, 7, 7);
+      const saturday = new Date(2026, 7, 8);
+      const completions = [makeCompletion('mon', monday)];
+      const task = withStats(baseTask({
+        frequency: 'days_per_week',
+        daysPerWeek: 2,
+        completions,
+      }));
+      const momentum = buildDayMomentumInfo(task, [monday, friday, saturday], countsFrom(completions));
+
+      expect(momentum.get('2026-08-07')).toEqual({ isPassThrough: true, fraction: 0 });
+      expect(momentum.get('2026-08-08')).toEqual({ isPassThrough: false, fraction: 0 });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('keeps partial multi-completion progress proportional without treating it as pass-through', () => {
+    const day = new Date(2026, 7, 10);
+    const partial = { ...makeCompletion('partial', day), timesCompleted: 1 };
+    const task = withStats(baseTask({ timesPerDay: 3, completions: [partial] }));
+    const momentum = buildDayMomentumInfo(task, [day], countsFrom([partial]));
+
+    expect(momentum.get('2026-08-10')).toEqual({ isPassThrough: false, fraction: 1 / 3 });
   });
 });

@@ -1,4 +1,4 @@
-import { addDays, format, parseISO, startOfDay, subDays } from 'date-fns';
+import { addDays, differenceInCalendarDays, format, parseISO, startOfDay, subDays } from 'date-fns';
 import { MaterialCommunityIconName, Task } from '../types';
 import { buildCompletionCountsByDate, getPeriodBounds, getQuotaPeriodInfo, isDueOnDate, nextPeriodStart, QuotaUnit, StreakScheduleInfo } from './streaks';
 
@@ -281,6 +281,132 @@ export const getDayStreakState = (
   const today = startOfDay(new Date());
   const isCurrentPeriod = start.getTime() === getPeriodBounds(today, unit).start.getTime();
   return isCurrentPeriod ? 'connected' : 'hardMiss';
+};
+
+export interface DayMomentumInfo {
+  // A zero-activity day the schedule genuinely allows the streak to cross. This deliberately
+  // excludes the first day on which action has become mandatory, even when an open quota period
+  // has not formally closed yet.
+  isPassThrough: boolean;
+  // 1 for a fully completed day, 0 for a break, and a decreasing 0..1 value across allowed
+  // pass-through days. The renderer owns the final ~1px visual clamp for a positive pass-through.
+  fraction: number;
+}
+
+const latestQualifyingDateBefore = (dates: Date[], day: Date): Date | null => {
+  let low = 0;
+  let high = dates.length - 1;
+  let result: Date | null = null;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    if (dates[middle] < day) {
+      result = dates[middle];
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+  return result;
+};
+
+// Assuming no completion after `anchor`, find the first date on which another skipped day would
+// make the schedule fail. For due-day schedules that is simply the next due day. For quota
+// schedules it is the first day where every remaining opportunity in the week/month is needed.
+const findNextMandatoryDate = (
+  task: Task,
+  anchor: Date,
+  qualifyingDates: Date[]
+): Date => {
+  if (task.frequency !== 'days_per_week' && task.frequency !== 'days_per_month') {
+    let cursor = addDays(anchor, 1);
+    for (let i = 0; i < 8; i++, cursor = addDays(cursor, 1)) {
+      if (isDueOnDate(task, cursor)) return cursor;
+    }
+    return cursor;
+  }
+
+  const unit: QuotaUnit = task.frequency === 'days_per_month' ? 'month' : 'week';
+  const quota = Math.max(1, (task.frequency === 'days_per_month' ? task.daysPerMonth : task.daysPerWeek) || 1);
+  let cursor = addDays(anchor, 1);
+  // Two months is enough to cross the current period, enter the next one, and reach even a
+  // one-day-left monthly deadline. This is a fixed ceiling, not an unbounded historical walk.
+  for (let i = 0; i < 62; i++, cursor = addDays(cursor, 1)) {
+    const { start, end } = getPeriodBounds(cursor, unit);
+    const completionsKnownAtAnchor = qualifyingDates.filter(date =>
+      date <= anchor && date >= start && date <= end
+    ).length;
+    const stillNeeded = Math.max(0, quota - completionsKnownAtAnchor);
+    const opportunitiesIncludingCursor = differenceInCalendarDays(end, cursor) + 1;
+    if (stillNeeded > 0 && opportunitiesIncludingCursor <= stillNeeded) return cursor;
+  }
+  return cursor;
+};
+
+// Builds the streamgraph's per-day momentum once per task/date page. A qualifying completion is a
+// full-width reset; partial multi-repetition progress retains its literal completion fraction;
+// an allowed empty day tapers according to how much schedule slack remains before action becomes
+// mandatory. The same `isPassThrough` flag also powers the day-details box so its textual state
+// cannot disagree with the stream.
+export const buildDayMomentumInfo = (
+  task: Task,
+  dates: Date[],
+  completionCounts: ReadonlyMap<string, number>
+): Map<string, DayMomentumInfo> => {
+  const requiredTimes = Math.max(1, task.timesPerDay || 1);
+  const qualifyingDates = Array.from(completionCounts.entries())
+    .filter(([, count]) => count >= requiredTimes)
+    .map(([date]) => startOfDay(parseISO(date)))
+    .sort((a, b) => a.getTime() - b.getTime());
+  const mandatoryDateByAnchor = new Map<number, Date>();
+  const today = startOfDay(new Date());
+  const result = new Map<string, DayMomentumInfo>();
+
+  for (const rawDate of dates) {
+    const day = startOfDay(rawDate);
+    const key = format(day, 'yyyy-MM-dd');
+    const completionCount = completionCounts.get(key) ?? 0;
+    if (completionCount > 0) {
+      result.set(key, {
+        isPassThrough: false,
+        fraction: Math.min(completionCount / requiredTimes, 1),
+      });
+      continue;
+    }
+    if (day > today) {
+      result.set(key, { isPassThrough: false, fraction: 0 });
+      continue;
+    }
+
+    const anchor = latestQualifyingDateBefore(qualifyingDates, day);
+    if (!anchor) {
+      result.set(key, { isPassThrough: false, fraction: 0 });
+      continue;
+    }
+    const anchorTime = anchor.getTime();
+    let mandatoryDate = mandatoryDateByAnchor.get(anchorTime);
+    if (!mandatoryDate) {
+      mandatoryDate = findNextMandatoryDate(task, anchor, qualifyingDates);
+      mandatoryDateByAnchor.set(anchorTime, mandatoryDate);
+    }
+    const allowedSkipDays = Math.max(0, differenceInCalendarDays(mandatoryDate, anchor) - 1);
+    const skipsElapsed = differenceInCalendarDays(day, anchor);
+    if (day >= mandatoryDate || skipsElapsed > allowedSkipDays) {
+      result.set(key, { isPassThrough: false, fraction: 0 });
+      continue;
+    }
+
+    const remainingOptionalDaysAfterThis = Math.max(0, allowedSkipDays - skipsElapsed);
+    result.set(key, {
+      isPassThrough: true,
+      // Normalize the *first* optional day to 1 and the last to 0. The stream renderer then maps
+      // that continuation-only range into its deliberately weaker visual band (currently 50%
+      // down to ~1px), keeping this schedule calculation independent of a particular chart size.
+      fraction: allowedSkipDays > 1
+        ? remainingOptionalDaysAfterThis / (allowedSkipDays - 1)
+        : 0,
+    });
+  }
+  return result;
 };
 
 // Whether this date reads as part of a connected streak thread at all -- completed, or a soft
