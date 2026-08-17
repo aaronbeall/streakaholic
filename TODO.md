@@ -50,6 +50,14 @@
       excluded from completion percentages); active Commitment Mode habits cannot use a free pause
       without permanently ending Commitment Mode — see [COMMITMENT_MODE.md](COMMITMENT_MODE.md)
 - [ ] Scheduling enhancements
+  - [ ] Version schedule/target changes so edits do not silently rewrite a habit's past
+    - [ ] On save, present **Apply going forward** as the default (effective at the next appropriate
+          day/week/month boundary) and preserve the schedule version that governed each past unit
+    - [ ] For Standard habits, offer an explicit **Recalculate all history** alternative with a
+          warning and, ideally, a before/after preview of affected streaks and statistics;
+          Commitment Mode only permits forward-effective changes
+    - [ ] Earned achievements are permanent: schedule edits or historical recalculation may reveal
+          additional eligible achievements, but must never revoke or remove an award already earned
   - [ ] Make N/week and N/month habits quota-aware: once the target is met, stop reminders and mark
         the period safe while still allowing optional bonus completions
   - [ ] Support configurable week start and habit-day rollover, with boundaries shown clearly in UI
