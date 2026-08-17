@@ -101,8 +101,8 @@ common need, but the new habit's streak starts fresh.
 - Once a due unit closes, its completion count and status are immutable.
 - Schedule, quota, and frequency changes affect future units only.
 - A change cannot retroactively turn a failed unit into a non-due unit.
-- Future pauses/skips may be scheduled if that feature exists, but cannot be added after
-  the affected unit begins.
+- Standard Mode's free passes/skips and pauses are unavailable while Commitment Mode is
+  active. The only continuity-preserving exception after a failed unit is a Streak Save.
 - Archive/delete remain available; neither action unlocks history.
 
 ### Turning it off
@@ -174,22 +174,27 @@ Open implementation choice: store a task-specific rollover hour, use one app-wid
 rollover setting, or initially use the existing local-calendar-day boundary and add a
 grace-hour setting later.
 
-## Skips and pauses
+## Passes, pauses, and Streak Saves
 
-Skips, pauses, and Streak Saves are different concepts:
+Standard Mode's humane exceptions and Commitment Mode's paid exception are deliberately
+different concepts:
 
 | Exception | When selected | Counts as completion | Preserves streak | Costs money | Visible in history |
 |---|---|---:|---:|---:|---:|
-| **Planned skip** | Before the due unit begins | No | Yes | No | Yes |
-| **Pause** | Before a future date range begins | No | Yes | No | No due units are created during the pause |
+| **Standard pass/skip** | Before or after a Standard due unit, within the product's eventual editing rules | No | Yes | No | Yes |
+| **Standard pause** | Before a future date range begins | No | Yes | No | No due units are created during the pause |
 | **Streak Save** | After a committed due unit fails | No | Yes | Proposed: yes | Yes, permanently |
 
-Standard habits may eventually allow more forgiving retroactive skips. Commitment Mode
-must not: a skip is valid only when declared before the day/period it excuses begins.
+Standard habits may allow forgiving retroactive passes for sickness, travel, recovery,
+or an intentional day off. Active Commitment Mode habits allow neither free passes nor
+free pauses, even when planned in advance: its strictness is the point. A user who wants
+that flexibility must permanently turn off Commitment Mode for the habit; committed
+history before the end boundary remains locked.
 
-Skips and pauses should not advance completion-based achievements. Commitment-specific
-achievements should be based on actual completed due units, so scheduling many skips
-does not create artificial progress.
+Passes, pauses, and Streak Saves do not advance completion-based achievements. A pass or
+save bridges continuity without adding a genuine completion. Using a Streak Save also
+ends the affected chain's “Unbroken” qualification; the habit remains in Commitment Mode
+with visible Saved provenance and a save count.
 
 ## Streak Save behavior
 
@@ -342,7 +347,8 @@ raw elapsed days, so flexible-frequency habits remain first-class.
 - Locked dates cannot be toggled.
 - A tap explains why rather than silently doing nothing.
 - Saved units use their own permanent state and explanation.
-- Planned skips/pauses remain visually distinct from saves.
+- Standard passes/pauses remain visually distinct from saves wherever both can appear in
+  the habit's full history (for example, after Commitment Mode has been permanently ended).
 
 ### Broken-streak moment
 
@@ -382,7 +388,7 @@ boolean toggle; that is what preserves the committed interval after the mode end
 type HabitException = {
   id: string;
   periodKey: string; // date, week, or month key under the task's frequency
-  type: 'planned-skip' | 'streak-save';
+  type: 'pass' | 'streak-save'; // `pass` is Standard-only; `streak-save` is Commitment-only
   createdAt: string;
   purchaseId?: string;
 };
@@ -518,5 +524,5 @@ local counters are sufficient initially.
 - Which existing/global achievements can receive Commitment provenance in version one.
 - Final Commitment-only achievement catalog, thresholds, art, and language.
 - How imported collisions with locked history should be reported to the user.
-- Whether a user may schedule a pause for later in the current day or only before the
-  next habit-day boundary.
+- Whether prospective schedule changes in Commitment Mode need a lead time or other
+  guardrail so editing the schedule cannot become a disguised free pass.

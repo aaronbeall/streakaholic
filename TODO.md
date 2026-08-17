@@ -33,8 +33,35 @@
 - [x] Accessibility support (accessibilityLabel/Role/Hint/State added across every screen and component — see CLAUDE.md)
 - [x] Haptic feedback (task completion, long-press gesture recognition, calendar day toggle, toast Undo, archive/delete/restore — see CLAUDE.md)
 - [ ] Hide unscheduled tasks option (Home filter to only show tasks due today)
-- [ ] Pause tasks (hidden, doesn't count towards completion percentage while paused;
-      Commitment Mode pauses must be prospective — see [COMMITMENT_MODE.md](COMMITMENT_MODE.md))
+- [ ] Pass/skip due units for Standard habits so vacations, sickness, recovery, and other
+      intentional breaks do not destroy an otherwise meaningful streak
+  - [ ] Let a user mark one due day/period or a date range as passed/skipped, with undo/edit support
+        and an optional note/reason; keep the exception visibly distinct from a completion
+  - [ ] Preserve streak continuity without adding a completion, increasing completion-based streak
+        length, advancing achievements, or unfairly lowering the completion rate
+  - [ ] Define fair behavior for daily, specific-weekday, X/week, X/month, and multi-repetition
+        habits, including reminders, calendar/streak history, Stats, sharing, and import/export
+  - [ ] In Commitment Mode, do not offer free passes/skips: the only continuity-preserving exception
+        is a paid Streak Save after a failed unit closes. It remains visible, records the save count,
+        and disqualifies the current chain plus later achievements whose qualifying window includes
+        it from “Unbroken” treatment without rewriting awards earned before the save — see
+        [COMMITMENT_MODE.md](COMMITMENT_MODE.md)
+- [ ] Pause Standard habits for a prospective date range (no due units are created and the range is
+      excluded from completion percentages); active Commitment Mode habits cannot use a free pause
+      without permanently ending Commitment Mode — see [COMMITMENT_MODE.md](COMMITMENT_MODE.md)
+- [ ] Scheduling enhancements
+  - [ ] Make N/week and N/month habits quota-aware: once the target is met, stop reminders and mark
+        the period safe while still allowing optional bonus completions
+  - [ ] Support configurable week start and habit-day rollover, with boundaries shown clearly in UI
+  - [ ] Add interval/lifecycle schedules: every N days or weeks, future start/end dates, limited
+        challenges, and optionally exact monthly dates
+  - [ ] Add optional time slots and per-slot reminders for multi-repetition habits (e.g. morning and
+        evening rather than two interchangeable daily taps)
+  - [ ] Separate when a habit appears from what satisfies it, enabling preferred days plus a flexible
+        weekly/monthly target and makeup days without losing the streak
+  - [ ] Explore spacing preferences, progressive/ramping schedules, and minimum-plus-stretch goals
+        as encouraging bonuses rather than extra ways to fail
+  - [ ] For quota habits, consider showing both successful-period streaks and genuine completion days
 - [x] Remember dashboard selection (`dashboardLastTab`/`taskDetailLastTab` in `SettingsContext` — last-viewed Stats/Calendar/Streaks tab persists across visits; the task-filter checkboxes themselves still reset to "all tasks" each time, that's a separate thing)
 - [x] Re-order habits on Home (the Home header's sort control supports whole-row drag-and-drop plus Created, Most Used, Color, and Time of Day ordering; the last applied preset highlights until the order is manually changed; `taskStore.reorderTasks` persists the shared active-task order so Home, Dashboard filters/calendar, Trophy filters, and task-detail prev/next navigation all follow it)
 - [x] Auto-suggest an icon based on the habit name typed into Add/Edit Task (`app/utils/iconSuggestions.ts`'s `suggestIconForName` -- a word-stem keyword table, e.g. "Run"/"Running" both suggest the running-shoe icon; new tasks only, never overrides an existing task's icon, and stops suggesting the moment the user picks an icon themselves via the picker -- see CLAUDE.md)
@@ -134,6 +161,21 @@
         a custom goal is reached
   - [ ] Preserve achievement credibility: label custom awards clearly and record whether they were
         earned in normal or Commitment Mode rather than presenting them as built-in accomplishments
+- [ ] Negative/reduction habits (e.g. “Stop Snacking”) for behaviors the user wants to avoid or
+      keep below a limit rather than complete more often
+  - [ ] Add a habit direction/type such as Build vs Reduce/Avoid, with a configurable per-day
+        allowance: zero occurrences for strict avoidance, or at most N occurrences for reduction
+  - [ ] Treat logged taps as occurrences rather than successes and show a friendly live state such
+        as “0 of 2 used,” “At your limit,” or “Over by 1,” with the same undo/history-edit support
+        as normal completions
+  - [ ] Keep the current day provisionally “on track” while its count is within the allowance, but
+        only settle it as a successful streak day after the scheduled day ends; exceeding the limit
+        settles it as a miss
+  - [ ] Define schedule semantics deliberately: initially consider daily/specific-weekday habits
+        with a per-day allowance, since X/week and X/month currently express positive completion
+        quotas and could be confusing if silently inverted
+  - [ ] Carry the inverse success rule consistently through streak history, calendars, Stats and
+        streamgraph analytics, reminders, achievements, sharing, import/export, and Commitment Mode
 - [ ] Points/ranks/upgrades
 - [ ] Daily summary notification (evening recap push -- completions, streaks at risk; distinct from per-task reminders, and from Home, which only covers the passive/at-a-glance case)
 - [ ] Personal leaderboard

@@ -22,6 +22,7 @@ import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
 import { buildFeedbackEmailUrl, SUPPORT_EMAIL } from '../utils/appFeedback';
 import { createTasksExport, ParsedTasksImport, parseTasksImport } from '../utils/importExport';
+import { ONBOARDING_HINT_IDS } from '../utils/onboardingHints';
 import { isTaskCompleted } from '../utils/streaks';
 
 // react-native-web's Switch splits the thumb color into two props: `thumbColor` (off state)
@@ -53,6 +54,7 @@ export const SettingsScreen: React.FC = () => {
     showTaskName, setShowTaskName,
     showTaskCounter, setShowTaskCounter,
     achievementCelebrationsEnabled, setAchievementCelebrationsEnabled,
+    onboardingHintsSeen,
     resetOnboardingHints,
   } = useSettingsStore(
     useShallow(state => ({
@@ -66,9 +68,11 @@ export const SettingsScreen: React.FC = () => {
       setShowTaskCounter: state.setShowTaskCounter,
       achievementCelebrationsEnabled: state.achievementCelebrationsEnabled,
       setAchievementCelebrationsEnabled: state.setAchievementCelebrationsEnabled,
+      onboardingHintsSeen: state.onboardingHintsSeen,
       resetOnboardingHints: state.resetOnboardingHints,
     }))
   );
+  const dismissedOnboardingHintCount = ONBOARDING_HINT_IDS.filter(id => onboardingHintsSeen[id]).length;
   const [isBusy, setIsBusy] = useState(false);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
@@ -445,6 +449,7 @@ export const SettingsScreen: React.FC = () => {
           >
             <MaterialCommunityIcons name="gesture-tap-hold" size={22} color={colors.textSecondary} />
             <Text style={styles.rowLabel}>Replay Onboarding Hints</Text>
+            <Text style={styles.rowValue}>{dismissedOnboardingHintCount}</Text>
           </TouchableOpacity>
         </View>
 

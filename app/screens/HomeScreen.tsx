@@ -14,27 +14,15 @@ import DraggableFlatList, { RenderItemParams, ScaleDecorator, ShadowDecorator } 
 import Reanimated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tinycolor from 'tinycolor2';
-import { OnboardingHint, TargetLayout } from '../components/OnboardingHint';
 import { CardSide, TaskCard } from '../components/TaskCard';
 import { useToast } from '../context/ToastContext';
+import { useOnboardingHintTarget } from '../context/OnboardingHintsContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
-import { useSettingsStore } from '../stores/settingsStore';
 import { useTaskStore } from '../stores/taskStore';
 import { MaterialCommunityIconName, Task } from '../types';
 import { getStreakStats } from '../utils/data';
 import { isTaskCompleted } from '../utils/streaks';
 import { ACTIVE_TASK_LIMIT_MESSAGE, hasReachedActiveTaskLimit } from '../utils/taskLimits';
-
-// Narrower than the full OnboardingHintKey union -- this screen only ever produces one of these
-// three (see onboardingCandidateKey below), never the other screens' single stationary-target hints.
-type HomeHintKey = 'hold-to-complete' | 'tap-to-cycle' | 'hold-to-expand';
-const HOME_HINT_KEYS: HomeHintKey[] = ['hold-to-complete', 'tap-to-cycle', 'hold-to-expand'];
-
-const ONBOARDING_HINT_TEXT: Record<HomeHintKey, string> = {
-  'hold-to-complete': 'Press and hold to complete',
-  'tap-to-cycle': 'Tap to see calendar & stats',
-  'hold-to-expand': 'Press and hold to open the full screen and make changes',
-};
 
 const GRID_SPACING = 16;
 const SIDE_PADDING = 16;
@@ -144,9 +132,17 @@ const HomeHeader = React.memo(({
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
+  const activeTaskCount = useMemo(() => tasks.filter(task => !task.archived).length, [tasks]);
   const streakStats = useMemo(() => getStreakStats(tasks.filter(task => !task.archived)), [tasks]);
+  const expiringFilterHint = useOnboardingHintTarget(
+    'home-expiring-filter',
+    !isReordering && streakStats.expiring > 0
+  );
+  const dashboardHint = useOnboardingHintTarget('home-dashboard', !isReordering && activeTaskCount > 0);
+  const reorderHint = useOnboardingHintTarget('home-reorder', !isReordering && activeTaskCount >= 2);
 
   const handleFilterPress = (filter: FilterType) => {
+    if (filter === 'expiring') expiringFilterHint.complete();
     onFilterChange(activeFilter === filter ? null : filter);
   };
 
@@ -171,8 +167,12 @@ const HomeHeader = React.memo(({
     <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
       <View style={styles.headerActions}>
         <TouchableOpacity
+          ref={dashboardHint.ref}
           style={styles.headerButton}
-          onPress={() => router.push({ pathname: '/dashboard' })}
+          onPress={() => {
+            dashboardHint.complete();
+            router.push({ pathname: '/dashboard' });
+          }}
           accessibilityRole="button"
           accessibilityLabel="Dashboard"
         >
@@ -218,6 +218,7 @@ const HomeHeader = React.memo(({
         )}
         {streakStats.expiring > 0 && (
           <TouchableOpacity
+            ref={expiringFilterHint.ref}
             style={[
               styles.streakBubble,
               { backgroundColor: 'rgba(255, 167, 38, 0.1)' },
@@ -246,8 +247,12 @@ const HomeHeader = React.memo(({
 
       <View style={styles.headerActions}>
         <TouchableOpacity
+          ref={reorderHint.ref}
           style={styles.headerButtonSecondary}
-          onPress={onToggleReordering}
+          onPress={() => {
+            reorderHint.complete();
+            onToggleReordering();
+          }}
           accessibilityRole="button"
           accessibilityLabel="Reorder habits"
           accessibilityHint="Opens controls to change the habit order"
@@ -276,17 +281,13 @@ export const HomeScreen: React.FC = () => {
   const undoCompleteTask = useTaskStore(state => state.undoCompleteTask);
   const reorderTasks = useTaskStore(state => state.reorderTasks);
   const { showToast } = useToast();
-  const onboardingHintsSeen = useSettingsStore(state => state.onboardingHintsSeen);
-  const setOnboardingHintSeen = useSettingsStore(state => state.setOnboardingHintSeen);
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState<FilterType>(null);
   const [isReordering, setIsReordering] = useState(false);
   const [appliedSort, setAppliedSort] = useState<SortOption | null>(null);
-  const [onboardingTargetLayout, setOnboardingTargetLayout] = useState<TargetLayout | null>(null);
   const [onboardingTargetFace, setOnboardingTargetFace] = useState<CardSide>('task');
   const onboardingTargetRef = useRef<View>(null);
-  const onboardingContainerRef = useRef<View>(null);
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -330,13 +331,26 @@ export const HomeScreen: React.FC = () => {
   const availableWidth = width - (SIDE_PADDING * 2) - (GRID_SPACING * (columnCount - 1));
   const cardSize = Math.floor(availableWidth / columnCount);
 
-  // The onboarding hints walk through the first visible card only -- same task throughout,
-  // so the pointer/highlight never has to jump between cards. Once every hint has been seen
-  // (each dismissed independently), stop targeting a card at all. Only this screen's own three
-  // hints gate that -- Dashboard's/task-detail's unrelated stationary-target hints don't.
-  const allOnboardingHintsSeen = HOME_HINT_KEYS.every(key => onboardingHintsSeen[key]);
-  const onboardingTargetTask = allOnboardingHintsSeen ? undefined : filteredTasks[0];
+  // The card hints all register the same first visible card. The root coordinator owns dismissed
+  // state and priority, so this screen only describes when each gesture is contextually valid.
+  const onboardingTargetTask = filteredTasks[0];
   const onboardingTargetTaskId = onboardingTargetTask?.id;
+  const targetIsFront = onboardingTargetFace === 'task';
+  const { complete: completeHoldToCompleteHint } = useOnboardingHintTarget(
+    'hold-to-complete',
+    !!onboardingTargetTask && targetIsFront && !isTaskCompleted(onboardingTargetTask),
+    onboardingTargetRef
+  );
+  const { complete: completeTapToCycleHint } = useOnboardingHintTarget(
+    'tap-to-cycle',
+    !!onboardingTargetTask && targetIsFront,
+    onboardingTargetRef
+  );
+  const { complete: completeHoldToExpandHint } = useOnboardingHintTarget(
+    'hold-to-expand',
+    !!onboardingTargetTask && !targetIsFront,
+    onboardingTargetRef
+  );
 
   // Read inside the stable per-card callbacks below (each created once via useCallback, so
   // TaskCard's own React.memo isn't defeated by a fresh closure per card per render) instead of
@@ -347,122 +361,24 @@ export const HomeScreen: React.FC = () => {
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
 
-  // Which condition matches right now, purely a function of the target card's live state: its
-  // due-today completion status, and which face it's currently showing. Only shown if that
-  // specific hint hasn't already been seen/dismissed on its own.
-  const onboardingCandidateKey: HomeHintKey | null = !onboardingTargetTask
-    ? null
-    : onboardingTargetFace !== 'task'
-    ? 'hold-to-expand'
-    : isTaskCompleted(onboardingTargetTask)
-    ? 'tap-to-cycle'
-    : 'hold-to-complete';
-
-  const onboardingHintKey = onboardingCandidateKey && !onboardingHintsSeen[onboardingCandidateKey]
-    ? onboardingCandidateKey
-    : null;
-
-  // Measured relative to `onboardingContainerRef` (the same View OnboardingHint's absoluteFill
-  // is scoped inside), not `measureInWindow`. `measureInWindow` reports OS window coordinates,
-  // which only line up with OnboardingHint's `top`/`left` (relative to its own RN parent) if that
-  // parent's origin exactly coincides with the window's origin -- an assumption Android's
-  // edge-to-edge status-bar handling breaks, which is what caused the ring to render offset
-  // upward into the header. Measuring relative to the shared container sidesteps window/status
-  // bar coordinates entirely: both the card and the overlay are positioned in the exact same
-  // reference frame by construction.
-  const measureOnboardingTarget = () => {
-    if (!onboardingContainerRef.current) return;
-    onboardingTargetRef.current?.measureLayout(
-      onboardingContainerRef.current,
-      (x, y, measuredWidth, measuredHeight) => {
-        setOnboardingTargetLayout({ x, y, width: measuredWidth, height: measuredHeight });
-      },
-      () => {} // not mounted/measurable yet -- the next trigger (onLayout/poll below) will retry
-    );
-  };
-
-  // `onLayout` (react-native-web's ResizeObserver-backed polyfill) doesn't reliably fire on
-  // initial mount, so a rAF-scheduled measurement after render is the primary trigger; onLayout
-  // and onScroll below are kept as supplementary re-measures for when layout genuinely shifts.
-  //
-  // On native Android, a single rAF isn't enough on its own: unlike web (where layout is
-  // synchronous with paint), the native layout pass -- and any late reflow from the screen's own
-  // slide-in navigation transition -- can still be in flight when that first frame fires. Rather
-  // than guess how long that takes, poll on a short interval and stop once two consecutive reads
-  // agree (layout has settled), capping the total wait so a card that never stabilizes doesn't
-  // poll forever. Each call just overwrites `onboardingTargetLayout`, so the wrong-then-right
-  // sequence of updates along the way is harmless (only ever visible for a frame or two).
-  useEffect(() => {
-    if (!onboardingTargetTaskId) return;
-
-    const POLL_INTERVAL_MS = 100;
-    const MAX_POLLS = 15; // ~1.5s ceiling
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let lastMeasured: TargetLayout | null = null;
-    let stableCount = 0;
-    let pollCount = 0;
-
-    const isSameLayout = (a: TargetLayout, b: TargetLayout) =>
-      a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
-
-    const poll = () => {
-      if (cancelled || !onboardingContainerRef.current) return;
-      onboardingTargetRef.current?.measureLayout(
-        onboardingContainerRef.current,
-        (x, y, measuredWidth, measuredHeight) => {
-          if (cancelled) return;
-          const next: TargetLayout = { x, y, width: measuredWidth, height: measuredHeight };
-          setOnboardingTargetLayout(next);
-          stableCount = lastMeasured && isSameLayout(lastMeasured, next) ? stableCount + 1 : 0;
-          lastMeasured = next;
-          pollCount += 1;
-          if (stableCount < 2 && pollCount < MAX_POLLS) {
-            timer = setTimeout(poll, POLL_INTERVAL_MS);
-          }
-        },
-        () => {
-          pollCount += 1;
-          if (pollCount < MAX_POLLS) {
-            timer = setTimeout(poll, POLL_INTERVAL_MS);
-          }
-        }
-      );
-    };
-
-    const frame = requestAnimationFrame(poll);
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(frame);
-      clearTimeout(timer);
-    };
-  }, [onboardingTargetTaskId, columnCount]);
-
   // A new target card starts out showing its task face, until its own onFlip says otherwise.
   useEffect(() => {
     setOnboardingTargetFace('task');
   }, [onboardingTargetTaskId]);
-
-  // Stable (`useCallback`'d) so `TaskCard`'s own `React.memo` isn't defeated by a fresh closure
-  // handed to every visible card on every `HomeScreen` render -- `setOnboardingHintSeen` is
-  // itself a stable Zustand action reference, so this never actually needs to change identity.
-  const markOnboardingHintSeen = useCallback((key: HomeHintKey) => {
-    setOnboardingHintSeen(key, true);
-  }, [setOnboardingHintSeen]);
 
   // One stable handler per gesture, shared by every card (not one fresh closure per card per
   // render) -- each takes the task's id and looks up whatever it needs via the refs above, so
   // identity never has to change just because a *different* task became the onboarding target or
   // the task list itself changed.
   const handleLongPressCalendar = useCallback((taskId: string) => {
-    if (taskId === onboardingTargetTaskIdRef.current) markOnboardingHintSeen('hold-to-expand');
+    if (taskId === onboardingTargetTaskIdRef.current) completeHoldToExpandHint();
     router.push({ pathname: '/task-detail', params: { taskId, tab: 'calendar' } });
-  }, [router, markOnboardingHintSeen]);
+  }, [router, completeHoldToExpandHint]);
 
   const handleLongPressStats = useCallback((taskId: string) => {
-    if (taskId === onboardingTargetTaskIdRef.current) markOnboardingHintSeen('hold-to-expand');
+    if (taskId === onboardingTargetTaskIdRef.current) completeHoldToExpandHint();
     router.push({ pathname: '/task-detail', params: { taskId, tab: 'stats' } });
-  }, [router, markOnboardingHintSeen]);
+  }, [router, completeHoldToExpandHint]);
 
   // Only ever called for a task that isn't completed yet -- `TaskCard` itself checks
   // `isTaskCompleted` before deciding whether to trigger this (a real completion) or
@@ -472,12 +388,12 @@ export const HomeScreen: React.FC = () => {
     if (!task) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     completeTask(task.id);
-    if (task.id === onboardingTargetTaskIdRef.current) markOnboardingHintSeen('hold-to-complete');
+    if (task.id === onboardingTargetTaskIdRef.current) completeHoldToCompleteHint();
     showToast({
       message: `"${task.name}" completed`,
       action: { label: 'Undo', onPress: () => undoCompleteTask(task.id) },
     });
-  }, [completeTask, undoCompleteTask, showToast, markOnboardingHintSeen]);
+  }, [completeTask, undoCompleteTask, showToast, completeHoldToCompleteHint]);
 
   // Long-pressing an already-completed task's face -- opens task-detail on whichever tab was
   // last viewed (no `tab` param, same fallback-to-`taskDetailLastTab` behavior `task-detail`
@@ -490,15 +406,14 @@ export const HomeScreen: React.FC = () => {
   const handleFlip = useCallback((taskId: string, side: CardSide) => {
     if (taskId !== onboardingTargetTaskIdRef.current) return;
     setOnboardingTargetFace(side);
-    if (side !== 'task') markOnboardingHintSeen('tap-to-cycle');
-  }, [markOnboardingHintSeen]);
+    if (side !== 'task') completeTapToCycleHint();
+  }, [completeTapToCycleHint]);
 
   const renderItem = useCallback(({ item }: { item: Task }) => {
     const isOnboardingTarget = item.id === onboardingTargetTaskIdRef.current;
     return (
       <TaskCard
         ref={isOnboardingTarget ? onboardingTargetRef : undefined}
-        onLayout={isOnboardingTarget ? measureOnboardingTarget : undefined}
         task={item}
         size={cardSize}
         onLongPressCalendar={handleLongPressCalendar}
@@ -511,7 +426,7 @@ export const HomeScreen: React.FC = () => {
   }, [cardSize, handleLongPressCalendar, handleLongPressStats, handleLongPressTask, handleLongPressCompletedTask, handleFlip]);
 
   return (
-    <View style={styles.container} ref={onboardingContainerRef}>
+    <View style={styles.container}>
       <HomeHeader
         activeFilter={filter}
         onFilterChange={setFilter}
@@ -573,8 +488,6 @@ export const HomeScreen: React.FC = () => {
           offset: cardSize * Math.floor(index / columnCount),
           index,
         })}
-        onScroll={onboardingTargetTaskId ? measureOnboardingTarget : undefined}
-        scrollEventThrottle={100}
         renderItem={renderItem}
         contentContainerStyle={[
           styles.listContent,
@@ -628,14 +541,6 @@ export const HomeScreen: React.FC = () => {
       >
         <MaterialCommunityIcons name="plus" size={32} color="#fff" />
       </TouchableOpacity>}
-      {!isReordering && onboardingHintKey && onboardingTargetLayout && (
-        <OnboardingHint
-          key={onboardingHintKey}
-          text={ONBOARDING_HINT_TEXT[onboardingHintKey]}
-          targetLayout={onboardingTargetLayout}
-          onDismiss={() => markOnboardingHintSeen(onboardingHintKey)}
-        />
-      )}
     </View>
   );
 };

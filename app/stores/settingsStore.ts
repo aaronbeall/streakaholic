@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { PersistStorage, persist } from 'zustand/middleware';
 import type { TaskDetailTab } from '../components/TaskHeader';
 import type { DashboardTab } from '../screens/DashboardScreen';
+import type { OnboardingHintId, OnboardingHintsSeen } from '../utils/onboardingHints';
 import {
   DEFAULT_REVIEW_PROMPT_STATE,
   recordReviewCompletion,
@@ -16,23 +17,18 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 // Each contextual hint is dismissed independently -- seeing/dismissing one doesn't affect the
 // others. The first three are Home's first-task-card hints; which of them (if any) is shown right
 // now is derived from that card's live state (completion + visible face), not stored here. The
-// other two are single, stationary-target hints (Dashboard's task-filter row, task-detail's
-// Calendar tap-a-day grid) with no such live-state branching -- each is just shown once until
-// dismissed or until the user performs the gesture it teaches.
-export type OnboardingHintKey =
-  | 'hold-to-complete'
-  | 'tap-to-cycle'
-  | 'hold-to-expand'
-  | 'dashboard-task-filter'
-  | 'task-calendar-tap-day';
-
-export type OnboardingHintsSeen = Record<OnboardingHintKey, boolean>;
-
+// the others are stationary action targets on Home, Dashboard, or task detail. The root hint
+// coordinator decides which eligible unseen target wins, so screens never coordinate with one
+// another or read these flags directly.
 const DEFAULT_ONBOARDING_HINTS_SEEN: OnboardingHintsSeen = {
   'hold-to-complete': false,
   'tap-to-cycle': false,
   'hold-to-expand': false,
+  'home-expiring-filter': false,
+  'home-reorder': false,
+  'home-dashboard': false,
   'dashboard-task-filter': false,
+  'dashboard-calendar-chart-modes': false,
   'task-calendar-tap-day': false,
 };
 
@@ -74,7 +70,7 @@ interface SettingsStore extends AppSettings {
   setShowTaskName: (value: boolean) => void;
   setShowTaskCounter: (value: boolean) => void;
   setAchievementCelebrationsEnabled: (value: boolean) => void;
-  setOnboardingHintSeen: (key: OnboardingHintKey, seen: boolean) => void;
+  setOnboardingHintSeen: (key: OnboardingHintId, seen: boolean) => void;
   // `preserve` lets a caller keep specific hints marked seen instead of clearing everything --
   // e.g. Settings' "Replay Onboarding Hints" keeps 'hold-to-complete' seen when a task's already
   // been completed today, since replaying that hint wouldn't make sense then.

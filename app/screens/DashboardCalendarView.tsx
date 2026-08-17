@@ -10,6 +10,7 @@ import { EmptyState } from '../components/EmptyState';
 import { MissedDayMark } from '../components/MissedDayMark';
 import { PartialDayPie } from '../components/PartialDayPie';
 import { StreakCountBadge } from '../components/StreakCountBadge';
+import { useOnboardingHintTarget } from '../context/OnboardingHintsContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
@@ -175,6 +176,7 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const chartModesHint = useOnboardingHintTarget('dashboard-calendar-chart-modes', tasks.length > 0);
 
   const today = useMemo(() => new Date(), []);
   const todayStr = format(today, 'yyyy-MM-dd');
@@ -405,7 +407,7 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
             itself, rather than trying to cram "MMMM yyyy" into a single 32px day column (the
             old per-column abbreviation this replaced could only ever fit "MMM yy" at 8px). */}
         <Text style={styles.timelineMonthLabel} numberOfLines={1}>{format(visibleMonth, 'MMMM yyyy')}</Text>
-        <View style={styles.mainGridModeToggle}>
+        <View ref={chartModesHint.ref} style={styles.mainGridModeToggle}>
           {([
             { mode: 'grid' as const, icon: 'view-grid-outline' as const, label: 'Grid view' },
             { mode: 'bars' as const, icon: 'chart-bar' as const, label: 'Bars view' },
@@ -414,7 +416,10 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
             <TouchableOpacity
               key={mode}
               style={[styles.mainGridModeButton, mainGridMode === mode && styles.mainGridModeButtonActive]}
-              onPress={() => setMainGridMode(mode)}
+              onPress={() => {
+                chartModesHint.complete();
+                setMainGridMode(mode);
+              }}
               accessibilityRole="radio"
               accessibilityState={{ checked: mainGridMode === mode }}
               accessibilityLabel={label}

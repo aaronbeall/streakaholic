@@ -66,7 +66,7 @@ export const OnboardingHint: React.FC<OnboardingHintProps> = ({ text, targetLayo
   );
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    <View style={[StyleSheet.absoluteFill, styles.overlay]} pointerEvents="box-none">
       <Reanimated.View
         pointerEvents="none"
         style={[
@@ -118,6 +118,11 @@ export const OnboardingHint: React.FC<OnboardingHintProps> = ({ text, targetLayo
 };
 
 const styles = StyleSheet.create({
+  overlay: {
+    // Above native-stack screen content, below congratulations (1000) and toasts (2000).
+    zIndex: 900,
+    elevation: 900,
+  },
   ringContainer: {
     position: 'absolute',
   },

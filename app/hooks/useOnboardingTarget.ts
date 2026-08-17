@@ -15,13 +15,16 @@ import { TargetLayout } from '../components/OnboardingHint';
 // total wait so a target that never stabilizes doesn't poll forever.
 export function useOnboardingTarget(
   containerRef: RefObject<View | null>,
-  targetRef: RefObject<View | null>,
+  targetRef: RefObject<View | null> | undefined,
   enabled: boolean
 ): TargetLayout | null {
   const [layout, setLayout] = useState<TargetLayout | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !targetRef) return;
+    // Never render a newly-selected hint at the previous target's coordinates while its first
+    // measurement is pending.
+    setLayout(null);
 
     const POLL_INTERVAL_MS = 100;
     const MAX_POLLS = 15; // ~1.5s ceiling
@@ -64,11 +67,7 @@ export function useOnboardingTarget(
       cancelAnimationFrame(frame);
       if (timer) clearTimeout(timer);
     };
-    // containerRef/targetRef are useRef objects from the caller -- stable identities that never
-    // need to retrigger this effect; only `enabled` (re-arming when a hint becomes eligible again)
-    // should.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
+  }, [containerRef, enabled, targetRef]);
 
   return layout;
 }

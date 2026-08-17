@@ -1,25 +1,21 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { addMonths, addYears, format, getDay, getDaysInMonth, startOfMonth, subMonths, subYears } from 'date-fns';
 import * as Haptics from 'expo-haptics';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { MissedDayMark } from '../components/MissedDayMark';
-import { OnboardingHint } from '../components/OnboardingHint';
 import { PartialDayPie } from '../components/PartialDayPie';
 import { StreakCountBadge } from '../components/StreakCountBadge';
+import { useOnboardingHintTarget } from '../context/OnboardingHintsContext';
 import { useToast } from '../context/ToastContext';
-import { useOnboardingTarget } from '../hooks/useOnboardingTarget';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
-import { useSettingsStore } from '../stores/settingsStore';
 import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { buildDayConnectionInfo, getCachedTaskStreakChains, getDayStreakState } from '../utils/reports';
 import { getCachedCompletionCountsByDate } from '../utils/streaks';
-
-const TAP_DAY_HINT_TEXT = 'Tap a day to mark a day complete, tap again to clear it';
 
 type ViewMode = 'month' | 'year';
 
@@ -70,25 +66,15 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
     }))
   );
   const { showToast } = useToast();
-  const { onboardingHintsSeen, setOnboardingHintSeen } = useSettingsStore(
-    useShallow(state => ({
-      onboardingHintsSeen: state.onboardingHintsSeen,
-      setOnboardingHintSeen: state.setOnboardingHintSeen,
-    }))
-  );
   const [currentMonth, setCurrentMonth] = useState(initialMonth ?? new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [yearGridWidth, setYearGridWidth] = useState(0);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const containerRef = useRef<View>(null);
-  const calendarGridRef = useRef<View>(null);
-
-  // Only in month view -- the year view's dots aren't tappable.
-  const showTapDayHint = !onboardingHintsSeen['task-calendar-tap-day'] && viewMode === 'month';
-  const tapDayHintLayout = useOnboardingTarget(containerRef, calendarGridRef, showTapDayHint);
-  const dismissTapDayHint = () => setOnboardingHintSeen('task-calendar-tap-day', true);
+  // Only in month view -- the year view's dots aren't tappable. The root coordinator handles
+  // dismissed state and competition with every other registered hint.
+  const tapDayHint = useOnboardingHintTarget('task-calendar-tap-day', viewMode === 'month');
 
   const daysInMonth = getDaysInMonth(currentMonth);
   const firstDayOfMonth = startOfMonth(currentMonth);
@@ -216,7 +202,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
 
     // Tapping a day is the gesture this hint teaches -- dismiss it the same way Home's hints
     // dismiss themselves when the user performs the taught gesture directly.
-    dismissTapDayHint();
+    tapDayHint.complete();
 
     const label = format(date, 'MMM d');
 
@@ -268,7 +254,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
   };
 
   return (
-    <View style={styles.container} ref={containerRef}>
+    <View style={styles.container}>
       <View style={[styles.content, { paddingBottom: insets.bottom }]}>
         <View style={styles.navigation}>
           <TouchableOpacity
@@ -459,7 +445,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                       )}
                       <View
                         key={ `${task.id}-${isCompleted}-${isPartial}` }
-                        ref={dayNumber === 1 ? calendarGridRef : undefined}
+                        ref={dayNumber === 1 ? tapDayHint.ref : undefined}
                         style={[
                           styles.dayContent,
                           isCompleted && { backgroundColor: task.color },
@@ -519,13 +505,6 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
         )}
       </View>
 
-      {showTapDayHint && tapDayHintLayout && (
-        <OnboardingHint
-          text={TAP_DAY_HINT_TEXT}
-          targetLayout={tapDayHintLayout}
-          onDismiss={dismissTapDayHint}
-        />
-      )}
     </View>
   );
 };

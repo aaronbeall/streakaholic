@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AchievementCelebration } from './components/AchievementCelebration';
 import { ToastBanner } from './components/ToastBanner';
 import { ToastProvider } from './context/ToastContext';
+import { OnboardingHintsProvider } from './context/OnboardingHintsContext';
 import { useThemeColors } from './hooks/useThemeColors';
 import { useAchievementsStore } from './stores/achievementsStore';
 import { useLastImportStore } from './stores/lastImportStore';
@@ -262,10 +263,12 @@ export default function Layout() {
     // the true root.
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ToastProvider>
-        <AppGate />
-        <ToastBanner />
-        <AchievementCelebration />
-        <ReviewPromptCoordinator />
+        <OnboardingHintsProvider>
+          <AppGate />
+          <ToastBanner />
+          <AchievementCelebration />
+          <ReviewPromptCoordinator />
+        </OnboardingHintsProvider>
       </ToastProvider>
     </GestureHandlerRootView>
   );
