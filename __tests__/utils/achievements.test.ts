@@ -703,7 +703,7 @@ describe('detectCompletionAchievements', () => {
 
     it('night-owl fires when at least half of the recent window completed at/after the hour', () => {
       const completions = [
-        ...Array.from({ length: 6 }, (_, i) => completionAt(`l${i}`, 22)), // after 9pm
+        ...Array.from({ length: 6 }, (_, i) => completionAt(`l${i}`, 20)), // at the 8pm boundary
         ...Array.from({ length: 4 }, (_, i) => completionAt(`e${i}`, 8)), // not
       ];
       const task = makeTask({ id: 't1', completions });

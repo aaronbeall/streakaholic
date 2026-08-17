@@ -386,7 +386,7 @@ const PERFECT_DAY_MIN_DUE_TASKS = 2;
 const TIME_OF_DAY_WINDOW = 14;
 const TIME_OF_DAY_MIN_SAMPLES = 10;
 const EARLY_BIRD_HOUR = 7; // before 7am, local device time
-const NIGHT_OWL_HOUR = 21; // at or after 9pm, local device time
+const NIGHT_OWL_HOUR = 20; // at or after 8pm, local device time
 
 // Single source of truth for every per-kind behavior -- icon/title/description, celebration
 // screen content, Trophy Case progress strategy and display grouping, all in one place. Adding a
@@ -776,7 +776,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     color: { theme: 'Lime Burst', base: '#558B2F', glow: '#8BC34A', accent: '#F4FF81' },
   },
   'monthly-overachiever': {
-    icon: 'chart-line-variant',
+    icon: 'star-shooting',
     title: 'Monthly Overachiever!',
     describe: a => `Exceeded "${taskName(a)}"’s monthly quota by 50%`,
     repeatable: false,
@@ -959,7 +959,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     flavorText: 'Burning the midnight oil, one habit at a time.',
     numberBlock: { eyebrow: 'Night Owl', unit: 'LATE COMPLETIONS' },
     ribbon: { kind: 'fixed', text: 'NIGHT OWL' },
-    triggerStandalone: v => `${(v ?? 0).toLocaleString()} of your last ${TIME_OF_DAY_WINDOW} completions landed after 9pm.`,
+    triggerStandalone: v => `${(v ?? 0).toLocaleString()} of your last ${TIME_OF_DAY_WINDOW} completions landed at or after 8pm.`,
     progressStrategy: { type: 'time-of-day-ratio', hour: NIGHT_OWL_HOUR, direction: 'after', window: TIME_OF_DAY_WINDOW, minSamples: TIME_OF_DAY_MIN_SAMPLES },
     trigger: 'completion',
     color: { theme: 'Midnight', base: '#10102B', glow: '#5C6BC0', accent: '#283593', useAccentText: true }, // night-owl
