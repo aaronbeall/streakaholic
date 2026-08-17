@@ -1,3 +1,5 @@
+import { MaterialCommunityIconName } from '../types';
+
 export const ONBOARDING_HINT_IDS = [
   'hold-to-complete',
   'multi-completion-progress',
@@ -14,9 +16,16 @@ export const ONBOARDING_HINT_IDS = [
 export type OnboardingHintId = typeof ONBOARDING_HINT_IDS[number];
 export type OnboardingHintsSeen = Partial<Record<OnboardingHintId, boolean>>;
 
+export interface OnboardingHintDefinition {
+  text: string;
+  priority: number;
+  iconItems?: readonly { icon: MaterialCommunityIconName; text: string }[];
+  footer?: string;
+}
+
 // Copy and ordering live in one catalog so adding a hint doesn't require another screen-specific
 // state machine. Lower priority numbers win when several eligible targets are mounted together.
-export const ONBOARDING_HINT_CATALOG: Record<OnboardingHintId, { text: string; priority: number }> = {
+export const ONBOARDING_HINT_CATALOG: Record<OnboardingHintId, OnboardingHintDefinition> = {
   'hold-to-complete': {
     text: 'Press and hold to complete',
     priority: 10,
@@ -50,7 +59,13 @@ export const ONBOARDING_HINT_CATALOG: Record<OnboardingHintId, { text: string; p
     priority: 10,
   },
   'dashboard-calendar-chart-modes': {
-    text: 'Switch views: Grid shows each habit, Bars compare daily totals, and Stream reveals trends. Tap any day for details',
+    text: 'Switch views:',
+    iconItems: [
+      { icon: 'view-grid-outline', text: 'See each habit' },
+      { icon: 'chart-bar', text: 'Compare daily totals' },
+      { icon: 'chart-areaspline-variant', text: 'Reveal trends' },
+    ],
+    footer: 'Tap any day for details',
     priority: 20,
   },
   'task-calendar-tap-day': {

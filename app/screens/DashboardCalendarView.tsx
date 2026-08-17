@@ -613,88 +613,94 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                 >
                   {separator}
                   {dateAxis}
-                  {tasks.map(task => {
-                    const dateString = gridDateString;
-                    const taskCompletionCounts = completionCountsByTask.get(task.id);
-                    const completionCount = taskCompletionCounts?.get(dateString) ?? 0;
-                    const isCompleted = completionCount >= (task.timesPerDay || 1);
-                    const isPartial = completionCount > 0 && !isCompleted;
-                    const isFuture = dateString > todayStr;
-                    const isEmpty = !isFuture && !isCompleted && !isPartial;
-                    const streakState = isEmpty
-                      ? getDayStreakState(task, day, streakChainsByTask.get(task.id) ?? [], taskCompletionCounts ?? EMPTY_COMPLETION_COUNTS)
-                      : null;
-                    const isMissed = streakState === 'hardMiss';
-                    const isSkipped = streakState === 'connected';
-                    const isSoftMissed = streakState === 'softMiss';
-                    const connection = dayConnectionInfoByTask.get(task.id)?.get(dateString);
-                    // Today, not yet (fully) completed, with the streak's own status saying today
-                    // is the make-or-break day -- matches the days isConnectedDay withholds a
-                    // connector from (see reports.ts). This grid has no day numbers to badge like
-                    // TaskCalendarScreen does, so it gets a gray clock icon replacing whatever
-                    // would otherwise show in the dot instead (mutually exclusive with the
-                    // partial-progress pie and the hard-miss X, same as those already are with
-                    // each other).
-                    const isExpiringToday = dateString === todayStr && !isCompleted && task.stats?.streakStatus === 'expiring';
-                    return (
-                      <View key={task.id} style={styles.gridCell}>
-                        <View
-                          style={[
-                            styles.gridDot,
-                            isCompleted && { backgroundColor: task.color },
-                            (isMissed || isExpiringToday) && styles.gridDotEmpty,
-                            // A pass-through day's dot now matches a plain soft-miss day's own
-                            // grey/faded look exactly -- per explicit user direction ("a gray
-                            // circle, same as skipped day with no streak") -- the colored thread
-                            // below is what distinguishes "connected" from "genuinely nothing
-                            // going on," not the dot itself anymore.
-                            (isSoftMissed || isSkipped) && styles.gridDotSoftMiss,
-                          ]}
-                        >
-                          {isExpiringToday ? (
-                            // Sized close to gridDot's own diameter (GRID_CELL_SIZE - 8 = 24) --
-                            // larger than MissedDayMark's `size={16}` elsewhere in this same dot,
-                            // since an icon-font glyph carries real internal padding within its
-                            // own box that a hand-drawn stroke mark doesn't, so matching the
-                            // numeric size alone read visibly smaller/lighter than the X.
-                            <View style={styles.missedMark}>
-                              <MaterialCommunityIcons name="clock-outline" size={22} color={colors.textTertiary} />
-                            </View>
-                          ) : (
-                            <>
-                              {isPartial && (
-                                <PartialDayPie fraction={completionCount / (task.timesPerDay || 1)} color={task.color} />
-                              )}
-                              {isMissed && (
-                                <View style={styles.missedMark}>
-                                  <MissedDayMark color={colors.textTertiary} size={16} />
-                                </View>
-                              )}
-                            </>
+                  {/* Keep Grid's selection line inside the data track, matching Bars and
+                      Streamgraph, so it starts below the weekday/date labels instead of crossing
+                      through them. The wrapper is otherwise layout-neutral: its height is still
+                      exactly the sum of the fixed-height task rows. */}
+                  <View>
+                    {tasks.map(task => {
+                      const dateString = gridDateString;
+                      const taskCompletionCounts = completionCountsByTask.get(task.id);
+                      const completionCount = taskCompletionCounts?.get(dateString) ?? 0;
+                      const isCompleted = completionCount >= (task.timesPerDay || 1);
+                      const isPartial = completionCount > 0 && !isCompleted;
+                      const isFuture = dateString > todayStr;
+                      const isEmpty = !isFuture && !isCompleted && !isPartial;
+                      const streakState = isEmpty
+                        ? getDayStreakState(task, day, streakChainsByTask.get(task.id) ?? [], taskCompletionCounts ?? EMPTY_COMPLETION_COUNTS)
+                        : null;
+                      const isMissed = streakState === 'hardMiss';
+                      const isSkipped = streakState === 'connected';
+                      const isSoftMissed = streakState === 'softMiss';
+                      const connection = dayConnectionInfoByTask.get(task.id)?.get(dateString);
+                      // Today, not yet (fully) completed, with the streak's own status saying today
+                      // is the make-or-break day -- matches the days isConnectedDay withholds a
+                      // connector from (see reports.ts). This grid has no day numbers to badge like
+                      // TaskCalendarScreen does, so it gets a gray clock icon replacing whatever
+                      // would otherwise show in the dot instead (mutually exclusive with the
+                      // partial-progress pie and the hard-miss X, same as those already are with
+                      // each other).
+                      const isExpiringToday = dateString === todayStr && !isCompleted && task.stats?.streakStatus === 'expiring';
+                      return (
+                        <View key={task.id} style={styles.gridCell}>
+                          <View
+                            style={[
+                              styles.gridDot,
+                              isCompleted && { backgroundColor: task.color },
+                              (isMissed || isExpiringToday) && styles.gridDotEmpty,
+                              // A pass-through day's dot now matches a plain soft-miss day's own
+                              // grey/faded look exactly -- per explicit user direction ("a gray
+                              // circle, same as skipped day with no streak") -- the colored thread
+                              // below is what distinguishes "connected" from "genuinely nothing
+                              // going on," not the dot itself anymore.
+                              (isSoftMissed || isSkipped) && styles.gridDotSoftMiss,
+                            ]}
+                          >
+                            {isExpiringToday ? (
+                              // Sized close to gridDot's own diameter (GRID_CELL_SIZE - 8 = 24) --
+                              // larger than MissedDayMark's `size={16}` elsewhere in this same dot,
+                              // since an icon-font glyph carries real internal padding within its
+                              // own box that a hand-drawn stroke mark doesn't, so matching the
+                              // numeric size alone read visibly smaller/lighter than the X.
+                              <View style={styles.missedMark}>
+                                <MaterialCommunityIcons name="clock-outline" size={22} color={colors.textTertiary} />
+                              </View>
+                            ) : (
+                              <>
+                                {isPartial && (
+                                  <PartialDayPie fraction={completionCount / (task.timesPerDay || 1)} color={task.color} />
+                                )}
+                                {isMissed && (
+                                  <View style={styles.missedMark}>
+                                    <MissedDayMark color={colors.textTertiary} size={16} />
+                                  </View>
+                                )}
+                              </>
+                            )}
+                          </View>
+                          {/* A pass-through day's own thread -- a thin, full-cell-width, semi-
+                              transparent line in the task's own color, rendered *on top of* the dot
+                              (last in paint order, per explicit user direction) rather than behind
+                              it. Only pass-through days get this -- completed days are unaffected,
+                              and a plain soft-miss day (no streak at stake) has no thread since
+                              there's no streak to thread. */}
+                          {isSkipped && (
+                            <View style={[styles.skipLine, { backgroundColor: task.color }]} pointerEvents="none" />
+                          )}
+                          {connection?.showStreakBadge && (
+                            <StreakCountBadge
+                              value={connection.badgeValue!}
+                              iconSize={8}
+                              style={styles.streakBadgePosition}
+                            />
                           )}
                         </View>
-                        {/* A pass-through day's own thread -- a thin, full-cell-width, semi-
-                            transparent line in the task's own color, rendered *on top of* the dot
-                            (last in paint order, per explicit user direction) rather than behind
-                            it. Only pass-through days get this -- completed days are unaffected,
-                            and a plain soft-miss day (no streak at stake) has no thread since
-                            there's no streak to thread. */}
-                        {isSkipped && (
-                          <View style={[styles.skipLine, { backgroundColor: task.color }]} pointerEvents="none" />
-                        )}
-                        {connection?.showStreakBadge && (
-                          <StreakCountBadge
-                            value={connection.badgeValue!}
-                            iconSize={8}
-                            style={styles.streakBadgePosition}
-                          />
-                        )}
-                      </View>
-                    );
-                  })}
-                  {selectedDate === gridDateString && (
-                    <View style={styles.columnSelectionLine} pointerEvents="none" />
-                  )}
+                      );
+                    })}
+                    {selectedDate === gridDateString && (
+                      <View style={styles.columnSelectionLine} pointerEvents="none" />
+                    )}
+                  </View>
                 </Pressable>
               );
             }}
@@ -1022,8 +1028,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderTopRightRadius: BAR_SEGMENT_RADIUS,
     overflow: 'hidden',
   },
-  // A thin vertical crosshair through the tapped column's own bar, spanning barColumnTrack's full
-  // height -- centered via percentage left + a negative margin half its own width (safe here,
+  // A thin vertical crosshair through the tapped column's data track, spanning the full chart
+  // height below the date-axis labels -- centered via percentage left + a negative margin half
+  // its own width (safe here,
   // unlike the earlier connector-track centering bugs elsewhere in this file, since this is a
   // plain absolute-positioned line with no aspectRatio-derived parent or corner-radius math
   // involved, just simple centering).

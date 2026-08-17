@@ -9,6 +9,7 @@ import Reanimated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import { MaterialCommunityIconName } from '../types';
 
 // Un-themed accent, matching the app's primary blue elsewhere (Save button, active theme option).
 // Also used as a solid bubble background below -- a surface-colored bubble blended into the
@@ -27,11 +28,19 @@ export interface TargetLayout {
 
 interface OnboardingHintProps {
   text: string;
+  iconItems?: readonly { icon: MaterialCommunityIconName; text: string }[];
+  footer?: string;
   targetLayout: TargetLayout;
   onDismiss: () => void;
 }
 
-export const OnboardingHint: React.FC<OnboardingHintProps> = ({ text, targetLayout, onDismiss }) => {
+export const OnboardingHint: React.FC<OnboardingHintProps> = ({
+  text,
+  iconItems,
+  footer,
+  targetLayout,
+  onDismiss,
+}) => {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const pulse = useSharedValue(0);
   const reveal = useSharedValue(0);
@@ -101,7 +110,20 @@ export const OnboardingHint: React.FC<OnboardingHintProps> = ({ text, targetLayo
           ]}
         />
         <View style={styles.bubbleRow}>
-          <Text style={styles.bubbleText}>{text}</Text>
+          <View style={styles.bubbleCopy}>
+            <Text style={styles.bubbleText}>{text}</Text>
+            {iconItems && iconItems.length > 0 && (
+              <View style={styles.iconItems}>
+                {iconItems.map(item => (
+                  <View key={item.icon} style={styles.iconItem}>
+                    <MaterialCommunityIcons name={item.icon} size={17} color="#fff" />
+                    <Text style={styles.iconItemText}>{item.text}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            {footer && <Text style={styles.bubbleText}>{footer}</Text>}
+          </View>
           <Pressable
             onPress={onDismiss}
             hitSlop={8}
@@ -150,12 +172,29 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 10,
   },
-  bubbleText: {
+  bubbleCopy: {
     flex: 1,
+    gap: 6,
+  },
+  bubbleText: {
     fontSize: 14,
     fontWeight: '700',
     color: '#fff',
     lineHeight: 20,
+  },
+  iconItems: {
+    gap: 4,
+  },
+  iconItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  iconItemText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
   },
   dismissButton: {
     padding: 2,

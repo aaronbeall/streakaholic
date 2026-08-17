@@ -63,15 +63,18 @@ export const OnboardingHintsProvider: React.FC<{ children: React.ReactNode }> = 
     () => ({ upsert, unregister, complete }),
     [upsert, unregister, complete]
   );
+  const activeHintDefinition = activeHint ? ONBOARDING_HINT_CATALOG[activeHint.id] : null;
 
   return (
     <OnboardingHintsContext.Provider value={contextValue}>
       <View ref={containerRef} collapsable={false} style={styles.root}>
         {children}
-        {activeHint && targetLayout && (
+        {activeHint && activeHintDefinition && targetLayout && (
           <OnboardingHint
             key={activeHint.id}
-            text={ONBOARDING_HINT_CATALOG[activeHint.id].text}
+            text={activeHintDefinition.text}
+            iconItems={activeHintDefinition.iconItems}
+            footer={activeHintDefinition.footer}
             targetLayout={targetLayout}
             onDismiss={() => complete(activeHint.id)}
           />
