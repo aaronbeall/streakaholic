@@ -82,11 +82,11 @@ export const AchievementsPreviewCard: React.FC<AchievementsPreviewCardProps> = (
         <View style={styles.headerRow}>
           <Text style={styles.title}>Achievements</Text>
           <View style={styles.viewAllRow}>
-            <Text style={[styles.viewAllText, { color: accentColor }]}>View All</Text>
+            <Text style={[styles.viewAllText, { color: accentColor }]}>View all</Text>
             <MaterialCommunityIcons name="chevron-right" size={18} color={accentColor} />
           </View>
         </View>
-        <Text style={styles.emptyText}>No trophies yet -- keep it up!</Text>
+        <Text style={styles.emptyText}>Your first trophy is waiting — keep going!</Text>
       </TouchableOpacity>
     );
   }
@@ -103,7 +103,7 @@ export const AchievementsPreviewCard: React.FC<AchievementsPreviewCardProps> = (
       >
         <Text style={styles.title}>Achievements</Text>
         <View style={styles.viewAllRow}>
-          <Text style={[styles.viewAllText, { color: accentColor }]}>View All</Text>
+          <Text style={[styles.viewAllText, { color: accentColor }]}>View all</Text>
           <MaterialCommunityIcons name="chevron-right" size={18} color={accentColor} />
         </View>
       </TouchableOpacity>
@@ -137,7 +137,7 @@ export const AchievementsPreviewCard: React.FC<AchievementsPreviewCardProps> = (
               <View style={[styles.progressFill, { width: `${nextUpProgressPct}%`, backgroundColor: nextUpMeta.color.base }]} />
             </View>
           ) : nextUp.opportunityAvailable ? (
-            <Text style={styles.readyText}>Ready — revive a lapsed streak</Text>
+            <Text style={styles.readyText}>Ready — restart a streak</Text>
           ) : null}
         </View>
       )}

@@ -92,33 +92,33 @@ designer, or an actual image-generation model this assistant doesn't have access
 
 ### Store listing copy (ready to paste into Play Console)
 
-**Short description** (80 char max, this is 72):
-> A playful habit & streak tracker — private by design, no account needed.
+**Short description** (80 char max, this is 76):
+> Build habit streaks worth celebrating. Private by design, no account needed.
 
 **Full description** (4000 char max, this is ~1,400):
-> Streakaholic is a playful habit and streak tracker that helps you build consistency
-> without the guilt trips.
+> Build streaks worth celebrating. Streakaholic is a playful, privacy-first habit tracker
+> that makes consistency feel rewarding without the guilt trips.
 >
 > **Why Streakaholic**
-> - Flexible schedules — track habits daily, on specific days of the week, X days per
->   week, or X days per month
+> - Flexible schedules — track habits daily, on chosen days, or a set number of days per
+>   week or month
 > - Multiple completions per day — for habits you do more than once, like water intake or
 >   exercise sets
 > - Streak tracking that's actually fair — miss a non-due day and your streak doesn't
 >   break; catch up early and it counts right away
 > - Satisfying animations — a press-and-hold to complete, a streak ring that fills in, and
 >   a flame celebration when you hit a new best streak
-> - Flip any task card to see its full calendar history or detailed stats, right from the
+> - Flip any habit card to see its full calendar history or detailed stats, right from the
 >   home screen
 > - A Dashboard with aggregate stats and charts across every habit — completion trends,
 >   best days, and more
-> - Filter your tasks by streak status to see what needs attention today
-> - Customize every task with its own icon and color
+> - Quickly see which habits are on track and which need attention today
+> - Customize every habit with its own icon and color
 > - Light and dark mode, matching your system theme
 >
 > **Your data stays yours**
 > Streakaholic doesn't require an account, doesn't use the cloud, and doesn't track you.
-> Every task, streak, and completion is stored only on your device. Export your data
+> Every habit, streak, and completion is stored only on your device. Export your data
 > anytime as a backup, and import it back whenever you need to.
 >
 > Whether you're building a workout habit, a reading habit, or just trying to drink more
@@ -127,18 +127,18 @@ designer, or an actual image-generation model this assistant doesn't have access
 ### Screenshot shot list (for you to capture on-device)
 
 Play requires at least 2 phone screenshots; these 5–6 cover the app's actual range
-without needing any staged/fake data — just use your own real tasks:
+without needing any staged/fake data — just use your own real habits:
 
-1. **Home screen**, a handful of tasks with a mix of states (some complete, some not, at
-   least one multi-rep task showing its split ring) — this is the first thing anyone sees.
+1. **Home screen**, a handful of habits with a mix of states (some complete, some not, at
+   least one multi-completion habit showing its split ring) — this is the first thing anyone sees.
 2. **Dashboard → Stats tab** — the aggregate charts, ideally with a few weeks of real data
    behind them so the charts aren't empty.
 3. **Dashboard → Calendar tab**, Bars mode — the stacked-bar timeline is one of the more
    visually distinct things in the app.
-4. **Task detail → Streaks tab** — the hero "Best Streak" callout plus history list.
-5. **A task card mid-celebration** (the flame particle burst on a new best streak) —
+4. **Habit detail → Streaks tab** — the hero "Best streak" callout plus history list.
+5. **A habit card mid-celebration** (the flame particle burst on a new best streak) —
    timing-dependent to capture, but the most "alive" moment the app has.
-6. **Settings or Add Task**, showing the icon/color customization — communicates
+6. **Settings or New habit**, showing the icon/color customization — communicates
    personalization without needing words.
 
 ### Data Safety & content rating cheat sheet
@@ -191,9 +191,9 @@ after any change that touches these areas.
 
 **Confirmations & Undo** (`Alert.alert` is a no-op on web — this is the first time these
 paths run for real)
-- [ ] Edit Task → Archive Task: confirm modal appears, Cancel and Archive both behave,
-      Undo toast restores the task.
-- [ ] Edit Task → Delete Task: same, and Undo restores the task *with* its completion
+- [ ] Edit habit → Archive habit: confirm modal appears, Cancel and Archive both behave,
+      Undo toast restores the habit.
+- [ ] Edit habit → Delete habit: same, and Undo restores the habit *with* its completion
       history intact.
 
 **Import / Export**
@@ -210,8 +210,8 @@ paths run for real)
 - [ ] Settings → Share Streakaholic opens the native share sheet with the HTTPS store URL.
 - [ ] Share an achievement from both a fresh celebration and a Trophy Case replay; confirm the
       preview matches the PNG received by Messages/social apps.
-- [ ] Share task Stats with "Include habit name" both on and off; confirm the hidden-name image
-      contains no task name.
+- [ ] Share habit Stats with "Include habit name" both on and off; confirm the hidden-name image
+      contains no habit name.
 - [ ] Share Dashboard Stats and confirm the image is sharp, correctly cropped, and has no screen
       navigation or share-preview controls in it.
 
@@ -220,7 +220,7 @@ paths run for real)
 - [ ] Haptic feedback fires at each documented point (see `CLAUDE.md`'s Haptics section):
       long-press acknowledgment, completion success, destructive-action confirm, calendar
       day-toggle, Undo tap.
-- [ ] Press-and-hold to complete a task: ring fill, icon pop/overshoot/settle, and the
+- [ ] Press-and-hold to complete a habit: ring fill, icon pop/overshoot/settle, and the
       streak badge's celebration pop all read as intended — this animation went through
       many rounds of on-device-only tuning (spring damping/stiffness, hold duration).
 - [ ] A new best streak's particle celebration (swirl, staggered spawn, glow, color shift)
@@ -229,26 +229,27 @@ paths run for real)
 
 **Layout & theming**
 - [ ] Every screen's content clears the status bar and gesture nav bar (edge-to-edge) —
-      Home, Dashboard, Settings, Archived Tasks, task-detail, About.
+      Home, Dashboard, Settings, Archived habits, habit detail, About.
 - [ ] Dark mode: no white flash when navigating (Dashboard ↔ Home, task-detail ↔ Home).
 - [ ] Toggling light/dark in Settings updates every screen immediately.
-- [ ] Home's task grid: an incomplete last row of cards is centered, not stretched to fill
+- [ ] Home's habit grid: an incomplete last row of cards is centered, not stretched to fill
       the row.
-- [ ] The "Completions Over Time" chart toggle (Dashboard Stats and per-task Stats) renders
+- [ ] The "Progress over time" chart toggle (Dashboard Stats and per-habit Stats) renders
       as a clean, fully-rounded pill in both states — a real Android-only border-radius
       rendering bug was found and fixed here, worth a specific look.
 
 **Onboarding**
-- [ ] All 5 hints appear/dismiss correctly on a fresh install (or after Settings → Replay
-      Onboarding Hints): hold-to-complete, tap-to-cycle, hold-to-expand, Dashboard's
-      task-filter hint, task-detail Calendar's tap-a-day hint.
+- [ ] All 10 hints appear/dismiss correctly on a fresh install (or after Settings → Show tips
+      again): hold-to-complete, multi-completion progress, tap-to-cycle, hold-to-expand,
+      needs-attention filter, reorder, Dashboard, Dashboard habit filter, Dashboard calendar
+      views, and habit-calendar tap-a-day.
 - [ ] Each hint's pointer/ring targets the correct element with no visual offset (this
       class of bug — status-bar-relative measurement being wrong — was real and fixed).
 
-**Free-tier task cap**
-- [ ] Creating a 7th active task is blocked with a clear inline message + disabled Save;
+**Free-tier habit cap**
+- [ ] Creating a 7th active habit is blocked with a clear inline message + disabled Save;
       archiving one re-enables Save.
-- [ ] Restoring an archived task while already at 6 active tasks is blocked with a toast.
+- [ ] Restoring an archived habit while already at 6 active habits is blocked with a toast.
 - [ ] Tapping the FAB while at the cap shows a toast instead of opening a dead-end form.
 
 **Cold start**

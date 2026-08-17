@@ -87,7 +87,7 @@ const buildStatusBadge = (task: Task, today: Date): TaskStatusBadge => {
   }
 
   if (isCompletedToday) {
-    const doneClause = timesPerDay > 1 ? `Completed all ${timesPerDay} reps today` : 'Completed today';
+    const doneClause = timesPerDay > 1 ? `Completed all ${timesPerDay} times today` : 'Completed today';
     // Today's own reps being done doesn't necessarily resolve a quota-based task's whole period --
     // `streakStatus` can still read 'expiring' right after completing today if every remaining day
     // this period is now required to hit quota, which is worth surfacing rather than a flat
@@ -96,7 +96,8 @@ const buildStatusBadge = (task: Task, today: Date): TaskStatusBadge => {
     // recompute -- this switch only needs to distinguish the two states actually reachable
     // alongside a same-day completion.
     if (streakStatus === 'expiring') {
-      return { icon: 'clock-outline', color: AT_RISK_COLOR, text: `${doneClause} — but every remaining day this period is still needed.` };
+      const period = task.frequency === 'days_per_month' ? 'month' : 'week';
+      return { icon: 'clock-outline', color: AT_RISK_COLOR, text: `${doneClause} — every remaining day this ${period} is still needed.` };
     }
     return describeCompletedToday(doneClause, currentStreak);
   }
@@ -118,14 +119,16 @@ const buildStatusBadge = (task: Task, today: Date): TaskStatusBadge => {
           ? `Complete today to keep your ${currentStreak}-day streak alive!`
           : 'Complete today to keep your streak alive!',
       };
-    case 'up_to_date':
+    case 'up_to_date': {
       // A due, incomplete day on a daily/specific-days task always reads 'expiring' by the streak
       // engine's own design (calculateDueDayStats), not 'up_to_date' -- this branch is really only
       // reachable for quota-based tasks that already met this period's goal before today. Kept
       // defensive for the non-quota case anyway rather than assuming that invariant can't change.
+      const period = task.frequency === 'days_per_month' ? 'month' : 'week';
       return isQuotaBased
-        ? { icon: 'calendar-check-outline', color: NEUTRAL_COLOR, text: 'Already met this period’s goal — today is optional.' }
+        ? { icon: 'calendar-check-outline', color: NEUTRAL_COLOR, text: `You’ve reached this ${period}’s goal — today is optional.` }
         : { icon: 'calendar-check-outline', color: NEUTRAL_COLOR, text: 'No rush yet today.' };
+    }
     case 'expired': {
       // `lastStreak` (streaks.ts) is the length of whichever streak most recently closed -- the
       // same field getStreakBadgeStyle already reads for its own gray "sleep" badge state -- rather
@@ -135,8 +138,8 @@ const buildStatusBadge = (task: Task, today: Date): TaskStatusBadge => {
         icon: 'sleep',
         color: NEUTRAL_COLOR,
         text: lastStreak > 0
-          ? `Your ${lastStreak}-day streak has lapsed — complete today to start fresh.`
-          : 'Your streak has lapsed — complete today to start fresh.',
+          ? `Your ${lastStreak}-day streak ended — complete today to start fresh.`
+          : 'Your streak ended — complete today to start fresh.',
       };
     }
     case 'never_started':

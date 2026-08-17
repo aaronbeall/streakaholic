@@ -147,10 +147,10 @@ describe('getTaskStatusInfo', () => {
       expect(status.icon).toBe('fire');
     });
 
-    it('mentions all reps and the streak for a completed multi-rep task', () => {
+    it('mentions every completion and the streak for a completed multi-completion habit', () => {
       const task = makeTask({ timesPerDay: 3 }, { currentStreak: 2, streakStatus: 'up_to_date' });
       task.completions = [{ id: 'c1', taskId: 't1', date: todayStr, completedAt: today.toISOString(), timesCompleted: 3 }];
-      expect(getTaskStatusInfo(task, today).status.text).toBe('Completed all 3 reps today, keeping your 2-day streak going.');
+      expect(getTaskStatusInfo(task, today).status.text).toBe('Completed all 3 times today, keeping your 2-day streak going.');
     });
 
     it('calls out a freshly-started streak (currentStreak === 1) distinctly', () => {
@@ -161,10 +161,10 @@ describe('getTaskStatusInfo', () => {
       expect(status.icon).toBe('fire');
     });
 
-    it('flags that a quota-based streak still needs the rest of the period, even once completed today', () => {
+    it('names the week when a weekly-goal streak still needs every remaining day', () => {
       const task = makeTask({ frequency: 'days_per_week', daysPerWeek: 5 }, { currentStreak: 3, streakStatus: 'expiring' });
       task.completions = [{ id: 'c1', taskId: 't1', date: todayStr, completedAt: today.toISOString(), timesCompleted: 1 }];
-      expect(getTaskStatusInfo(task, today).status.text).toBe('Completed today — but every remaining day this period is still needed.');
+      expect(getTaskStatusInfo(task, today).status.text).toBe('Completed today — every remaining day this week is still needed.');
     });
 
     it('drops the streak clause when completed with no current streak (edge case)', () => {
@@ -189,14 +189,14 @@ describe('getTaskStatusInfo', () => {
       expect(getTaskStatusInfo(task, today).status.text).toBe('Complete today to keep your streak alive!');
     });
 
-    it('"expired" reads as lapsed, naming the length of the streak that just ended', () => {
+    it('"expired" plainly says the streak ended and names its length', () => {
       const task = makeTask({}, { currentStreak: 0, lastStreak: 9, bestStreak: 12, streakStatus: 'expired' });
-      expect(getTaskStatusInfo(task, today).status.text).toBe('Your 9-day streak has lapsed — complete today to start fresh.');
+      expect(getTaskStatusInfo(task, today).status.text).toBe('Your 9-day streak ended — complete today to start fresh.');
     });
 
     it('"expired" falls back to generic wording when there is no prior streak length to name', () => {
       const task = makeTask({}, { currentStreak: 0, lastStreak: 0, streakStatus: 'expired' });
-      expect(getTaskStatusInfo(task, today).status.text).toBe('Your streak has lapsed — complete today to start fresh.');
+      expect(getTaskStatusInfo(task, today).status.text).toBe('Your streak ended — complete today to start fresh.');
     });
 
     it('"never_started" invites getting going', () => {
@@ -204,9 +204,9 @@ describe('getTaskStatusInfo', () => {
       expect(getTaskStatusInfo(task, today).status.text).toContain('great day to begin');
     });
 
-    it('"up_to_date" on a quota-based task reads as already-met-goal', () => {
+    it('"up_to_date" on a weekly-goal habit says this week\'s goal is met', () => {
       const task = makeTask({ frequency: 'days_per_week', daysPerWeek: 3 }, { currentStreak: 3, streakStatus: 'up_to_date' });
-      expect(getTaskStatusInfo(task, today).status.text).toContain('Already met this period’s goal');
+      expect(getTaskStatusInfo(task, today).status.text).toContain('You’ve reached this week’s goal');
     });
   });
 });

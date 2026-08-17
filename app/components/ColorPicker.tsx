@@ -90,7 +90,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
           onPress={handleShowLess}
           accessibilityRole="button"
         >
-          <Text style={styles.showLessText}>Show Less</Text>
+          <Text style={styles.showLessText}>Show less</Text>
         </TouchableOpacity>
       )}
     </View>

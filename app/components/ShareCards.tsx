@@ -2,6 +2,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { format, parseISO } from 'date-fns';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { BRAND_TAGLINE } from '../constants/brand';
 import { TrophyEmblem } from './AchievementCard';
 import { MaterialCommunityIconName } from '../types';
 import { Achievement, ACHIEVEMENT_META, getRibbonText } from '../utils/achievements';
@@ -19,7 +20,7 @@ const ShareCardFrame: React.FC<{ accentColor: string; children: React.ReactNode 
       </View>
       <View>
         <Text style={styles.brandName}>Streakaholic</Text>
-        <Text style={styles.brandTagline}>Habits worth celebrating</Text>
+        <Text style={styles.brandTagline}>{BRAND_TAGLINE}</Text>
       </View>
     </View>
   </View>
@@ -116,7 +117,7 @@ export const HabitStatsShareCard: React.FC<{
     </View>
     <View style={styles.statGrid}>
       <StatCell value={String(bestStreak)} label="Best streak" />
-      <StatCell value={String(totalCompletions)} label="Completions" />
+      <StatCell value={String(totalCompletions)} label="Days completed" />
       <StatCell value={`${Math.round(completionRate * 100)}%`} label="Completion rate" />
       <StatCell value={since} label="Tracking since" />
     </View>
@@ -136,7 +137,7 @@ export const DashboardStatsShareCard: React.FC<{
     <Text style={styles.dashboardTitle}>Small actions.{`\n`}Real momentum.</Text>
     <View style={styles.heroMetric}>
       <Text style={[styles.heroMetricValue, { color: APP_BLUE }]}>{totalCompletions}</Text>
-      <Text style={styles.heroMetricLabel}>total completions</Text>
+      <Text style={styles.heroMetricLabel}>habit days completed</Text>
     </View>
     <View style={styles.statGrid}>
       <StatCell value={`${activeStreaks}/${habitCount}`} label="Active streaks" />

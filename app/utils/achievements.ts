@@ -683,7 +683,7 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     // No numberBlock -- there's no meaningful number to lead with here, so the celebration screen
     // falls back to the plain title instead.
     ribbon: { kind: 'fixed', text: 'COMEBACK' },
-    triggerSuffix: () => ' is back on track after a lapsed streak.',
+    triggerSuffix: () => ' is back on track after its streak ended.',
     progressStrategy: { type: 'readiness', isReady: task => task.stats?.streakStatus === 'expired' },
     trigger: 'completion',
     color: { theme: 'Amethyst', base: '#6A1B9A', glow: '#D500F9', accent: '#EA80FC' }, // comeback

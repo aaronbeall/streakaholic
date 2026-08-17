@@ -65,13 +65,13 @@ export const CompletionsOverTimeChartCard: React.FC<CompletionsOverTimeChartCard
     return (
       <View style={styles.chartCard}>
         <View style={styles.chartHeaderRow}>
-          <Text style={[styles.chartTitle, styles.chartHeaderTitle]}>Completions Over Time</Text>
+          <Text style={[styles.chartTitle, styles.chartHeaderTitle]}>Progress over time</Text>
           <TouchableOpacity
             style={styles.chartTypeToggle}
             onPress={onToggleCumulative}
             accessibilityRole="switch"
-            accessibilityLabel="Chart type"
-            accessibilityHint="Toggles between cumulative total and per-period bars"
+            accessibilityLabel={isCumulative ? 'Showing running total' : 'Showing each period'}
+            accessibilityHint={isCumulative ? 'Switches to totals for each period' : 'Switches to a running total'}
             accessibilityState={{ checked: isCumulative }}
           >
             <View

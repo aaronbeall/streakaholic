@@ -184,7 +184,7 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
           </TouchableOpacity>
           <View style={styles.heroEyebrowRow}>
             <MaterialCommunityIcons name="check-decagram" size={16} color={task.color} />
-            <Text style={styles.heroEyebrow}>Total Completions</Text>
+            <Text style={styles.heroEyebrow}>Days completed</Text>
           </View>
           <Text style={[styles.heroValue, { color: task.color }]}>{totalCompletions}</Text>
           <Text style={styles.heroSince}>Since {createdAtLabel}</Text>
@@ -197,14 +197,14 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
             <Text style={styles.secondaryValue}>{bestStreak}</Text>
             <View style={styles.labelRow}>
               <MaterialCommunityIcons name="trophy" size={14} color="#FFD700" />
-              <Text style={styles.secondaryLabel}>Best Streak</Text>
+              <Text style={styles.secondaryLabel}>Best streak</Text>
             </View>
             {isOnBestStreak && <Text style={styles.secondaryTag}>● current</Text>}
           </View>
           <View style={styles.stripDividerV} />
           <View style={styles.secondaryItem}>
             <Text style={styles.secondaryValue}>{daysTracked}</Text>
-            <Text style={styles.secondaryLabel}>Total Days</Text>
+            <Text style={styles.secondaryLabel}>Days tracked</Text>
           </View>
         </View>
 
@@ -213,17 +213,17 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
         <View style={styles.tertiaryStrip}>
           <View style={styles.tertiaryItem}>
             <Text style={styles.tertiaryValue}>{Math.round((task.stats?.completionRate || 0) * 100)}%</Text>
-            <Text style={styles.tertiaryLabel}>Rate</Text>
+            <Text style={styles.tertiaryLabel}>Completion rate</Text>
           </View>
           <View style={styles.stripDividerVMinor} />
           <View style={styles.tertiaryItem}>
             <Text style={styles.tertiaryValue}>{avgPerWeek.toFixed(1)}</Text>
-            <Text style={styles.tertiaryLabel}>Per Week</Text>
+            <Text style={styles.tertiaryLabel}>Weekly average</Text>
           </View>
           <View style={styles.stripDividerVMinor} />
           <View style={styles.tertiaryItem}>
             <Text style={styles.tertiaryValue}>{bestDayLabel}</Text>
-            <Text style={styles.tertiaryLabel}>Best Day</Text>
+            <Text style={styles.tertiaryLabel}>Best day</Text>
           </View>
         </View>
 
@@ -239,7 +239,7 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
 
         <View style={styles.chartSection} onLayout={handleChartSectionLayout}>
           <View style={styles.chartHeader}>
-            <Text style={styles.sectionTitle}>Activity</Text>
+            <Text style={styles.sectionTitle}>Progress</Text>
             <View style={styles.timeRangeContainer}>
               <TimeRangeButton
                 range="week"
@@ -264,7 +264,7 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
               />
               <TimeRangeButton
                 range="all"
-                label="All Time"
+                label="All time"
                 isSelected={timeRange === 'all'}
                 color={task.color}
                 onPress={setTimeRange}
@@ -283,7 +283,7 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
 
           <LazyMount contentRef={contentRef} scrollY={scrollY} viewportHeight={viewportHeight}>
             <HistogramChartCard
-              title="By Day of Week"
+              title="Most active days"
               chartData={dayOfWeekChartData}
               chartWidth={chartWidth}
               color={task.color}
@@ -292,7 +292,7 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
 
           <LazyMount contentRef={contentRef} scrollY={scrollY} viewportHeight={viewportHeight}>
             <HistogramChartCard
-              title="By Time of Day"
+              title="Most active times"
               chartData={hourOfDayChartData}
               chartWidth={chartWidth}
               color={task.color}
@@ -440,7 +440,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontWeight: '700',
     color: colors.isDark ? '#FF6B6B' : '#C0392B',
   },
-  // Tier 3: Rate / Per Week / Best Day -- plain spacing, no dividers, deliberately the lightest
+  // Tier 3: Completion rate / Weekly average / Best day -- plain spacing, no dividers, deliberately the lightest
   // and least formal of the three tiers.
   tertiaryStrip: {
     flexDirection: 'row',

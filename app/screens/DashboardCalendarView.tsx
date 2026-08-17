@@ -428,9 +428,9 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
         <Text style={styles.timelineMonthLabel} numberOfLines={1}>{format(visibleMonth, 'MMMM yyyy')}</Text>
         <View ref={chartModesHint.ref} style={styles.mainGridModeToggle}>
           {([
-            { mode: 'grid' as const, icon: 'view-grid-outline' as const, label: 'Grid view' },
-            { mode: 'bars' as const, icon: 'chart-bar' as const, label: 'Bars view' },
-            { mode: 'streamgraph' as const, icon: 'chart-areaspline-variant' as const, label: 'Streamgraph view' },
+            { mode: 'grid' as const, icon: 'view-grid-outline' as const, label: 'Show each habit' },
+            { mode: 'bars' as const, icon: 'chart-bar' as const, label: 'Compare daily totals' },
+            { mode: 'streamgraph' as const, icon: 'chart-areaspline-variant' as const, label: 'Show flowing trends' },
           ]).map(({ mode, icon, label }) => (
             <TouchableOpacity
               key={mode}
@@ -768,7 +768,7 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
               </View>
             ))
           ) : (
-            <Text style={styles.dayTooltipEmptyText}>No activity or connected streaks that day</Text>
+            <Text style={styles.dayTooltipEmptyText}>Nothing tracked for this day</Text>
           )}
         </Reanimated.View>
       )}

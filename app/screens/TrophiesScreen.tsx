@@ -256,7 +256,7 @@ export const TrophiesScreen: React.FC = () => {
       {listItems.length === 0 ? (
         <View style={styles.emptyState}>
           <MaterialCommunityIcons name="trophy-outline" size={40} color={colors.textTertiary} />
-          <Text style={styles.emptyStateText}>No task-specific trophies yet for {selectedTask?.name}</Text>
+          <Text style={styles.emptyStateText}>No trophies yet for {selectedTask?.name}</Text>
         </View>
       ) : (
         <FlatList

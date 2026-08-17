@@ -120,10 +120,12 @@
   - [ ] Add one deterministic, local-only, schedule-aware insight near the top of Dashboard Stats
         and per-habit Stats (e.g. habits on track, progress toward a weekly/monthly quota, a current
         personal best, or a fair comparison with the prior equivalent period)
-  - [ ] Audit analytical labels for plain-language clarity (`Rate` → `Completion rate` or
-        `Consistency`, `Total Days` → `Days tracked`, and friendlier pattern-chart titles)
-  - [ ] Explain the icon-only Grid/Bars/Streamgraph and cumulative/per-period controls with
-        lightweight first-use help or an on-demand info sheet rather than removing advanced modes
+  - [x] Audit analytical labels for plain-language clarity (`Completion rate`, `Days tracked`,
+        `Weekly average`, `Progress over time`, and friendlier pattern-chart titles)
+  - [x] Explain the icon-only Dashboard Calendar modes with a lightweight first-use hint using the
+        same icons as the control
+  - [ ] Explain the Stats running-total/each-period control with lightweight first-use help or an
+        on-demand info sheet rather than removing the advanced view
   - [ ] Let users tap Stats chart points/bars to inspect the exact date, value, and relevant habits,
         matching the existing day inspection in Dashboard Calendar's Bars/Streamgraph modes
   - [ ] Add encouraging young-data states that explain when a useful pattern will emerge instead of
@@ -137,14 +139,15 @@
         duplicates so future store/website assets come from one source of truth
   - [ ] Validate the chosen mark at launcher, adaptive-mask, notification/small-icon, splash,
         favicon, share-card, feature-graphic, light-background, and dark-background sizes
-  - [ ] Select one canonical tagline from [MARKETING.md](MARKETING.md) (current default: “Turn habits
-        into streaks you want to keep”) and distinguish it from the category descriptor (“A playful
-        habit & streak tracker”) and supporting campaign lines such as “Habits worth celebrating”
-  - [ ] Define a compact brand guide (`BRAND.md`): canonical name/capitalization, logo usage,
-        palette, typography, tagline hierarchy, and encouraging/no-guilt voice
-  - [ ] Apply the final identity consistently across the in-app About screen, share cards/share text,
-        Play Store title/icon/feature graphic/listing, screenshots, demo videos, press kit, and
-        `streakaholic.app`
+  - [x] Use the canonical tagline “Build streaks worth celebrating,” distinct from the category
+        descriptor “A playful, private habit & streak tracker”
+  - [x] Define [BRAND.md](BRAND.md) as the source of truth for name/capitalization, messaging,
+        privacy claims, product terminology, and encouraging/no-guilt voice; add shared in-app
+        brand-copy constants in `app/constants/brand.ts`
+  - [x] Apply the verbal identity to the in-app About screen, share cards/share text, README,
+        marketing plan, competitive positioning, and Play Store listing copy
+  - [ ] Apply the chosen visual identity to the Play Store title/icon/feature graphic, screenshots,
+        demo videos, press kit, and `streakaholic.app`
 - [ ] Monetization — see [MONETIZATION.md](MONETIZATION.md) for the actual plan (one-time
       Pro unlock + tip jar + Commitment Mode Streak Saves, no ads/subscription) and sequencing
   - [ ] Tip jar (build first — see PUBLISHING.md's implementation guide)

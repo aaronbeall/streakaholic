@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BRAND_TAGLINE } from '../constants/brand';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 
 const CREDITS: { name: string; note: string }[] = [
@@ -44,7 +45,7 @@ export const AboutScreen: React.FC = () => {
           <Image source={require('../../assets/images/icon.png')} style={styles.appIcon} />
           <Text style={styles.appName}>{appName}</Text>
           {!!version && <Text style={styles.appVersion}>Version {version}</Text>}
-          <Text style={styles.appTagline}>A playful habit &amp; streak tracker</Text>
+          <Text style={styles.appTagline}>{BRAND_TAGLINE}</Text>
           <TouchableOpacity
             onPress={() => Linking.openURL('https://metamodernmonkey.com')}
             accessibilityRole="link"

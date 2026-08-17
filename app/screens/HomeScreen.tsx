@@ -32,10 +32,10 @@ const FAB_OFFSET = 24;
 type FilterType = 'up_to_date' | 'expiring' | null;
 type SortOption = 'created' | 'most-used' | 'color' | 'time';
 const SORT_OPTIONS: readonly (readonly [SortOption, string, MaterialCommunityIconName])[] = [
-  ['created', 'Created', 'calendar-clock-outline'],
-  ['most-used', 'Most Used', 'chart-line'],
+  ['created', 'Date added', 'calendar-clock-outline'],
+  ['most-used', 'Most completed', 'chart-line'],
   ['color', 'Color', 'palette-outline'],
-  ['time', 'Time of Day', 'clock-outline'],
+  ['time', 'Reminder time', 'clock-outline'],
 ];
 
 const REORDER_ROW_HEIGHT = 64;
@@ -150,7 +150,7 @@ const HomeHeader = React.memo(({
     return (
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerSpacer} />
-        <Text style={styles.reorderTitle}>Reorder Habits</Text>
+        <Text style={styles.reorderTitle}>Reorder habits</Text>
         <TouchableOpacity
           style={styles.doneButton}
           onPress={onToggleReordering}
@@ -199,7 +199,7 @@ const HomeHeader = React.memo(({
             ]}
             onPress={() => handleFilterPress('up_to_date')}
             accessibilityRole="button"
-            accessibilityLabel={`${streakStats.upToDate} ${streakStats.upToDate === 1 ? 'habit' : 'habits'} up to date`}
+            accessibilityLabel={`${streakStats.upToDate} ${streakStats.upToDate === 1 ? 'habit' : 'habits'} on track`}
             accessibilityHint="Filters the list to only these habits"
             accessibilityState={{ selected: activeFilter === 'up_to_date' }}
           >
@@ -226,7 +226,7 @@ const HomeHeader = React.memo(({
             ]}
             onPress={() => handleFilterPress('expiring')}
             accessibilityRole="button"
-            accessibilityLabel={`${streakStats.expiring} ${streakStats.expiring === 1 ? 'habit' : 'habits'} expiring`}
+            accessibilityLabel={`${streakStats.expiring} ${streakStats.expiring === 1 ? 'habit needs' : 'habits need'} attention today`}
             accessibilityHint="Filters the list to only these habits"
             accessibilityState={{ selected: activeFilter === 'expiring' }}
           >
@@ -554,12 +554,12 @@ export const HomeScreen: React.FC = () => {
               </Text>
               {hasAnyTasks ? (
                 <TouchableOpacity style={styles.emptyStateButtonSecondary} onPress={() => setFilter(null)} accessibilityRole="button">
-                  <Text style={styles.emptyStateButtonSecondaryText}>Clear Filter</Text>
+                  <Text style={styles.emptyStateButtonSecondaryText}>Clear filter</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity style={styles.emptyStateButton} onPress={handleAddTask} accessibilityRole="button">
                   <MaterialCommunityIcons name="plus" size={18} color="#fff" />
-                  <Text style={styles.emptyStateButtonText}>Add Habit</Text>
+                  <Text style={styles.emptyStateButtonText}>Add habit</Text>
                 </TouchableOpacity>
               )}
             </Reanimated.View>

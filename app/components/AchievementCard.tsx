@@ -372,7 +372,7 @@ export const AchievementBadgeCard: React.FC<AchievementBadgeCardProps> = React.m
           </View>
         ) : opportunityAvailable ? (
           <Text style={[styles.cardCaption, styles.cardCaptionReady]} numberOfLines={2}>
-            Ready — revive a lapsed streak
+            Ready — restart a streak
           </Text>
         ) : null}
       </TouchableOpacity>

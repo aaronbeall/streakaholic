@@ -213,7 +213,7 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
         </TouchableOpacity>
         <View style={styles.heroEyebrowRow}>
           <MaterialCommunityIcons name="check-decagram" size={16} color={ACCENT} />
-          <Text style={styles.heroEyebrow}>Total Completions</Text>
+          <Text style={styles.heroEyebrow}>Habit days completed</Text>
         </View>
         <Text style={[styles.heroValue, { color: ACCENT }]}>{stats.totalCompletions}</Text>
         <Text style={styles.heroSince}>Since {createdAtLabel}</Text>
@@ -233,7 +233,7 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
           </Text>
           <View style={styles.labelRow}>
             <MaterialCommunityIcons name="fire" size={14} color="#FF6B6B" />
-            <Text style={styles.secondaryLabel}>Active Streaks</Text>
+            <Text style={styles.secondaryLabel}>Active streaks</Text>
           </View>
         </View>
         <View style={styles.stripDividerV} />
@@ -241,7 +241,7 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
           <Text style={styles.secondaryValue}>{stats.bestStreak}</Text>
           <View style={styles.labelRow}>
             <MaterialCommunityIcons name="trophy" size={14} color="#FFD700" />
-            <Text style={styles.secondaryLabel}>Best Streak</Text>
+            <Text style={styles.secondaryLabel}>Best streak</Text>
           </View>
         </View>
       </View>
@@ -251,17 +251,17 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
       <View style={styles.tertiaryStrip}>
         <View style={styles.tertiaryItem}>
           <Text style={styles.tertiaryValue}>{Math.round(stats.completionRate * 100)}%</Text>
-          <Text style={styles.tertiaryLabel}>Rate</Text>
+          <Text style={styles.tertiaryLabel}>Completion rate</Text>
         </View>
         <View style={styles.stripDividerVMinor} />
         <View style={styles.tertiaryItem}>
           <Text style={styles.tertiaryValue}>{avgPerWeek.toFixed(1)}</Text>
-          <Text style={styles.tertiaryLabel}>Per Week</Text>
+          <Text style={styles.tertiaryLabel}>Weekly average</Text>
         </View>
         <View style={styles.stripDividerVMinor} />
         <View style={styles.tertiaryItem}>
           <Text style={styles.tertiaryValue}>{bestDayLabel}</Text>
-          <Text style={styles.tertiaryLabel}>Best Day</Text>
+          <Text style={styles.tertiaryLabel}>Best day</Text>
         </View>
       </View>
 
@@ -277,17 +277,17 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
 
       <View style={styles.chartSection} onLayout={handleChartSectionLayout}>
         <View style={styles.chartHeader}>
-          <Text style={styles.sectionTitle}>Activity</Text>
+          <Text style={styles.sectionTitle}>Progress</Text>
           <View style={styles.timeRangeContainer}>
             <TimeRangeButton range="week" label="Week" isSelected={timeRange === 'week'} onPress={setTimeRange} />
             <TimeRangeButton range="month" label="Month" isSelected={timeRange === 'month'} onPress={setTimeRange} />
             <TimeRangeButton range="year" label="Year" isSelected={timeRange === 'year'} onPress={setTimeRange} />
-            <TimeRangeButton range="all" label="All Time" isSelected={timeRange === 'all'} onPress={setTimeRange} />
+            <TimeRangeButton range="all" label="All time" isSelected={timeRange === 'all'} onPress={setTimeRange} />
           </View>
         </View>
 
         <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Total Completions</Text>
+          <Text style={styles.chartTitle}>Completed days by habit</Text>
           <View style={styles.hBarList}>
             {taskTotals.map(({ task, total }) => (
               <TouchableOpacity
@@ -295,7 +295,7 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
                 style={styles.hBarRow}
                 onPress={() => router.push({ pathname: '/task-detail', params: { taskId: task.id, tab: 'stats' } })}
                 accessibilityRole="button"
-                accessibilityLabel={`${task.name}, ${total} completions`}
+                accessibilityLabel={`${task.name}, ${total} days completed`}
                 accessibilityHint="Opens this habit's stats"
               >
                 <MaterialCommunityIcons name={task.icon} size={16} color={task.color} style={styles.hBarIcon} />
@@ -325,7 +325,7 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
 
         <LazyMount contentRef={contentRef} scrollY={scrollY} viewportHeight={viewportHeight}>
           <HistogramChartCard
-            title="By Day of Week"
+            title="Most active days"
             chartData={dayOfWeekChartData}
             chartWidth={chartWidth}
             color={ACCENT}
@@ -334,7 +334,7 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
 
         <LazyMount contentRef={contentRef} scrollY={scrollY} viewportHeight={viewportHeight}>
           <HistogramChartCard
-            title="By Time of Day"
+            title="Most active times"
             chartData={hourOfDayChartData}
             chartWidth={chartWidth}
             color={ACCENT}

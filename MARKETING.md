@@ -6,7 +6,7 @@ subscription are important supporting benefits, but they are not the lead story.
 
 The promise is:
 
-> Turn everyday habits into streaks you want to keep alive.
+> Build streaks worth celebrating.
 
 Streakaholic is for people who know what they want to do but have trouble staying
 consistent. Completing a habit should feel rewarding: the streak advances, the app
@@ -33,23 +33,22 @@ whose past cannot be rewritten, earn visibly stronger achievement variants, and 
 fully disclosed Streak Save without falsifying the missed completion. Do not market this
 as available until it is implemented and validated.
 
-### Tagline candidates
+### Brand message system
 
-- Turn habits into streaks you want to keep.
-- Build momentum. Keep the streak alive.
-- Small wins. Longer streaks. Better habits.
-- The habit tracker that makes consistency feel good.
-- Your habits, your streaks, your momentum.
+- **Tagline:** Build streaks worth celebrating.
+- **Category:** A playful, private habit & streak tracker.
+- **Store short description:** Build habit streaks worth celebrating. Private by design,
+  no account needed.
 
-Use **“Turn habits into streaks you want to keep”** as the default until real users or
-store-listing experiments show that another line performs better.
+Use the tagline consistently rather than rotating among similar campaign lines. It is
+the emotional hook; privacy should follow as trust-building proof. See [BRAND.md](BRAND.md)
+for the canonical one-liner, voice, and product terminology.
 
 ### Short pitch
 
-> Streakaholic is a playful Android habit tracker that helps you stay consistent by
-> turning everyday progress into motivating streaks, satisfying celebrations, and
-> collectible achievements. It supports flexible schedules, keeps all data on your
-> device, and has no ads or subscription.
+> Streakaholic is a playful, privacy-first habit tracker that keeps you motivated with
+> satisfying streaks, celebrations, and achievements—while your data stays on your
+> device and under your control.
 
 ### Language to emphasize
 
@@ -337,13 +336,13 @@ Keep a small hook library:
 
 Suggested short description:
 
-> Build motivating habit streaks with playful achievements and private tracking.
+> Build habit streaks worth celebrating. Private by design, no account needed.
 
 Suggested opening for the full description:
 
-> Make consistency feel rewarding. Streakaholic turns everyday habits into streaks you
-> want to keep alive, with satisfying celebrations, meaningful milestones, and a Trophy
-> Case that fills as you make progress.
+> Build streaks worth celebrating. Streakaholic turns everyday habits into motivating
+> streaks, satisfying celebrations, meaningful milestones, and a Trophy Case that fills
+> as you make progress—all while your data stays on your device and under your control.
 
 ## Phase 5: Public launch
 

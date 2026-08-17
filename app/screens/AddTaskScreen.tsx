@@ -45,7 +45,7 @@ const NOTIFICATION_LEVEL_OPTIONS: NotificationLevelOption[] = [
   { level: 0, label: 'Off', icon: 'bell-off-outline' },
   { level: 1, label: 'Once', icon: 'bell-outline' },
   { level: 2, label: 'Repeat', icon: 'bell-ring-outline' },
-  { level: 3, label: 'Persist', icon: 'bell-alert-outline' },
+  { level: 3, label: 'Until done', icon: 'bell-alert-outline' },
   { level: 4, label: 'Alarm', icon: 'alarm-light-outline' },
 ];
 
@@ -195,9 +195,9 @@ export const AddTaskScreen: React.FC = () => {
 
   const offerAchievementScan = () => {
     showToast({
-      message: 'Schedule changes can affect achievements earned from existing history.',
+      message: 'Your new schedule may unlock achievements from earlier activity.',
       action: {
-        label: 'Check Now',
+        label: 'Check now',
         onPress: () => {
           const activeTasks = useTaskStore.getState().tasks.filter(task => !task.archived);
           const count = runRetroactiveScan(activeTasks);
@@ -292,7 +292,7 @@ export const AddTaskScreen: React.FC = () => {
     }
 
     if (!isNameValid) {
-      showToast({ message: 'Please enter a unique habit name' });
+      showToast({ message: 'Choose a name that is not already in use.' });
       return;
     }
 
@@ -333,7 +333,7 @@ export const AddTaskScreen: React.FC = () => {
       router.back();
       if (achievementEligibilityChanged) offerAchievementScan();
     } catch {
-      showToast({ message: `Failed to ${isEditing ? 'update' : 'create'} habit` });
+      showToast({ message: `Couldn't ${isEditing ? 'update' : 'create'} this habit. Please try again.` });
     }
   };
 
@@ -390,7 +390,7 @@ export const AddTaskScreen: React.FC = () => {
     if (!editingTask) return;
     const deletedTask = editingTask;
     Alert.alert(
-      'Delete Habit',
+      'Delete habit',
       `Delete "${deletedTask.name}"? This removes all of its history too.`,
       [
         { text: 'Cancel', style: 'cancel' },
@@ -429,8 +429,8 @@ export const AddTaskScreen: React.FC = () => {
 
     const archivedTask = editingTask;
     Alert.alert(
-      'Archive Habit',
-      `Archive "${archivedTask.name}"? You can restore it later from Archived Habits.`,
+      'Archive habit',
+      `Archive "${archivedTask.name}"? You can restore it later from Settings → Archived habits.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -474,7 +474,7 @@ export const AddTaskScreen: React.FC = () => {
       style={[styles.inlineSettingValue, { color: selectedColor }]}
       onPress={handleCycleNagInterval}
       accessibilityRole="button"
-      accessibilityLabel={`Nudge interval, every ${nagIntervalMinutes} minutes. Tap to change.`}
+      accessibilityLabel={`Repeat reminders every ${nagIntervalMinutes} minutes. Tap to change.`}
     >
       {nagIntervalMinutes} minutes
     </Text>
@@ -487,7 +487,7 @@ export const AddTaskScreen: React.FC = () => {
       case 1:
         return <Text style={styles.nagDescription}>One reminder at {timeSpan}.</Text>;
       case 2:
-        return <Text style={styles.nagDescription}>A reminder at {timeSpan}, plus every {intervalSpan} until you complete it.</Text>;
+        return <Text style={styles.nagDescription}>A reminder at {timeSpan}, then every {intervalSpan} until this habit is done.</Text>;
       case 3:
         return <Text style={styles.nagDescription}>A reminder at {timeSpan} that stays until the habit is done.</Text>;
       case 4:
@@ -499,10 +499,10 @@ export const AddTaskScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 16 + insets.bottom }}>
-      <Stack.Screen options={{ title: isEditing ? 'Edit Habit' : 'Add New Habit' }} />
+      <Stack.Screen options={{ title: isEditing ? 'Edit habit' : 'New habit' }} />
 
       <CollapsibleSection
-        title="Habit Name"
+        title="Name"
         summary={<Text style={styles.summaryText} numberOfLines={1}>{name.trim() || 'Untitled'}</Text>}
         expanded={expandedSections.name}
         onToggle={() => toggleSection('name')}
@@ -512,12 +512,12 @@ export const AddTaskScreen: React.FC = () => {
             style={[styles.input, !isNameValid && !!name.trim() && styles.inputError]}
             value={name}
             onChangeText={setName}
-            placeholder="Enter habit name"
+            placeholder="Name your habit"
             placeholderTextColor={colors.textTertiary}
             autoFocus
           />
           {!isNameValid && !!name.trim() && (
-            <Text style={styles.errorText}>This habit name already exists</Text>
+            <Text style={styles.errorText}>A habit with this name already exists.</Text>
           )}
         </View>
       </CollapsibleSection>
@@ -562,7 +562,7 @@ export const AddTaskScreen: React.FC = () => {
       </CollapsibleSection>
 
       <CollapsibleSection
-        title="Frequency"
+        title="Schedule"
         summary={(
           <View style={styles.summaryRow}>
             <MaterialCommunityIcons name="repeat" size={18} color={selectedColor} />
@@ -593,7 +593,7 @@ export const AddTaskScreen: React.FC = () => {
               accessibilityState={{ checked: frequency === 'specific_days_of_week' }}
             >
               <Text style={[styles.frequencyTypeText, frequency === 'specific_days_of_week' && styles.selectedText]}>
-                Specific Days
+                Choose days
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -603,7 +603,7 @@ export const AddTaskScreen: React.FC = () => {
               accessibilityState={{ checked: frequency === 'days_per_week' }}
             >
               <Text style={[styles.frequencyTypeText, frequency === 'days_per_week' && styles.selectedText]}>
-                Days/Week
+                Weekly goal
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -613,7 +613,7 @@ export const AddTaskScreen: React.FC = () => {
               accessibilityState={{ checked: frequency === 'days_per_month' }}
             >
               <Text style={[styles.frequencyTypeText, frequency === 'days_per_month' && styles.selectedText]}>
-                Days/Month
+                Monthly goal
               </Text>
             </TouchableOpacity>
           </View>
@@ -621,7 +621,7 @@ export const AddTaskScreen: React.FC = () => {
           <View style={styles.frequencyOptionsContainer}>
             {frequency === 'specific_days_of_week' && (
               <View style={styles.optionCard}>
-                <Text style={styles.optionLabel}>Select Days</Text>
+                <Text style={styles.optionLabel}>Choose days</Text>
                 <View style={styles.daysContainer}>
                   {DAY_ABBREVIATIONS.map((day, index) => (
                     <TouchableOpacity
@@ -724,14 +724,14 @@ export const AddTaskScreen: React.FC = () => {
       </CollapsibleSection>
 
       <CollapsibleSection
-        title="Nag Level"
+        title="Reminders"
         summary={(
           <View style={styles.summaryRow}>
             {currentNotificationLevelOption && (
               <MaterialCommunityIcons name={currentNotificationLevelOption.icon} size={18} color={selectedColor} />
             )}
             <Text style={styles.summaryText} numberOfLines={1}>
-              {notificationLevel === 0 ? 'Off' : `${currentNotificationLevelOption?.label} at ${timeLabel}`}
+              {notificationLevel === 0 ? 'No reminders' : `${currentNotificationLevelOption?.label} at ${timeLabel}`}
             </Text>
           </View>
         )}
@@ -793,7 +793,7 @@ export const AddTaskScreen: React.FC = () => {
           )}
 
           {notificationPermissionDenied && (
-            <Text style={styles.errorText}>Enable notifications in system settings to use reminders.</Text>
+            <Text style={styles.errorText}>Turn on notifications in your device settings to use reminders.</Text>
           )}
         </View>
       </CollapsibleSection>
@@ -821,7 +821,7 @@ export const AddTaskScreen: React.FC = () => {
         accessibilityRole="button"
       >
         <Text style={[styles.saveButtonText, (!isNameValid || atTaskLimit) && styles.saveButtonTextDisabled]}>
-          {isEditing ? (isDirty ? 'Save Changes' : 'Done') : 'Add Habit'}
+          {isEditing ? (isDirty ? 'Save changes' : 'Done') : 'Add habit'}
         </Text>
       </TouchableOpacity>
 
@@ -840,7 +840,7 @@ export const AddTaskScreen: React.FC = () => {
               color={ARCHIVE_COLOR}
             />
             <Text style={[styles.manageButtonText, { color: ARCHIVE_COLOR }]}>
-              {editingTask.archived ? 'Restore Habit' : 'Archive Habit'}
+              {editingTask.archived ? 'Restore habit' : 'Archive habit'}
             </Text>
           </TouchableOpacity>
 
@@ -854,7 +854,7 @@ export const AddTaskScreen: React.FC = () => {
             accessibilityRole="button"
           >
             <MaterialCommunityIcons name="delete-outline" size={15} color={DELETE_COLOR} />
-            <Text style={styles.deleteLinkText}>Delete Habit</Text>
+            <Text style={styles.deleteLinkText}>Delete habit</Text>
           </TouchableOpacity>
         </View>
       )}

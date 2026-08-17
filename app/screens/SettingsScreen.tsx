@@ -13,6 +13,7 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, ScrollView, Share, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
+import { BRAND_TAGLINE } from '../constants/brand';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useAchievementsStore } from '../stores/achievementsStore';
@@ -117,13 +118,13 @@ export const SettingsScreen: React.FC = () => {
       // can silently show nothing. On iOS, expo-store-review reads the configured App Store URL.
       const storeUrl = StoreReview.storeUrl();
       if (!storeUrl) {
-        showToast({ message: 'The app store rating page is not configured yet.' });
+        showToast({ message: 'The rating page is not ready yet.' });
         return;
       }
       const separator = storeUrl.includes('?') ? '&' : '?';
       await Linking.openURL(`${storeUrl}${separator}action=write-review`);
     } catch {
-      showToast({ message: 'The app store could not be opened right now.' });
+      showToast({ message: "Couldn't open the app store. Please try again." });
     }
   };
 
@@ -139,13 +140,13 @@ export const SettingsScreen: React.FC = () => {
     try {
       await Share.share({
         title: `Share ${appName}`,
-        message: `Build habits worth celebrating with ${appName}.\n${destinationUrl}`,
+        message: `${BRAND_TAGLINE} Try ${appName}:\n${destinationUrl}`,
         url: Platform.OS === 'ios' ? destinationUrl : undefined,
       }, {
         dialogTitle: `Share ${appName}`,
       });
     } catch {
-      showToast({ message: 'The share sheet could not be opened right now.' });
+      showToast({ message: "Couldn't open sharing. Please try again." });
     }
   };
 
@@ -165,10 +166,10 @@ export const SettingsScreen: React.FC = () => {
   const offerAchievementScan = () => {
     Alert.alert(
       'Check for achievements?',
-      'Imported history can qualify for achievements that were not recorded through normal habit completion.',
+      "Imported activity may have earned achievements that Streakaholic hasn't celebrated yet.",
       [
-        { text: 'Not Now', style: 'cancel' },
-        { text: 'Check Now', onPress: scanForMissedAchievements },
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Check now', onPress: scanForMissedAchievements },
       ]
     );
   };
@@ -180,7 +181,7 @@ export const SettingsScreen: React.FC = () => {
   // point offering a reset with nothing to reset.
   const handleRestoreFullCelebrations = () => {
     unmuteAllKinds();
-    showToast({ message: 'Every celebration is unsnoozed -- the full celebration is back.' });
+    showToast({ message: 'Full celebrations are back for every achievement.' });
   };
 
   const handleExport = async () => {
@@ -209,14 +210,14 @@ export const SettingsScreen: React.FC = () => {
         }
       }
     } catch {
-      showToast({ message: 'Failed to export data' });
+      showToast({ message: "Couldn't export your data. Please try again." });
     } finally {
       setIsBusy(false);
     }
   };
 
-  // No modal confirmation and no merge-vs-replace prompt -- "Import Data" always merges (the
-  // safe, additive default) and "Import & Replace All Data" is its own explicit row below.
+  // No modal confirmation and no merge-vs-replace prompt -- "Import data" always merges (the
+  // safe, additive default) and "Replace all data from file" is its own explicit row below.
   // Either way the previous tasks are snapshotted first so the toast's Undo can restore them.
   const handleImport = async (mode: 'merge' | 'replace') => {
     try {
@@ -249,14 +250,15 @@ export const SettingsScreen: React.FC = () => {
 
       await importTasks(importedTasks, { mode, exportMeta });
 
+      const habitLabel = importedTasks.length === 1 ? 'habit' : 'habits';
       showToast({
-        message: `Imported ${importedTasks.length} habit(s) — ${mode === 'merge' ? 'merged with' : 'replaced'} your data`
-          + (alreadyImported ? ' (already imported before)' : '') + '.',
+        message: `Imported ${importedTasks.length} ${habitLabel} — ${mode === 'merge' ? 'added to' : 'replaced'} your data.`
+          + (alreadyImported ? ' This file was imported before.' : ''),
         action: { label: 'Undo', onPress: () => importTasks(previousTasks, { mode: 'replace' }) },
       });
       offerAchievementScan();
     } catch {
-      showToast({ message: 'Failed to import data' });
+      showToast({ message: "Couldn't import your data. Check the file and try again." });
     } finally {
       setIsBusy(false);
     }
@@ -296,44 +298,44 @@ export const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Habit Cards</Text>
+        <Text style={styles.sectionTitle}>Habit cards</Text>
         <View style={styles.card}>
           <View style={styles.row}>
             <MaterialCommunityIcons name="card-outline" size={22} color={colors.textSecondary} />
-            <Text style={styles.rowLabel}>Show Card Background</Text>
+            <Text style={styles.rowLabel}>Show card background</Text>
             <WebSwitch
               value={showCardBackground}
               onValueChange={setShowCardBackground}
               trackColor={{ false: colors.border, true: '#007AFF' }}
               thumbColor="#fff"
               activeThumbColor="#fff"
-              accessibilityLabel="Show Card Background"
+              accessibilityLabel="Show card background"
             />
           </View>
           <View style={styles.divider} />
           <View style={styles.row}>
             <MaterialCommunityIcons name="format-text" size={22} color={colors.textSecondary} />
-            <Text style={styles.rowLabel}>Show Habit Name</Text>
+            <Text style={styles.rowLabel}>Show habit name</Text>
             <WebSwitch
               value={showTaskName}
               onValueChange={setShowTaskName}
               trackColor={{ false: colors.border, true: '#007AFF' }}
               thumbColor="#fff"
               activeThumbColor="#fff"
-              accessibilityLabel="Show Habit Name"
+              accessibilityLabel="Show habit name"
             />
           </View>
           <View style={styles.divider} />
           <View style={styles.row}>
             <MaterialCommunityIcons name="counter" size={22} color={colors.textSecondary} />
-            <Text style={styles.rowLabel}>Show Completion Counter</Text>
+            <Text style={styles.rowLabel}>Show completion count</Text>
             <WebSwitch
               value={showTaskCounter}
               onValueChange={setShowTaskCounter}
               trackColor={{ false: colors.border, true: '#007AFF' }}
               thumbColor="#fff"
               activeThumbColor="#fff"
-              accessibilityLabel="Show Completion Counter"
+              accessibilityLabel="Show completion count"
             />
           </View>
         </View>
@@ -342,14 +344,14 @@ export const SettingsScreen: React.FC = () => {
         <View style={styles.card}>
           <View style={styles.row}>
             <MaterialCommunityIcons name="party-popper" size={22} color={colors.textSecondary} />
-            <Text style={styles.rowLabel}>Celebrate Achievements</Text>
+            <Text style={styles.rowLabel}>Celebrate achievements</Text>
             <WebSwitch
               value={achievementCelebrationsEnabled}
               onValueChange={setAchievementCelebrationsEnabled}
               trackColor={{ false: colors.border, true: '#007AFF' }}
               thumbColor="#fff"
               activeThumbColor="#fff"
-              accessibilityLabel="Celebrate Achievements"
+              accessibilityLabel="Celebrate achievements"
             />
           </View>
           <View style={styles.divider} />
@@ -365,38 +367,39 @@ export const SettingsScreen: React.FC = () => {
           {mutedAchievementCount > 0 && (
             <>
               <View style={styles.divider} />
-              <TouchableOpacity style={styles.row} onPress={handleRestoreFullCelebrations} accessibilityRole="button" accessibilityHint="Turns the full celebration back on for everything you've snoozed">
+              <TouchableOpacity style={styles.row} onPress={handleRestoreFullCelebrations} accessibilityRole="button" accessibilityHint="Turns full celebrations back on for achievements set to quick alerts">
                 <MaterialCommunityIcons name="bell-off-outline" size={22} color={colors.textSecondary} />
-                <Text style={styles.rowLabel}>Unsnooze All Celebrations</Text>
+                <Text style={styles.rowLabel}>Restore full celebrations</Text>
                 <Text style={styles.rowValue}>{mutedAchievementCount}</Text>
               </TouchableOpacity>
             </>
           )}
         </View>
 
-        <Text style={styles.sectionTitle}>Data</Text>
+        <Text style={styles.sectionTitle}>Your data</Text>
+        <Text style={styles.sectionNote}>Your habits stay on this device unless you choose to export them.</Text>
         <View style={styles.card}>
           <TouchableOpacity style={styles.row} onPress={() => router.push('/archived-tasks')} accessibilityRole="button">
             <MaterialCommunityIcons name="archive-outline" size={22} color={colors.textSecondary} />
-            <Text style={styles.rowLabel}>Archived Habits</Text>
+            <Text style={styles.rowLabel}>Archived habits</Text>
             <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
           </TouchableOpacity>
           <View style={styles.divider} />
           <TouchableOpacity style={styles.row} onPress={handleExport} disabled={isBusy} accessibilityRole="button" accessibilityState={{ disabled: isBusy, busy: isBusy }}>
             <MaterialCommunityIcons name="export-variant" size={22} color={colors.textSecondary} />
-            <Text style={styles.rowLabel}>Export Data</Text>
+            <Text style={styles.rowLabel}>Export data</Text>
             {isBusy && <ActivityIndicator size="small" />}
           </TouchableOpacity>
           <View style={styles.divider} />
           <TouchableOpacity style={styles.row} onPress={() => handleImport('merge')} disabled={isBusy} accessibilityRole="button" accessibilityState={{ disabled: isBusy, busy: isBusy }}>
             <MaterialCommunityIcons name="import" size={22} color={colors.textSecondary} />
-            <Text style={styles.rowLabel}>Import Data</Text>
+            <Text style={styles.rowLabel}>Import data</Text>
             {isBusy && <ActivityIndicator size="small" />}
           </TouchableOpacity>
           <View style={styles.divider} />
           <TouchableOpacity style={styles.row} onPress={() => handleImport('replace')} disabled={isBusy} accessibilityRole="button" accessibilityState={{ disabled: isBusy, busy: isBusy }}>
             <MaterialCommunityIcons name="delete-sweep-outline" size={22} color="#FF3B30" />
-            <Text style={[styles.rowLabel, styles.destructiveRowLabel]}>Import & Replace All Data</Text>
+            <Text style={[styles.rowLabel, styles.destructiveRowLabel]}>Replace all data from file</Text>
             {isBusy && <ActivityIndicator size="small" />}
           </TouchableOpacity>
         </View>
@@ -410,7 +413,7 @@ export const SettingsScreen: React.FC = () => {
             accessibilityHint="Opens an email with app and device version details filled in"
           >
             <MaterialCommunityIcons name="message-text-outline" size={22} color={colors.textSecondary} />
-            <Text style={styles.rowLabel}>Send Feedback</Text>
+            <Text style={styles.rowLabel}>Send feedback</Text>
             <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
           </TouchableOpacity>
           <View style={styles.divider} />
@@ -421,7 +424,7 @@ export const SettingsScreen: React.FC = () => {
             accessibilityHint="Opens the app store rating prompt"
           >
             <MaterialCommunityIcons name="star-outline" size={22} color={colors.textSecondary} />
-            <Text style={styles.rowLabel}>Rate This App</Text>
+            <Text style={styles.rowLabel}>Rate this app</Text>
             <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
           </TouchableOpacity>
           <View style={styles.divider} />
@@ -448,7 +451,7 @@ export const SettingsScreen: React.FC = () => {
             accessibilityRole="button"
           >
             <MaterialCommunityIcons name="gesture-tap-hold" size={22} color={colors.textSecondary} />
-            <Text style={styles.rowLabel}>Replay Onboarding Hints</Text>
+            <Text style={styles.rowLabel}>Show tips again</Text>
             <Text style={styles.rowValue}>{dismissedOnboardingHintCount}</Text>
           </TouchableOpacity>
         </View>
@@ -524,6 +527,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginBottom: 8,
     marginTop: 8,
     textTransform: 'uppercase',
+  },
+  sectionNote: {
+    color: colors.textTertiary,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: -4,
+    marginBottom: 10,
   },
   card: {
     backgroundColor: colors.surface,

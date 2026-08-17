@@ -690,7 +690,7 @@ const CelebrationContent: React.FC<CelebrationContentProps> = ({
             <View style={styles.metaDivider} />
             {showHistoryList ? (
               <View style={styles.unlockedHistoryHeader}>
-                <Text style={styles.unlockedLabel}>Unlock History</Text>
+                <Text style={styles.unlockedLabel}>Unlock history</Text>
                 <View style={styles.unlockCountBadge}>
                   <Text style={styles.unlockCountBadgeText}>{kindInstanceCount}×</Text>
                 </View>

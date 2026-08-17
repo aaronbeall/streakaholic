@@ -125,7 +125,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
           style={styles.searchInput}
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholder="Search all icons..."
+          placeholder="Search icons…"
           placeholderTextColor={colors.textTertiary}
         />
         <MaterialCommunityIcons
@@ -189,7 +189,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
           onPress={handleShowLess}
           accessibilityRole="button"
         >
-          <Text style={styles.showLessText}>Show Less</Text>
+          <Text style={styles.showLessText}>Show less</Text>
         </TouchableOpacity>
       )}
     </View>

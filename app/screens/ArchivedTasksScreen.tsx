@@ -33,7 +33,7 @@ export const ArchivedTasksScreen: React.FC = () => {
         <TouchableOpacity style={styles.headerButton} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back">
           <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Archived Habits</Text>
+        <Text style={styles.headerTitle}>Archived habits</Text>
         <View style={styles.headerButton} />
       </View>
 

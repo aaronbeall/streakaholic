@@ -43,7 +43,7 @@ export const ONBOARDING_HINT_CATALOG: Record<OnboardingHintId, OnboardingHintDef
     priority: 30,
   },
   'home-expiring-filter': {
-    text: 'Tap to see what’s due before your streaks expire',
+    text: 'Tap to see habits that need attention today',
     priority: 40,
   },
   'home-reorder': {

@@ -127,7 +127,7 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
           <View style={styles.heroBlock}>
             <View style={styles.heroEyebrowRow}>
               <MaterialCommunityIcons name="trophy" size={16} color="#FFD700" />
-              <Text style={styles.heroEyebrow}>Best Streak</Text>
+              <Text style={styles.heroEyebrow}>Best streak</Text>
             </View>
             <Text style={[styles.heroValue, { color: '#FFD700' }]}>{streakStats.best!.length}</Text>
             <View style={styles.heroTaskRow}>
@@ -149,17 +149,17 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
             <View style={styles.stripDividerV} />
             <View style={styles.secondaryItem}>
               <Text style={styles.secondaryValue}>{streakStats.totalDays}</Text>
-              <Text style={styles.secondaryLabel}>Completions in Streaks</Text>
+              <Text style={styles.secondaryLabel}>Days in streaks</Text>
             </View>
             <View style={styles.stripDividerV} />
             <View style={styles.secondaryItem}>
               <Text style={styles.secondaryValue}>{streakStats.average.toFixed(1)}</Text>
-              <Text style={styles.secondaryLabel}>Average Streak</Text>
+              <Text style={styles.secondaryLabel}>Average length</Text>
             </View>
           </View>
 
           <View style={styles.listHeader}>
-            <Text style={styles.sectionTitle}>Streak History</Text>
+            <Text style={styles.sectionTitle}>Streak history</Text>
             <View style={styles.sortToggle}>
               <TouchableOpacity
                 style={[styles.sortButton, sortMode === 'recent' && styles.sortButtonActive]}

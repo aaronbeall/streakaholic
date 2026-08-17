@@ -191,8 +191,9 @@ and only then attach a price.
 
 The recommended position is:
 
-> **The motivating streak tracker for Android:** satisfying celebrations and collectible
-> achievements, without turning your life into a game—or your habits into a subscription.
+> **The playfully motivating, privacy-first streak tracker for Android:** streaks worth celebrating
+> and collectible achievements, without turning your life into a game—or your habits
+> into a subscription.
 
 Privacy supports that message but should not replace it. The user arrives because they
 want motivation and stays because the streak ritual feels good; local-only data and fair
