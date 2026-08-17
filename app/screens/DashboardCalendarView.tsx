@@ -294,9 +294,9 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
     setLoadedDays(prev => Math.min(prev + DAYS_PAGE_SIZE, maxDays));
   };
 
-  // A selected day tied to a task set or a mode it no longer applies to (the task filter changed
-  // out from under it, or the user switched to Grid, which has no tap interaction at all) would
-  // otherwise leave a stale line/tooltip with nothing real behind it.
+  // A selected day tied to a task set or chart mode that just changed would otherwise leave a
+  // stale line/tooltip referring to the previous rendering. All three modes support inspection;
+  // switching simply starts the newly selected presentation clean.
   useEffect(() => {
     setSelectedDate(null);
   }, [tasks, mainGridMode]);
@@ -603,12 +603,18 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                 );
               }
 
+              const gridDateString = format(day, 'yyyy-MM-dd');
               return (
-                <View style={styles.gridColumn}>
+                <Pressable
+                  style={styles.gridColumn}
+                  onPress={() => handleColumnTap(gridDateString)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${format(day, 'EEEE, MMMM d')} details`}
+                >
                   {separator}
                   {dateAxis}
                   {tasks.map(task => {
-                    const dateString = format(day, 'yyyy-MM-dd');
+                    const dateString = gridDateString;
                     const taskCompletionCounts = completionCountsByTask.get(task.id);
                     const completionCount = taskCompletionCounts?.get(dateString) ?? 0;
                     const isCompleted = completionCount >= (task.timesPerDay || 1);
@@ -686,18 +692,21 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                       </View>
                     );
                   })}
-                </View>
+                  {selectedDate === gridDateString && (
+                    <View style={styles.columnSelectionLine} pointerEvents="none" />
+                  )}
+                </Pressable>
               );
             }}
           />
         </View>
       )}
 
-      {/* Bars/Streamgraph only -- Grid mode has no tap interaction. Below the chart (per explicit
-          user direction), not floating over the tapped column: both charts scroll horizontally,
+      {/* Shared by Grid, Bars, and Streamgraph. Below the chart (per explicit user direction),
+          not floating over the tapped column: all three charts scroll horizontally,
           so the tapped column's on-screen x position would otherwise need to be re-tracked on
           every scroll frame; a docked summary card is simpler and never mispositions or clips. */}
-      {selectedDate && (mainGridMode === 'bars' || mainGridMode === 'streamgraph') && (
+      {selectedDate && (
         <Reanimated.View
           entering={dayTooltipEntering}
           style={styles.dayTooltip}

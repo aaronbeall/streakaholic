@@ -21,7 +21,7 @@ import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useTaskStore } from '../stores/taskStore';
 import { MaterialCommunityIconName, Task } from '../types';
 import { getStreakStats } from '../utils/data';
-import { isTaskCompleted } from '../utils/streaks';
+import { getCompletionCount, isTaskCompleted } from '../utils/streaks';
 import { ACTIVE_TASK_LIMIT_MESSAGE, hasReachedActiveTaskLimit } from '../utils/taskLimits';
 
 const GRID_SPACING = 16;
@@ -287,7 +287,9 @@ export const HomeScreen: React.FC = () => {
   const [isReordering, setIsReordering] = useState(false);
   const [appliedSort, setAppliedSort] = useState<SortOption | null>(null);
   const [onboardingTargetFace, setOnboardingTargetFace] = useState<CardSide>('task');
+  const [multiCompletionTargetFace, setMultiCompletionTargetFace] = useState<CardSide>('task');
   const onboardingTargetRef = useRef<View>(null);
+  const multiCompletionTargetRef = useRef<View>(null);
   const colors = useThemeColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -335,6 +337,16 @@ export const HomeScreen: React.FC = () => {
   // state and priority, so this screen only describes when each gesture is contextually valid.
   const onboardingTargetTask = filteredTasks[0];
   const onboardingTargetTaskId = onboardingTargetTask?.id;
+  const multiCompletionTargetTask = useMemo(
+    () => filteredTasks.find(task => {
+      const requiredTimes = task.timesPerDay || 1;
+      if (requiredTimes <= 1) return false;
+      const completionCount = getCompletionCount(task);
+      return completionCount > 0 && completionCount < requiredTimes;
+    }),
+    [filteredTasks]
+  );
+  const multiCompletionTargetTaskId = multiCompletionTargetTask?.id;
   const targetIsFront = onboardingTargetFace === 'task';
   const { complete: completeHoldToCompleteHint } = useOnboardingHintTarget(
     'hold-to-complete',
@@ -351,6 +363,13 @@ export const HomeScreen: React.FC = () => {
     !!onboardingTargetTask && !targetIsFront,
     onboardingTargetRef
   );
+  const { complete: completeMultiCompletionHint } = useOnboardingHintTarget(
+    'multi-completion-progress',
+    !!multiCompletionTargetTask && multiCompletionTargetFace === 'task',
+    multiCompletionTargetTaskId === onboardingTargetTaskId
+      ? onboardingTargetRef
+      : multiCompletionTargetRef
+  );
 
   // Read inside the stable per-card callbacks below (each created once via useCallback, so
   // TaskCard's own React.memo isn't defeated by a fresh closure per card per render) instead of
@@ -358,6 +377,8 @@ export const HomeScreen: React.FC = () => {
   // the callbacks themselves must not, so they read the *current* value via ref at call time.
   const onboardingTargetTaskIdRef = useRef(onboardingTargetTaskId);
   onboardingTargetTaskIdRef.current = onboardingTargetTaskId;
+  const multiCompletionTargetTaskIdRef = useRef(multiCompletionTargetTaskId);
+  multiCompletionTargetTaskIdRef.current = multiCompletionTargetTaskId;
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
 
@@ -365,6 +386,9 @@ export const HomeScreen: React.FC = () => {
   useEffect(() => {
     setOnboardingTargetFace('task');
   }, [onboardingTargetTaskId]);
+  useEffect(() => {
+    setMultiCompletionTargetFace('task');
+  }, [multiCompletionTargetTaskId]);
 
   // One stable handler per gesture, shared by every card (not one fresh closure per card per
   // render) -- each takes the task's id and looks up whatever it needs via the refs above, so
@@ -389,11 +413,12 @@ export const HomeScreen: React.FC = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     completeTask(task.id);
     if (task.id === onboardingTargetTaskIdRef.current) completeHoldToCompleteHint();
+    if (task.id === multiCompletionTargetTaskIdRef.current) completeMultiCompletionHint();
     showToast({
       message: `"${task.name}" completed`,
       action: { label: 'Undo', onPress: () => undoCompleteTask(task.id) },
     });
-  }, [completeTask, undoCompleteTask, showToast, completeHoldToCompleteHint]);
+  }, [completeTask, undoCompleteTask, showToast, completeHoldToCompleteHint, completeMultiCompletionHint]);
 
   // Long-pressing an already-completed task's face -- opens task-detail on whichever tab was
   // last viewed (no `tab` param, same fallback-to-`taskDetailLastTab` behavior `task-detail`
@@ -404,16 +429,25 @@ export const HomeScreen: React.FC = () => {
   }, [router]);
 
   const handleFlip = useCallback((taskId: string, side: CardSide) => {
-    if (taskId !== onboardingTargetTaskIdRef.current) return;
-    setOnboardingTargetFace(side);
-    if (side !== 'task') completeTapToCycleHint();
+    if (taskId === onboardingTargetTaskIdRef.current) {
+      setOnboardingTargetFace(side);
+      if (side !== 'task') completeTapToCycleHint();
+    }
+    if (taskId === multiCompletionTargetTaskIdRef.current) {
+      setMultiCompletionTargetFace(side);
+    }
   }, [completeTapToCycleHint]);
 
   const renderItem = useCallback(({ item }: { item: Task }) => {
     const isOnboardingTarget = item.id === onboardingTargetTaskIdRef.current;
+    const isMultiCompletionTarget = item.id === multiCompletionTargetTaskIdRef.current;
     return (
       <TaskCard
-        ref={isOnboardingTarget ? onboardingTargetRef : undefined}
+        ref={isOnboardingTarget
+          ? onboardingTargetRef
+          : isMultiCompletionTarget
+          ? multiCompletionTargetRef
+          : undefined}
         task={item}
         size={cardSize}
         onLongPressCalendar={handleLongPressCalendar}

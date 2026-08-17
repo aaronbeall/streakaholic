@@ -1,5 +1,6 @@
 export const ONBOARDING_HINT_IDS = [
   'hold-to-complete',
+  'multi-completion-progress',
   'tap-to-cycle',
   'hold-to-expand',
   'home-expiring-filter',
@@ -19,6 +20,10 @@ export const ONBOARDING_HINT_CATALOG: Record<OnboardingHintId, { text: string; p
   'hold-to-complete': {
     text: 'Press and hold to complete',
     priority: 10,
+  },
+  'multi-completion-progress': {
+    text: 'Hold again to log each repetition and reach today’s goal',
+    priority: 15,
   },
   'tap-to-cycle': {
     text: 'Tap to flip between your habit, calendar & stats',
@@ -45,7 +50,7 @@ export const ONBOARDING_HINT_CATALOG: Record<OnboardingHintId, { text: string; p
     priority: 10,
   },
   'dashboard-calendar-chart-modes': {
-    text: 'Switch views: Grid shows each habit, Bars compare daily totals, and Stream reveals trends over time',
+    text: 'Switch views: Grid shows each habit, Bars compare daily totals, and Stream reveals trends. Tap any day for details',
     priority: 20,
   },
   'task-calendar-tap-day': {

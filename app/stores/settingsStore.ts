@@ -22,6 +22,7 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 // another or read these flags directly.
 const DEFAULT_ONBOARDING_HINTS_SEEN: OnboardingHintsSeen = {
   'hold-to-complete': false,
+  'multi-completion-progress': false,
   'tap-to-cycle': false,
   'hold-to-expand': false,
   'home-expiring-filter': false,
