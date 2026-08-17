@@ -69,7 +69,6 @@
         weekly/monthly target and makeup days without losing the streak
   - [ ] Explore spacing preferences, progressive/ramping schedules, and minimum-plus-stretch goals
         as encouraging bonuses rather than extra ways to fail
-  - [ ] For quota habits, consider showing both successful-period streaks and genuine completion days
 - [x] Remember dashboard selection (`dashboardLastTab`/`taskDetailLastTab` in `SettingsContext` — last-viewed Stats/Calendar/Streaks tab persists across visits; the task-filter checkboxes themselves still reset to "all tasks" each time, that's a separate thing)
 - [x] Re-order habits on Home (the Home header's sort control supports whole-row drag-and-drop plus Created, Most Used, Color, and Time of Day ordering; the last applied preset highlights until the order is manually changed; `taskStore.reorderTasks` persists the shared active-task order so Home, Dashboard filters/calendar, Trophy filters, and task-detail prev/next navigation all follow it)
 - [x] Auto-suggest an icon based on the habit name typed into Add/Edit Task (`app/utils/iconSuggestions.ts`'s `suggestIconForName` -- a word-stem keyword table, e.g. "Run"/"Running" both suggest the running-shoe icon; new tasks only, never overrides an existing task's icon, and stops suggesting the moment the user picks an icon themselves via the picker -- see CLAUDE.md)
@@ -108,6 +107,16 @@
   - [ ] Congratulations
 - [x] Add a day status summary/explainer on task details screen (tapping `TaskHeader`'s frequency/streak badges row opens a dismissable popover with a plain-English recap -- schedule, today's own status, and how it compares to the task's best streak -- built via `app/utils/taskStatusSummary.ts`'s branching `buildTaskStatusSummary`; see CLAUDE.md)
 - [ ] Friendly analytics layer (preserve the existing depth while making it easier to interpret)
+  - [ ] Add secondary **On target** streaks without replacing the normalized completion-day streak
+    - [ ] Keep the headline flame/streak and existing streak-length achievements based on qualifying
+          completion days across every schedule type
+    - [ ] Show current/best consecutive on-target weeks and months, plus live period progress such as
+          “2 of 3 this week”; evaluate daily/specific-day habits against their due days and quota
+          habits against their period target, with cross-cadence and partial-period semantics defined
+          explicitly
+    - [ ] Add a distinct **On Target** achievement family (for example, “4 Weeks On Target” and
+          “3 Months On Target”), separate from universal completion-day streak and perfect-period
+          awards; these only add to achievement history and never revoke an existing award
   - [ ] Add one deterministic, local-only, schedule-aware insight near the top of Dashboard Stats
         and per-habit Stats (e.g. habits on track, progress toward a weekly/monthly quota, a current
         personal best, or a fair comparison with the prior equivalent period)
