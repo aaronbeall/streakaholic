@@ -360,7 +360,10 @@ const taskName = (a: EarnedAchievement) => a.taskName ?? 'This habit';
 // single completion of every task would trigger it, far too noisy to feel special), but low
 // enough to celebrate genuinely getting started. Kept as its own named constant (rather than a
 // bare `2` inlined into streak-2's own progressStrategy below) since new-best-streak's own
-// detection re-reads it too as its own floor.
+// detection re-reads it too as its own floor, and Streak Addict's own `isGenuineActiveStreak`
+// below reuses it too -- a single day completed is the *beginning* of a streak, not itself one
+// (per explicit user direction), so nothing that counts or celebrates streaks should treat a
+// bare 1-day run as a real one.
 const FIRST_STREAK_THRESHOLD = 2;
 
 // Constants for the six kinds added 2026-08-12 -- grouped here (rather than scattered per-entry)
@@ -370,6 +373,18 @@ const PERFECT_WEEK_DAYS = 7;
 const OVERACHIEVER_MULTIPLIER = 1.5;
 const STREAK_ADDICT_TARGET = 6;
 const RANGE_SWEEP_MIN_DISTINCT_TASKS = 4;
+
+// Streak Addict counts how many of a user's tasks currently have a real, live streak going --
+// shared by its own detection (both the live-completion path and the retroactive scan) and its
+// Trophy Case progress bar, so all three can never drift apart on what "active" means. Requires
+// FIRST_STREAK_THRESHOLD (2), not just >0: a task completed once today already reads as "1 active
+// streak" everywhere else UI-wise reads it as a plain completion, not a streak (see that
+// constant's own comment) -- counting it here too would let a pile of same-day first completions
+// alone earn "Streak Addict," which isn't the "consistency may be contagious" moment this kind is
+// meant to celebrate.
+const isGenuineActiveStreak = (task: Task): boolean =>
+  (task.stats?.currentStreak ?? 0) >= FIRST_STREAK_THRESHOLD &&
+  (task.stats?.streakStatus === 'up_to_date' || task.stats?.streakStatus === 'expiring');
 // A day/week with only one due task still trivially "wins" without this -- per explicit user
 // direction (2026-08-12), a genuine "perfect" day needs a little more actually riding on it. 2 is
 // the smallest change that rules out the trivial one-task case without meaningfully raising the
@@ -1581,10 +1596,7 @@ export const detectCompletionAchievements = (
   }
 
   if (!options?.skipActiveStreakAggregate && isFirstEarn('streak-addict', 'global')) {
-    const activeStreaks = activeTasksAfter.filter(task =>
-      (task.stats?.currentStreak ?? 0) > 0 &&
-      (task.stats?.streakStatus === 'up_to_date' || task.stats?.streakStatus === 'expiring')
-    ).length;
+    const activeStreaks = activeTasksAfter.filter(isGenuineActiveStreak).length;
     if (activeStreaks >= STREAK_ADDICT_TARGET) {
       earned.push({ kind: 'streak-addict', value: activeStreaks, dedupScope: 'global' });
     }
@@ -1724,10 +1736,7 @@ export const detectRetroactiveAchievements = (
   // require recomputing every other task's stats at every event, so scan mode intentionally catches
   // the useful import/settings case from the fully refreshed snapshot and skips it in the replay.
   if (!alreadyEarnedScopes.has(dedupKey('streak-addict', 'global'))) {
-    const activeStreaks = activeTasks.filter(task =>
-      (task.stats?.currentStreak ?? 0) > 0 &&
-      (task.stats?.streakStatus === 'up_to_date' || task.stats?.streakStatus === 'expiring')
-    ).length;
+    const activeStreaks = activeTasks.filter(isGenuineActiveStreak).length;
     if (activeStreaks >= STREAK_ADDICT_TARGET) {
       earned.push({
         kind: 'streak-addict', value: activeStreaks, dedupScope: 'global', earnedAt: today.toISOString(),
@@ -2139,10 +2148,7 @@ export const getAchievementCardStatus = (
     }
 
     case 'active-streak-count': {
-      const activeStreaks = activeTasks.filter(task =>
-        (task.stats?.currentStreak ?? 0) > 0 &&
-        (task.stats?.streakStatus === 'up_to_date' || task.stats?.streakStatus === 'expiring')
-      ).length;
+      const activeStreaks = activeTasks.filter(isGenuineActiveStreak).length;
       return { ...base, progress: { current: Math.min(activeStreaks, strategy.target), target: strategy.target } };
     }
 

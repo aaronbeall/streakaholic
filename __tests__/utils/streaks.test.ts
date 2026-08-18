@@ -315,6 +315,29 @@ describe('calculateTaskStats', () => {
       }
     });
 
+    // Same regression as the daily-frequency case above, one level up: the bug applied equally
+    // to whole missed *periods*, not just missed days.
+    it('stays expired (not never_started) with the right lastStreak across more than one missed period since the break', () => {
+      jest.useFakeTimers().setSystemTime(new Date(2026, 7, 12)); // Wednesday Aug 12 2026
+      try {
+        const task = baseTask({ frequency: 'days_per_week', daysPerWeek: 2 });
+        const completions = [
+          makeCompletion('a', new Date(2026, 6, 19)), // week of Jul 19-25: met (2 days)
+          makeCompletion('b', new Date(2026, 6, 20)),
+          // week of Jul 26-Aug 1: missed entirely
+          // week of Aug 2-8: also missed entirely -- two closed periods behind the break, not one
+          // current week (Aug 9-15, "today" is Wed Aug 12): nothing logged yet either
+        ];
+        const stats = calculateTaskStats(task, completions);
+        expect(stats.streakStatus).toBe('expired');
+        expect(stats.currentStreak).toBe(0);
+        expect(stats.lastStreak).toBe(2);
+        expect(stats.bestStreak).toBe(2);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     // A period that fails its quota still contributes its own days to the run that's ending
     // (mirrors the due-day "tail bonus" behavior above) -- it just doesn't link forward, so a
     // fresh mini-streak starts from the next period.

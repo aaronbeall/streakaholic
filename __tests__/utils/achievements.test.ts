@@ -560,12 +560,27 @@ describe('detectCompletionAchievements', () => {
 
   describe('streak-addict', () => {
     it('awards six simultaneous up-to-date or expiring streaks', () => {
+      // currentStreak starts at 2, not 1 -- a bare 1-day streak doesn't count as "active" here
+      // (see isGenuineActiveStreak's own comment): a pile of same-day first completions alone
+      // shouldn't be able to earn this.
       const tasks = Array.from({ length: 6 }, (_, index) => makeTask(
         { id: `streak-${index}` },
-        { currentStreak: index + 1, streakStatus: index % 2 ? 'expiring' : 'up_to_date' },
+        { currentStreak: index + 2, streakStatus: index % 2 ? 'expiring' : 'up_to_date' },
       ));
       const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
       expect(kindsOf(earned)).toContain('streak-addict');
+    });
+
+    it('does not count a fresh 1-day streak toward the total, even alongside otherwise-enough real ones', () => {
+      const tasks = [
+        ...Array.from({ length: 5 }, (_, index) => makeTask(
+          { id: `streak-${index}` },
+          { currentStreak: index + 2, streakStatus: 'up_to_date' },
+        )),
+        makeTask({ id: 'streak-fresh' }, { currentStreak: 1, streakStatus: 'up_to_date' }),
+      ];
+      const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
+      expect(kindsOf(earned)).not.toContain('streak-addict');
     });
 
     it('does not count an expired habit even when its cached streak length is nonzero', () => {
