@@ -10,6 +10,7 @@ import {
   detectCompletionAchievements,
   detectRetroactiveAchievements,
   detectTaskCreatedAchievements,
+  detectTipAchievements,
   getAchievementCardStatus,
   getAllAchievementCardStatuses,
   getFirstEarnedAchievements,
@@ -132,6 +133,7 @@ describe('detectCompletionAchievements', () => {
           'century-club-100', 'century-club-500', 'century-club-1000', 'century-club-10000',
           'habit-collector', 'early-bird', 'night-owl', 'weekend-warrior', 'weekday-hero',
           'weekly-overachiever', 'monthly-overachiever', 'unstoppable', 'streak-addict',
+          'tip-coffee', 'tip-generous', 'tip-legend',
         ].sort()
       );
     });
@@ -696,6 +698,30 @@ describe('detectCompletionAchievements', () => {
       const tasks = Array.from({ length: 6 }, (_, i) => makeTask({ id: `t${i}` }));
       const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
       expect(kindsOf(earned)).not.toContain('habit-collector');
+    });
+  });
+
+  describe('detectTipAchievements', () => {
+    it('maps each tip tier to its own achievement kind', () => {
+      expect(kindsOf(detectTipAchievements('tip_small', new Set()))).toEqual(['tip-coffee']);
+      expect(kindsOf(detectTipAchievements('tip_medium', new Set()))).toEqual(['tip-generous']);
+      expect(kindsOf(detectTipAchievements('tip_large', new Set()))).toEqual(['tip-legend']);
+    });
+
+    it('is global-scoped, not tied to any task', () => {
+      const [earned] = detectTipAchievements('tip_small', new Set());
+      expect(earned.dedupScope).toBe('global');
+      expect(earned.taskId).toBeUndefined();
+    });
+
+    it('does not re-earn an already-earned tier', () => {
+      const alreadyEarned = new Set([dedupKey('tip-coffee', 'global')]);
+      expect(detectTipAchievements('tip_small', alreadyEarned)).toEqual([]);
+    });
+
+    it('tipping a different tier still earns that tier\'s own kind independently', () => {
+      const alreadyEarned = new Set([dedupKey('tip-coffee', 'global')]);
+      expect(kindsOf(detectTipAchievements('tip_medium', alreadyEarned))).toEqual(['tip-generous']);
     });
   });
 

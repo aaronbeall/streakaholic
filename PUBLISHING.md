@@ -1,9 +1,9 @@
 # Publishing
 
 How to ship Streakaholic to the Google Play Store, plus the implementation record for
-**Rate this app** and a guide for the remaining **Tip jar**. For setup/dev workflow see
-[DEVELOPMENT.md](DEVELOPMENT.md); for the chronological development-to-release runbook
-see [RELEASE_GUIDE.md](RELEASE_GUIDE.md); for architecture see [CLAUDE.md](CLAUDE.md).
+**Rate this app** and **Tip jar**. For setup/dev workflow see [DEVELOPMENT.md](DEVELOPMENT.md);
+for the chronological development-to-release runbook see [RELEASE_GUIDE.md](RELEASE_GUIDE.md);
+for architecture see [CLAUDE.md](CLAUDE.md).
 
 ## Readiness audit (as of 2026-08-08, updated same day)
 
@@ -356,10 +356,7 @@ has been assigned.
 
 ---
 
-## 3. Add a tip jar
-
-This is the biggest lift of the three — it's real in-app purchases, which means native
-code. There's a real decision to make before writing anything:
+## 3. Tip jar (implemented)
 
 The purchase layer chosen here is also intended to support the later Pro unlock and
 Commitment Mode's consumable Streak Saves. The latter has additional transaction
@@ -367,56 +364,101 @@ recovery, integrity, and trust requirements beyond a low-stakes tip; do not gene
 the tip jar's client-only simplifications to it. See
 [COMMITMENT_MODE.md](COMMITMENT_MODE.md).
 
-### Library choice
+### Library: `expo-iap`, not `react-native-iap`
 
-| | `react-native-iap` | RevenueCat |
-|---|---|---|
-| What it is | Lower-level wrapper over Play Billing / StoreKit | Purchase-management service + SDK on top of the same native billing APIs |
-| Setup effort | More manual purchase-lifecycle code (listening for purchase updates, consuming purchases yourself) | Handles purchase state/consumption for you via their SDK |
-| External dependency | None beyond the library | A third-party account/dashboard (free tier available) |
-| Good fit when | You want no third-party service in the loop, and don't mind writing more of the purchase flow yourself | You want less purchase-lifecycle code to get right, and don't mind an external dependency |
+This doc originally weighed `react-native-iap` against RevenueCat. That plan changed
+once building actually started: **`react-native-iap` moved to a Nitro-Modules-based
+rewrite (v14+) that explicitly dropped Expo support entirely** — its own docs list both
+"Expo Go" and "Expo Dev Client" as unsupported, pointing instead to a sibling package,
+[`expo-iap`](https://openiap.dev), built by the same team specifically for Expo/EAS
+projects. That's what's actually installed (`npx expo install expo-iap`, config plugin
+registered in `app.json`'s `plugins` array) — RevenueCat was never evaluated against
+`expo-iap` specifically, so that tradeoff table is gone; if a future maintainer wants to
+reconsider it, `expo-iap` vs. RevenueCat is the real comparison now, not the stale one
+above used to describe.
 
-For a simple, non-subscription tip jar, either is genuinely fine — this is a judgment
-call, not a correctness question. Pick one before starting the client work below.
+`expo-iap` still needs a custom dev client / EAS Build — IAP requires native modules and
+can't run in plain Expo Go (`expo-dev-client` is already installed). No backend/receipt
+validation is used — a deliberate simplification appropriate for a $1–5 tip specifically
+(per the OpenIAP spec's own client-side purchase confirmation), not a pattern to reuse for
+anything gating real paid features later.
 
-**Either way, this needs a custom dev client / EAS Build** — IAP requires native modules
-and can't run in plain Expo Go. You already have `expo-dev-client` installed, so you're
-set up for this already.
+### What's built
 
-### Steps
+- **`app/constants/tipJar.ts`** — the three tier SKUs (`tip_small`/`tip_medium`/
+  `tip_large`) and their display metadata (icon, label, one-line description), in a fixed
+  display order. No price is ever hardcoded here — always the store's own localized
+  `displayPrice`.
+- **`app/hooks/useTipJar.ts`** — wraps `expo-iap`'s `useIAP()` hook: fetches the three
+  products once the store connection is live, exposes purchasing state per tier, and
+  calls `finishTransaction({purchase, isConsumable: true})` on every successful purchase
+  so Google doesn't auto-refund an unconsumed purchase after **3 days**. Also runs a
+  best-effort recovery pass on connect (`getAvailablePurchases()` → finish anything still
+  unconsumed for our SKUs) to cover the "app was killed mid-purchase" case — this only
+  fires the next time the Tip Jar screen itself is opened, not from a background task, so
+  a purchase that's interrupted *and* never revisited still relies on Google's own
+  eventual auto-refund as the final fallback.
+- **`app/screens/TipJarScreen.tsx`** + **`app/tip-jar.tsx`** — the screen (header, an
+  intro card framing this as fully optional with no ads/subscription either way, the
+  three tiers as rows with localized pricing, a connection-error banner + retry) and its
+  thin route re-export, registered in `_layout.tsx`'s `Stack`.
+- **Settings entry point** — a "Tip jar" row in `SettingsScreen`'s Help section, next to
+  Rate this app / Share Streakaholic.
+- **Feedback** — a tier-specific thank-you toast on success (existing `useToast()`, no
+  custom success modal, matching this app's established toast-based feedback pattern).
+- **Achievements** — three global, one-time Supporter kinds (`tip-coffee`/`tip-generous`/
+  `tip-legend`, one per tier) recorded via a new `achievementsStore.recordTipAchievements`
+  entry point, fully outside the habit-tracking completion path. Recognized on both a
+  live purchase and the orphaned-purchase recovery pass above, so an interrupted-but-real
+  purchase still earns its trophy the next time the Tip Jar screen loads. See
+  `app/utils/achievements.ts`'s `detectTipAchievements`/`external-event` progress
+  strategy — the first achievement kind in this app with no numeric progress to show at
+  all (Trophy Case just renders these locked/unlocked).
 
-1. **Play Console**: Monetize → Products → In-app products → create a few **consumable**
-   products (e.g. `tip_small`, `tip_medium`, `tip_large`). Consumable, not managed — a
-   tip should be purchasable more than once, unlike a one-time unlock.
-2. **Install and configure** your chosen library:
-   - `react-native-iap`: `npx expo install react-native-iap`, then follow its Android
-     setup (mostly automatic via its config plugin under managed Expo).
-   - RevenueCat: `npx expo install react-native-purchases`, create a RevenueCat account/
-     project, link your Play Console products to RevenueCat "offerings," add their config
-     plugin.
-3. **Client-side flow**:
-   - Fetch available products/offerings on mount of a new "Tip Jar" screen (mirror the
-     existing screen pattern — header + `useSafeAreaInsets` + `ThemeColors`/`createStyles`,
-     same as `SettingsScreen`/`AboutScreen`).
-   - Render each tier as a card/row with its localized price (never hardcode a price —
-     always show what the store API returns, since Play localizes pricing per region).
-   - On purchase: initiate via the library, then on success show a toast via the existing
-     `useToast()` (e.g. "Thanks for the tip! ❤️") — no need for a custom success modal,
-     this app's whole feedback pattern is already toast-based.
-4. **Consume every purchase.** This is the easy-to-miss step: Google auto-refunds a
-   purchase that isn't acknowledged/consumed within **3 days**. `react-native-iap` exposes
-   `finishTransaction(purchase, true)` for this; RevenueCat handles it for you
-   automatically for consumables. If you go with `react-native-iap`, make sure this runs
-   even if your app is killed mid-purchase (listen for pending/unfinished transactions on
-   app start, not just right after a purchase call).
-5. **No backend required** for something this low-stakes — you don't need server-side
-   receipt validation for a $1–5 tip; both libraries' client-side purchase confirmation is
-   sufficient here. (This is a deliberate simplification appropriate for a tip jar
-   specifically — don't extend this reasoning to anything gating real paid features later.)
-6. **Testing**: add yourself as a **license tester** in Play Console (Setup → License
-   testing) so test purchases in Internal/Closed testing tracks don't charge real money.
-   Test purchases only work on a build installed via a testing track, not a local debug
-   build.
-7. **Settings entry point**: add a "Tip Jar" row in `SettingsScreen`, in its own section
-   or under Support, navigating to the new screen — same `router.push('/tip-jar')` +
-   thin-re-export-in-`app/` pattern every other route already uses.
+### Play Console configuration (you still need to do this)
+
+1. Your app must already exist in Play Console (see "1. Publishing to Google Play"
+   above) — in-app products can't be created before that.
+2. **Monetize → Products → In-app products → Create product**, three times, with these
+   exact Product IDs (must match `app/constants/tipJar.ts` verbatim):
+   - `tip_small` — e.g. $0.99, name "Buy me a coffee"
+   - `tip_medium` — e.g. $2.99, name "You're the best!"
+   - `tip_large` — e.g. $4.99, name "Streak legend"
+3. Each one: **Product type = Managed product** is Play Console's only option for
+   in-app products (there's no separate "consumable" toggle at creation time) — the
+   consumable behavior is entirely client-side, via this app's own
+   `finishTransaction({isConsumable: true})` call. Set each **Status → Active** once
+   pricing is set, or it won't be purchasable even in testing.
+4. Fill in each product's title/description (shown in the real purchase sheet) — the
+   values above are a starting point, not final copy.
+
+### Testing (no real money spent)
+
+1. **Play Console → Setup → License testing**: add your own Google account's email as a
+   **license tester**. Purchases made by a license tester show a real Play purchase
+   sheet but are automatically cancelled/refunded — no real charge ever happens.
+2. Test purchases **only work on a build installed through a Play Store testing track**
+   (Internal testing is enough) — a local `development`-profile dev-client build
+   installed by sideloading, without going through Play Store at all, cannot process
+   real Play Billing purchases regardless of license-tester status. See "Using the app
+   yourself, day-to-day" above for how to get onto the Internal testing track.
+3. Build and install: `eas build --platform android --profile production` (or
+   `preview`), upload it to the Internal testing track, install via that track's opt-in
+   link.
+4. On-device: Settings → Tip jar. Confirm all three tiers load with real localized
+   prices (not stuck on the row's loading spinner — if they never resolve, double-check
+   the Product IDs match exactly and each product's Status is Active). Purchase one —
+   the real Play purchase sheet appears, confirm through it, expect the tier-specific
+   thank-you toast and no charge on your actual payment method.
+5. **Test the "killed mid-purchase" recovery path specifically**: start a purchase,
+   force-quit the app *before* the thank-you toast appears (e.g. right after confirming
+   in the Play sheet), then reopen the app and revisit Settings → Tip jar. The recovery
+   pass in `useTipJar` should silently finish that purchase on this next visit — you
+   won't see a second toast (that only fires from `onPurchaseSuccess`, not the recovery
+   path), but confirm via Play Console → your app → Monetize → Products → the specific
+   product's own order history that it wasn't left dangling toward the 3-day
+   auto-refund.
+6. As a license tester, you can also just cancel out of the purchase sheet to confirm
+   the screen returns to normal (no error banner — user cancellation is deliberately
+   silent, see `useTipJar`'s `ErrorCode.UserCancelled` check) rather than only ever
+   testing the happy path.

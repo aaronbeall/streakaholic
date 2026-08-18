@@ -1,5 +1,6 @@
 import { addDays, differenceInCalendarDays, eachDayOfInterval, endOfMonth, format, isSameDay, parseISO, startOfMonth, startOfWeek, subDays } from 'date-fns';
 import { MaterialCommunityIconName, Task, TaskCompletion } from '../types';
+import { TipTierId } from '../constants/tipJar';
 import { calculateTaskStats, isDueOnDate, isTaskCompleted } from './streaks';
 import { MAX_ACTIVE_TASKS } from './taskLimits';
 
@@ -18,7 +19,8 @@ export type AchievementKind =
   | 'unstoppable' | 'streak-addict'
   | 'comeback'
   | 'habit-collector'
-  | 'early-bird' | 'night-owl';
+  | 'early-bird' | 'night-owl'
+  | 'tip-coffee' | 'tip-generous' | 'tip-legend';
 
 export interface Achievement {
   id: string;
@@ -116,7 +118,11 @@ export type ProgressStrategy =
   // "at least half of them." Shared by early-bird (`direction: 'before'`) and night-owl
   // (`direction: 'after'`) -- the only two kinds using this strategy, distinguished purely by
   // their own parameters rather than needing two separate strategy types.
-  | { type: 'time-of-day-ratio'; hour: number; direction: 'before' | 'after'; window: number; minSamples: number };
+  | { type: 'time-of-day-ratio'; hour: number; direction: 'before' | 'after'; window: number; minSamples: number }
+  // No progress and no readiness check either -- earned entirely by an external event outside the
+  // habit-tracking domain (a real tip-jar purchase), so there's nothing to compute against tasks
+  // at all. Trophy Case just shows these locked/unlocked, with no bar or "ready" state either way.
+  | { type: 'external-event' };
 
 // How to word the ribbon banner on TrophyBadge's emblem -- either a live count with a fixed unit
 // suffix ("10 DAYS", "100 DONE"), or a fixed word for a kind with no clean number to show ("PERFECT",
@@ -183,7 +189,7 @@ interface AchievementMeta {
   // The mutation/date boundary that is allowed to evaluate this kind. This is both executable
   // routing data and an audit-friendly declaration: expensive calendar rules cannot accidentally
   // drift back into every ordinary completion.
-  trigger: 'completion' | 'task-created' | 'friday-completion' | 'saturday-completion' | 'sunday-completion' | 'month-end-completion';
+  trigger: 'completion' | 'task-created' | 'friday-completion' | 'saturday-completion' | 'sunday-completion' | 'month-end-completion' | 'tip';
   // The achievement's own visual identity, a three-color set per explicit user direction ("for
   // each one I want 3 colors: base, glow, and accent... use a thematic color scheme and make these
   // really pop") -- everywhere *except* a task's own inline name/icon within the celebration's
@@ -983,6 +989,53 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     trigger: 'completion',
     color: { theme: 'Midnight', base: '#10102B', glow: '#5C6BC0', accent: '#283593', useAccentText: true }, // night-owl
   },
+  // Three tip-jar tiers (2026-08-19), one per real product in constants/tipJar.ts -- the only
+  // kinds in this file triggered by something outside the habit-tracking domain entirely (a real
+  // purchase, via useTipJar.ts -> achievementsStore.recordTipAchievements), which is exactly why
+  // they're the first to use the 'external-event' progress strategy (no task/streak/completion
+  // state to compute progress from at all -- Trophy Case just shows these locked or unlocked, no
+  // bar). One-time per tier (repeatable: false) -- tipping the same tier again is still very
+  // welcome, just doesn't re-earn an already-earned trophy; tipping a *different* tier earns that
+  // tier's own kind independently, so a generous supporter can still collect all three.
+  'tip-coffee': {
+    icon: 'coffee-outline',
+    title: 'Coffee Supporter!',
+    describe: () => 'Bought the developer a coffee',
+    repeatable: false,
+    scope: 'global',
+    flavorText: 'Caffeine-powered gratitude, right back at you.',
+    ribbon: { kind: 'fixed', text: 'SUPPORTER' },
+    triggerStandalone: () => 'You tipped to help keep Streakaholic brewing.',
+    progressStrategy: { type: 'external-event' },
+    trigger: 'tip',
+    color: { theme: 'Warm Roast', base: '#6F4E37', glow: '#C68958', accent: '#FFE0B2' }, // tip-coffee
+  },
+  'tip-generous': {
+    icon: 'heart-outline',
+    title: 'Generous Supporter!',
+    describe: () => 'Left a generous tip',
+    repeatable: false,
+    scope: 'global',
+    flavorText: 'Above and beyond, and it did not go unnoticed.',
+    ribbon: { kind: 'fixed', text: 'SUPPORTER' },
+    triggerStandalone: () => "You're officially one of the best.",
+    progressStrategy: { type: 'external-event' },
+    trigger: 'tip',
+    color: { theme: 'Rosewood', base: '#C2185B', glow: '#F06292', accent: '#FFF0F5' }, // tip-generous
+  },
+  'tip-legend': {
+    icon: 'trophy-outline',
+    title: 'Streak Legend!',
+    describe: () => 'Went all out with a legendary tip',
+    repeatable: false,
+    scope: 'global',
+    flavorText: 'Absolute legend. Thank you.',
+    ribbon: { kind: 'fixed', text: 'LEGEND' },
+    triggerStandalone: () => 'You went all in — thank you for the huge support.',
+    progressStrategy: { type: 'external-event' },
+    trigger: 'tip',
+    color: { theme: 'Royal', base: '#4A148C', glow: '#AB47BC', accent: '#FFD700' }, // tip-legend
+  },
 };
 
 // Derived from ACHIEVEMENT_META's own `repeatable` flag rather than maintained as a separate list
@@ -1015,6 +1068,7 @@ const ACHIEVEMENT_ORDER_INDEX: Record<AchievementKind, number> = {
   comeback: 27,
   'habit-collector': 28,
   'early-bird': 29, 'night-owl': 30,
+  'tip-coffee': 31, 'tip-generous': 32, 'tip-legend': 33,
 };
 
 export const ACHIEVEMENT_KIND_ORDER: AchievementKind[] = (Object.keys(ACHIEVEMENT_META) as AchievementKind[])
@@ -1651,6 +1705,29 @@ export const detectTaskCreatedAchievements = (
   return earned;
 };
 
+// Which achievement kind a given tip-jar product SKU maps to -- one-to-one with the three real
+// products in constants/tipJar.ts. Kept here (not in that constants file) so achievements.ts stays
+// the single place that knows what earns what; tipJar.ts itself has no idea achievements exist.
+const TIP_TIER_KIND: Record<TipTierId, AchievementKind> = {
+  tip_small: 'tip-coffee',
+  tip_medium: 'tip-generous',
+  tip_large: 'tip-legend',
+};
+
+// Purchase-triggered, entirely outside the habit-tracking domain -- called directly from
+// useTipJar.ts (both on a live successful purchase and on recovering one that never got finished,
+// e.g. the app was killed mid-purchase) rather than riding along any completion/task-created path.
+// One-time per tier: tipping the same tier again is still welcome, it just doesn't re-earn an
+// already-earned trophy -- see the ACHIEVEMENT_META entries' own comment.
+export const detectTipAchievements = (
+  tierId: TipTierId,
+  alreadyEarnedScopes: Set<string>,
+): EarnedAchievement[] => {
+  const kind = TIP_TIER_KIND[tierId];
+  if (alreadyEarnedScopes.has(dedupKey(kind, 'global'))) return [];
+  return [{ kind, dedupScope: 'global' }];
+};
+
 // Retroactively evaluates every achievement a task list's *history* actually earned, not just
 // whatever its current stats happen to show -- a genuine chronological replay, not a one-shot
 // snapshot check. Powers TrophiesScreen's/Settings' manual "catch up" scan for history that
@@ -2170,6 +2247,10 @@ export const getAchievementCardStatus = (
       }).length;
       return { ...base, progress: { current: qualifying, target: Math.ceil(recent.length / 2) } };
     }
+
+    case 'external-event':
+      // No progress to compute -- `base` already carries the real unlocked/timesEarned state.
+      return base;
   }
 };
 

@@ -89,6 +89,12 @@ function RootStack() {
         }}
       />
       <Stack.Screen
+        name="tip-jar"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="debug-notifications"
         options={{
           headerShown: false,

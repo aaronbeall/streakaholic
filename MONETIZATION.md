@@ -89,6 +89,8 @@ Don't build all of this before launching. A reasonable order:
    cap to design around), lets you validate the IAP plumbing (purchase flow, consumption,
    Play Console products) on the lowest-stakes possible transaction before building
    anything users are more likely to be annoyed about being asked to pay for.
+   **Implemented** — see [PUBLISHING.md](PUBLISHING.md)'s "Tip jar" section for the client
+   code, and the Play Console product setup + testing steps still needed before it's live.
 3. **Add the Pro unlock** once the task cap and at least one other Pro feature (widgets is
    the obvious one) actually exist to justify it — selling "unlimited tasks" before the
    cap exists, or "Pro" before it does anything, isn't a real product yet.

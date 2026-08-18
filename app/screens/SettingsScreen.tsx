@@ -445,6 +445,17 @@ export const SettingsScreen: React.FC = () => {
           <View style={styles.divider} />
           <TouchableOpacity
             style={styles.row}
+            onPress={() => router.push('/tip-jar')}
+            accessibilityRole="button"
+            accessibilityHint="Opens the tip jar to support development"
+          >
+            <MaterialCommunityIcons name="hand-heart-outline" size={22} color={colors.textSecondary} />
+            <Text style={styles.rowLabel}>Tip jar</Text>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity
+            style={styles.row}
             onPress={handleShareApp}
             accessibilityRole="button"
             accessibilityHint="Opens the system share sheet with a link to Streakaholic"

@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { Achievement, AchievementKind, dedupKey, detectCompletionAchievements, detectRetroactiveAchievements, detectTaskCreatedAchievements } from '../utils/achievements';
+import { Achievement, AchievementKind, dedupKey, detectCompletionAchievements, detectRetroactiveAchievements, detectTaskCreatedAchievements, detectTipAchievements } from '../utils/achievements';
+import { TipTierId } from '../constants/tipJar';
 import {
   partitionAchievementPresentations,
   promoteFirstAchievementAlert,
@@ -41,6 +42,11 @@ interface AchievementsStore {
   // Called only after a genuinely new habit is created. Keeps Habit Collector and any future
   // roster-size awards entirely off the ordinary completion path.
   recordTaskCreatedAchievements: (activeTasksAfter: Task[]) => void;
+  // Called from useTipJar.ts on a real tip-jar purchase (both the live success path and the
+  // orphaned-purchase recovery pass) -- entirely outside the habit-tracking domain, so this is
+  // its own entry point rather than riding along completion/task-created. A no-op if this exact
+  // tier's own kind was already earned (see detectTipAchievements).
+  recordTipAchievements: (tierId: TipTierId) => void;
   dismissCurrentCelebration: () => void;
   dismissCurrentAlert: () => void;
   // Opens the current quick alert as a full-screen celebration without changing whether its kind
@@ -162,6 +168,29 @@ export const useAchievementsStore = create<AchievementsStore>()(
         const recorded: Achievement[] = newlyEarned.map((achievement, index) => ({
           ...achievement,
           id: `${Date.now()}-created-${index}`,
+          earnedAt,
+        }));
+        set(state => {
+          const { celebrations, alerts } = partitionAchievementPresentations(recorded, state.mutedKinds);
+          return {
+            achievements: [...state.achievements, ...recorded],
+            pendingCelebrations: [...state.pendingCelebrations, ...celebrations],
+            pendingAlerts: [...state.pendingAlerts, ...alerts],
+          };
+        });
+      },
+
+      recordTipAchievements: (tierId) => {
+        const alreadyEarnedScopes = new Set(
+          get().achievements.map(a => dedupKey(a.kind, a.dedupScope))
+        );
+        const newlyEarned = detectTipAchievements(tierId, alreadyEarnedScopes);
+        if (newlyEarned.length === 0) return;
+
+        const earnedAt = new Date().toISOString();
+        const recorded: Achievement[] = newlyEarned.map((achievement, index) => ({
+          ...achievement,
+          id: `${Date.now()}-tip-${index}`,
           earnedAt,
         }));
         set(state => {
