@@ -36,7 +36,10 @@ const EMPTY_COMPLETION_COUNTS: ReadonlyMap<string, number> = new Map();
 const BAR_UNIT_HEIGHT = GRID_CELL_SIZE;
 // Pass-through momentum should remain visible without competing with a genuine completion. Kept
 // as one named tuning knob because this is a visual-weight choice we expect to revisit on-device.
-const STREAM_PASS_THROUGH_MAX_FRACTION = 0.5;
+// Lowered from an original 0.5 (briefly tried 0.1) to 0.25 per explicit user direction -- the
+// connector's first optional day starts noticeably thinner than a real completion, tapering from
+// there same as before.
+const STREAM_PASS_THROUGH_MAX_FRACTION = 0.25;
 // A small cap on the topmost segment only, not every segment -- per explicit user direction
 // ("a stacked bar chart"), segments now sit flush against each other with no per-segment gap or
 // rounding, reading as one continuous multi-color bar rather than a stack of separate rounded
