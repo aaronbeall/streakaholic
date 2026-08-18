@@ -33,11 +33,12 @@ import { getCachedCompletionCountsByDate, getCompletionCount, getStreakBadgeStyl
 
 // A rough estimate of the streak *bubble*'s own rendered bounds (icon + streak count text,
 // padding -- deliberately not including the optional trophy icon, which sits outside the bubble
-// itself and shouldn't be covered by the spawn area), used as `ParticleSystem`'s `spawnArea` --
-// the bubble's actual size only varies by a couple pixels either way (streak digit count), so an
-// estimate is close enough without needing to measure it via `onLayout`. Module-level so it's a
-// stable reference across renders (matters since it's a prop on `ParticleSystem`, a `React.memo`'d
-// component).
+// itself and shouldn't be covered by the spawn area), used as `ParticleSystem`'s `spawnArea`. An
+// estimate is close enough without needing to measure it via `onLayout`, but the bubble's actual
+// width does vary meaningfully by digit count -- a single "1" and a three-digit "365" aren't a
+// "couple pixels" apart -- so width is derived per digit count instead of one flat constant.
+// 0 digits is a real case, not just "no badge": the day-1 checkmark-only bubble (see
+// `isFreshStart`) renders no count text at all.
 //
 // Shaped as a capsule (a line segment thickened by `radius`) rather than a rectangle -- the
 // bubble itself is a pill (`streakBubble`'s `borderRadius: 16` on a ~28px-tall bar rounds it into
@@ -47,13 +48,34 @@ import { getCachedCompletionCountsByDate, getCompletionCount, getStreakBadgeStyl
 // height would sweep out if slid across the estimated width, i.e. inset from each edge by that
 // same radius.
 const ESTIMATED_BADGE_HEIGHT = 28;
-const ESTIMATED_BADGE_WIDTH = 48;
 const ESTIMATED_BADGE_RADIUS = ESTIMATED_BADGE_HEIGHT / 2;
-const ESTIMATED_BADGE_SPAWN_AREA = {
+// Everything in the bubble except the digits themselves: streakBubble's own paddingHorizontal
+// (8 + 8) plus the icon (14). The icon-to-text `gap` (4) is added separately, only for a nonzero
+// digit count -- RN's flexbox `gap` only reserves space between children that both actually
+// render, and the 0-digit bubble has no text child to gap against.
+const ESTIMATED_BADGE_ICON_AND_PADDING = 8 + 14 + 8;
+const ESTIMATED_BADGE_GAP = 4;
+const ESTIMATED_DIGIT_WIDTH = 8;
+// Comfortably past any realistic streak length -- caps the lookup table below rather than
+// growing it (or re-measuring) for an ever-longer streak.
+const MAX_ESTIMATED_BADGE_DIGITS = 4;
+
+const buildBadgeSpawnArea = (width: number) => ({
   start: { x: ESTIMATED_BADGE_RADIUS, y: ESTIMATED_BADGE_RADIUS },
-  end: { x: ESTIMATED_BADGE_WIDTH - ESTIMATED_BADGE_RADIUS, y: ESTIMATED_BADGE_RADIUS },
+  end: { x: width - ESTIMATED_BADGE_RADIUS, y: ESTIMATED_BADGE_RADIUS },
   radius: ESTIMATED_BADGE_RADIUS,
-};
+});
+
+// Precomputed once per digit count (index 0 = the day-1 checkmark-only bubble) rather than built
+// fresh per render -- each entry needs to be a stable reference across renders, since it's a prop
+// on `ParticleSystem`, a `React.memo`'d component; a new object literal every render would defeat
+// that memoization even when the digit count hasn't actually changed.
+const BADGE_SPAWN_AREAS_BY_DIGITS = Array.from({ length: MAX_ESTIMATED_BADGE_DIGITS + 1 }, (_, digitCount) =>
+  buildBadgeSpawnArea(
+    ESTIMATED_BADGE_ICON_AND_PADDING + (digitCount > 0 ? ESTIMATED_BADGE_GAP + digitCount * ESTIMATED_DIGIT_WIDTH : 0)
+  )
+);
+
 // TEMP DEBUG -- flip off (or delete this flag and its render block below) once the capsule shape
 // is visually confirmed against the real badge.
 const DEBUG_SHOW_SPAWN_AREA = false;
@@ -110,6 +132,19 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
 
   const timesPerDayCount = task.timesPerDay || 1;
   const completionCount = getCompletionCount(task);
+  // A single completed day isn't a "streak" yet -- the fire+number badge would otherwise read as
+  // a nonsensical "1-day streak" (per explicit user direction). Scoped to exactly the live/
+  // up_to_date case (icon 'fire') -- an 'expiring' 1-value badge means the opposite (a fragile
+  // streak still at risk today, worth the warning) and stays as-is, and a dormant 'sleep' 1-value
+  // badge (a lapsed 1-day streak) is also left untouched -- both explicitly confirmed out of scope.
+  const isFreshStart = streakBadgeStyle?.icon === 'fire' && streakBadgeStyle.value === 1;
+  // Looked up (not recomputed) so the particle system's spawnArea prop stays referentially stable
+  // across renders where the digit count hasn't changed -- see BADGE_SPAWN_AREAS_BY_DIGITS's own
+  // comment.
+  const badgeDigitCount = isFreshStart
+    ? 0
+    : Math.min(String(streakBadgeStyle?.value ?? 0).length, MAX_ESTIMATED_BADGE_DIGITS);
+  const badgeSpawnArea = BADGE_SPAWN_AREAS_BY_DIGITS[badgeDigitCount];
 
   return (
     <View style={styles.contentContainer}>
@@ -138,26 +173,37 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
       )}
       {streakBadgeStyle && (
         <Reanimated.View style={[styles.streakBadge, badgeAnimatedStyle]}>
-          <View style={[styles.streakBubble, { backgroundColor: streakBadgeStyle.color }]}>
-            <MaterialCommunityIcons name={streakBadgeStyle.icon} size={14} color="#fff" />
-            <Text style={styles.streakText}>{streakBadgeStyle.value}</Text>
-          </View>
-          {streakBadgeStyle.showTrophy && (
-            <MaterialCommunityIcons
-              name="trophy"
-              size={20}
-              color="#FFD700"
-              style={styles.trophyIcon}
-            />
+          {isFreshStart ? (
+            // Same bubble shape/color/pop-in treatment as the real streak badge (badgeAnimatedStyle
+            // above still applies) -- just a plain checkmark, no count, so a single completed day
+            // still reveals and celebrates like any other completion without claiming a "streak".
+            <View style={[styles.streakBubble, { backgroundColor: streakBadgeStyle.color }]}>
+              <MaterialCommunityIcons name="check" size={14} color="#fff" />
+            </View>
+          ) : (
+            <>
+              <View style={[styles.streakBubble, { backgroundColor: streakBadgeStyle.color }]}>
+                <MaterialCommunityIcons name={streakBadgeStyle.icon} size={14} color="#fff" />
+                <Text style={styles.streakText}>{streakBadgeStyle.value}</Text>
+              </View>
+              {streakBadgeStyle.showTrophy && (
+                <MaterialCommunityIcons
+                  name="trophy"
+                  size={20}
+                  color="#FFD700"
+                  style={styles.trophyIcon}
+                />
+              )}
+            </>
           )}
           {showParticles && (
             <ParticleSystem
               key={celebrationKey}
               onComplete={handleParticlesComplete}
-              spawnArea={ESTIMATED_BADGE_SPAWN_AREA}
+              spawnArea={badgeSpawnArea}
             />
           )}
-          {/* TEMP DEBUG -- visualizing ESTIMATED_BADGE_SPAWN_AREA's capsule shape to confirm it
+          {/* TEMP DEBUG -- visualizing badgeSpawnArea's capsule shape to confirm it
               against the real badge before removing this block. */}
           {DEBUG_SHOW_SPAWN_AREA && (
             <>
@@ -166,10 +212,10 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
                 style={[
                   styles.debugSpawnCapsuleBody,
                   {
-                    left: ESTIMATED_BADGE_SPAWN_AREA.start.x,
-                    top: ESTIMATED_BADGE_SPAWN_AREA.start.y - ESTIMATED_BADGE_SPAWN_AREA.radius,
-                    width: ESTIMATED_BADGE_SPAWN_AREA.end.x - ESTIMATED_BADGE_SPAWN_AREA.start.x,
-                    height: ESTIMATED_BADGE_SPAWN_AREA.radius * 2,
+                    left: badgeSpawnArea.start.x,
+                    top: badgeSpawnArea.start.y - badgeSpawnArea.radius,
+                    width: badgeSpawnArea.end.x - badgeSpawnArea.start.x,
+                    height: badgeSpawnArea.radius * 2,
                   },
                 ]}
               />
@@ -178,11 +224,11 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
                 style={[
                   styles.debugSpawnCircle,
                   {
-                    left: ESTIMATED_BADGE_SPAWN_AREA.start.x - ESTIMATED_BADGE_SPAWN_AREA.radius,
-                    top: ESTIMATED_BADGE_SPAWN_AREA.start.y - ESTIMATED_BADGE_SPAWN_AREA.radius,
-                    width: ESTIMATED_BADGE_SPAWN_AREA.radius * 2,
-                    height: ESTIMATED_BADGE_SPAWN_AREA.radius * 2,
-                    borderRadius: ESTIMATED_BADGE_SPAWN_AREA.radius,
+                    left: badgeSpawnArea.start.x - badgeSpawnArea.radius,
+                    top: badgeSpawnArea.start.y - badgeSpawnArea.radius,
+                    width: badgeSpawnArea.radius * 2,
+                    height: badgeSpawnArea.radius * 2,
+                    borderRadius: badgeSpawnArea.radius,
                   },
                 ]}
               />
@@ -191,11 +237,11 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
                 style={[
                   styles.debugSpawnCircle,
                   {
-                    left: ESTIMATED_BADGE_SPAWN_AREA.end.x - ESTIMATED_BADGE_SPAWN_AREA.radius,
-                    top: ESTIMATED_BADGE_SPAWN_AREA.end.y - ESTIMATED_BADGE_SPAWN_AREA.radius,
-                    width: ESTIMATED_BADGE_SPAWN_AREA.radius * 2,
-                    height: ESTIMATED_BADGE_SPAWN_AREA.radius * 2,
-                    borderRadius: ESTIMATED_BADGE_SPAWN_AREA.radius,
+                    left: badgeSpawnArea.end.x - badgeSpawnArea.radius,
+                    top: badgeSpawnArea.end.y - badgeSpawnArea.radius,
+                    width: badgeSpawnArea.radius * 2,
+                    height: badgeSpawnArea.radius * 2,
+                    borderRadius: badgeSpawnArea.radius,
                   },
                 ]}
               />
@@ -204,9 +250,9 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
                 style={[
                   styles.debugSpawnLine,
                   {
-                    left: ESTIMATED_BADGE_SPAWN_AREA.start.x,
-                    top: ESTIMATED_BADGE_SPAWN_AREA.start.y - 1,
-                    width: ESTIMATED_BADGE_SPAWN_AREA.end.x - ESTIMATED_BADGE_SPAWN_AREA.start.x,
+                    left: badgeSpawnArea.start.x,
+                    top: badgeSpawnArea.start.y - 1,
+                    width: badgeSpawnArea.end.x - badgeSpawnArea.start.x,
                   },
                 ]}
               />
