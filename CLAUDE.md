@@ -279,9 +279,6 @@ live from `expo-notifications`' own inspection APIs rather than trusting app-sid
 
 ## Known gaps / open bugs
 
-- `TaskCalendarScreen`/`TaskStatsScreen`/`TaskDetailScreen` throw synchronously if `taskId` isn't
-  found in the (async-loading) store — reachable via a stale deep link or a fresh page load on
-  web before `tasks` finishes hydrating. Should show a loading/null state instead.
 - Reported (2026-08-13, not yet investigated): the calendar streak-count badge on
   `specific_days_of_week` tasks can land one day early relative to `TaskHeader`'s own status badge
   — likely in `getDueDayStreakChains`'/`isFirstDueDayAfter`'s handling of "today" as a live,

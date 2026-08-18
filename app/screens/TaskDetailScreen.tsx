@@ -1,7 +1,7 @@
 import { parseISO } from 'date-fns';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import Reanimated, { FadeIn } from 'react-native-reanimated';
 import { TaskDetailTab, TaskHeader } from '../components/TaskHeader';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
@@ -20,6 +20,7 @@ export default function TaskDetailScreen() {
   const router = useRouter();
   const { taskId, tab, month } = useLocalSearchParams<{ taskId: string; tab?: string; month?: string }>();
   const tasks = useTaskStore(state => state.tasks);
+  const tasksHydrated = useTaskStore(state => state.hasHydrated);
   const taskDetailLastTab = useSettingsStore(state => state.taskDetailLastTab);
   const setTaskDetailLastTab = useSettingsStore(state => state.setTaskDetailLastTab);
   // An explicit `tab` param (e.g. Home's long-press-calendar-face action) always wins; absent
@@ -31,15 +32,36 @@ export default function TaskDetailScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const task = tasks.find(t => t.id === taskId);
-  if (!task) {
-    throw new Error('Missing task');
-  }
 
   // The cyclable task list for TaskHeader's prev/next buttons -- non-archived only (archived
   // tasks aren't otherwise reachable from this screen), in the same store order used everywhere
   // else in the app that lists tasks. Only actually rendered as buttons when there's more than
-  // one task to cycle between (see TaskHeader).
+  // one task to cycle between (see TaskHeader). Computed unconditionally (before the !task guard
+  // below) since it's a hook -- it doesn't actually depend on `task` itself.
   const cyclableTasks = useMemo(() => tasks.filter(t => !t.archived), [tasks]);
+
+  // A missing task used to throw synchronously and crash this screen -- reachable via a stale
+  // deep link (task deleted/archived elsewhere) or, on web, a fresh page load landing here before
+  // the task store finishes hydrating (see CLAUDE.md's "Known gaps"). While still hydrating this
+  // is expected and transient, so show a loading spinner; once hydrated, a genuine miss bounces
+  // back to Home the same way Archive/Delete already does, rather than leaving a broken screen up.
+  useEffect(() => {
+    if (tasksHydrated && !task) {
+      router.dismissTo('/');
+    }
+  }, [tasksHydrated, task, router]);
+
+  if (!task) {
+    if (!tasksHydrated) {
+      return (
+        <View style={[styles.container, styles.loadingContainer]}>
+          <ActivityIndicator size="large" color="#007AFF" />
+        </View>
+      );
+    }
+    return null;
+  }
+
   const currentIndex = cyclableTasks.findIndex(t => t.id === task.id);
 
   // router.setParams (not push) -- swaps `taskId` on this same screen instance rather than
@@ -97,5 +119,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   body: {
     flex: 1,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
