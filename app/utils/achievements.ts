@@ -1714,6 +1714,10 @@ const TIP_TIER_KIND: Record<TipTierId, AchievementKind> = {
   tip_large: 'tip-legend',
 };
 
+// Exported so a caller (achievementsStore's own tip-prompt eligibility check) can ask "has this
+// user ever tipped, in any tier" without duplicating the tier->kind mapping above.
+export const TIP_ACHIEVEMENT_KINDS: AchievementKind[] = Object.values(TIP_TIER_KIND);
+
 // Purchase-triggered, entirely outside the habit-tracking domain -- called directly from
 // useTipJar.ts (both on a live successful purchase and on recovering one that never got finished,
 // e.g. the app was killed mid-purchase) rather than riding along any completion/task-created path.

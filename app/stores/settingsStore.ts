@@ -11,6 +11,12 @@ import {
   ReviewPromptState,
   shouldRequestReview,
 } from '../utils/reviewPrompt';
+import { AchievementKind } from '../utils/achievements';
+import {
+  DEFAULT_TIP_PROMPT_STATE,
+  shouldPromptForTip,
+  TipPromptState,
+} from '../utils/tipPrompt';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -49,6 +55,7 @@ export interface AppSettings {
   dashboardLastTab: DashboardTab;
   taskDetailLastTab: TaskDetailTab;
   reviewPrompt: ReviewPromptState;
+  tipPrompt: TipPromptState;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -61,6 +68,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   dashboardLastTab: 'stats',
   taskDetailLastTab: 'calendar',
   reviewPrompt: DEFAULT_REVIEW_PROMPT_STATE,
+  tipPrompt: DEFAULT_TIP_PROMPT_STATE,
 };
 
 interface SettingsStore extends AppSettings {
@@ -86,6 +94,25 @@ interface SettingsStore extends AppSettings {
   reviewRequestPending: boolean;
   markReviewRequested: (version: string) => void;
   clearPendingReviewRequest: () => void;
+  // Called from achievementsStore right after a *newly earned* achievement is recorded (never
+  // from the retroactive scan, which deliberately shows no celebration to ride) -- checks
+  // shouldPromptForTip and, if eligible, queues the prompt. `kind`/`title` are what the
+  // coordinator actually shows, captured at the moment of eligibility so a later change to
+  // ACHIEVEMENT_META can't retroactively alter an already-queued prompt's wording.
+  // `hasEverTipped` is computed by the caller (achievementsStore has the achievements list this
+  // store doesn't) rather than duplicated here.
+  recordAchievementForTipPrompt: (kind: AchievementKind, title: string, hasEverTipped: boolean) => void;
+  // Same transient-flag shape as reviewRequestPending, plus which achievement triggered it. No
+  // separate "clear without showing" action -- unlike the native review API (which can fail or
+  // be unavailable, see clearPendingReviewRequest), a toast can always be shown, so
+  // markTipPromptShown is the only way this ever resets once set.
+  tipPromptPending: { kind: AchievementKind; title: string } | null;
+  markTipPromptShown: () => void;
+  // Dev-only (Settings' own __DEV__-gated Developer section) -- force-queues the prompt through
+  // the exact same pending-flag + TipPromptCoordinator path a real one takes, bypassing
+  // shouldPromptForTip's own eligibility checks entirely (cooldown, already-tipped, etc.) so it
+  // can be tested on demand without earning a real achievement or waiting out the cooldown.
+  previewTipPrompt: () => void;
 }
 
 type PersistedSettingsState = AppSettings;
@@ -120,6 +147,7 @@ export const useSettingsStore = create<SettingsStore>()(
       ...DEFAULT_SETTINGS,
       hasHydrated: false,
       reviewRequestPending: false,
+      tipPromptPending: null,
       setHasHydrated: (value) => set({ hasHydrated: value }),
       setThemeMode: (themeMode) => set({ themeMode }),
       setShowCardBackground: (showCardBackground) => set({ showCardBackground }),
@@ -153,6 +181,21 @@ export const useSettingsStore = create<SettingsStore>()(
         reviewRequestPending: false,
       })),
       clearPendingReviewRequest: () => set({ reviewRequestPending: false }),
+      recordAchievementForTipPrompt: (kind, title, hasEverTipped) => {
+        const state = get();
+        if (!shouldPromptForTip(kind, state.tipPrompt, hasEverTipped)) return;
+        set({ tipPromptPending: { kind, title } });
+      },
+      markTipPromptShown: () => set(state => ({
+        tipPrompt: {
+          ...state.tipPrompt,
+          lastRequestAt: new Date().toISOString(),
+        },
+        tipPromptPending: null,
+      })),
+      previewTipPrompt: () => set({
+        tipPromptPending: { kind: 'streak-100', title: '100-Day Streak!' },
+      }),
     }),
     {
       name: 'appSettings',
@@ -167,6 +210,7 @@ export const useSettingsStore = create<SettingsStore>()(
         dashboardLastTab: state.dashboardLastTab,
         taskDetailLastTab: state.taskDetailLastTab,
         reviewPrompt: state.reviewPrompt,
+        tipPrompt: state.tipPrompt,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

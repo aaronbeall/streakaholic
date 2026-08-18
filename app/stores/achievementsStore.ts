@@ -1,12 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { Achievement, AchievementKind, dedupKey, detectCompletionAchievements, detectRetroactiveAchievements, detectTaskCreatedAchievements, detectTipAchievements } from '../utils/achievements';
+import { ACHIEVEMENT_META, Achievement, AchievementKind, dedupKey, detectCompletionAchievements, detectRetroactiveAchievements, detectTaskCreatedAchievements, detectTipAchievements, TIP_ACHIEVEMENT_KINDS } from '../utils/achievements';
 import { TipTierId } from '../constants/tipJar';
 import {
   partitionAchievementPresentations,
   promoteFirstAchievementAlert,
 } from '../utils/achievementCelebrations';
+import { useSettingsStore } from './settingsStore';
 import { Task } from '../types';
 
 interface AchievementsStore {
@@ -92,6 +93,24 @@ interface AchievementsStore {
 
 type PersistedAchievementsState = { achievements: Achievement[]; mutedKinds: AchievementKind[] };
 
+// Offers the first eligible newly-recorded achievement to the tip-prompt coordinator --
+// shouldPromptForTip (via settingsStore's own recordAchievementForTipPrompt) does the actual
+// eligibility filtering (curated "big" kinds only, cooldown, already-tipped), so this just needs
+// to hand over a candidate and whether the user's ever tipped at all. Never called from the
+// retroactive scan, which deliberately shows no celebration to ride -- only from a live
+// completion/task-created detection, matching how a real celebration is decided.
+const notifyTipPromptOfNewAchievements = (recorded: Achievement[], priorAchievements: Achievement[]) => {
+  if (recorded.length === 0) return;
+  const hasEverTipped = priorAchievements.some(a => TIP_ACHIEVEMENT_KINDS.includes(a.kind));
+  for (const achievement of recorded) {
+    useSettingsStore.getState().recordAchievementForTipPrompt(
+      achievement.kind,
+      ACHIEVEMENT_META[achievement.kind].title,
+      hasEverTipped
+    );
+  }
+};
+
 // 'achievements' is a brand-new AsyncStorage key with no pre-Zustand legacy shape to migrate
 // (unlike tasks/appSettings/lastImport, which predate the Zustand migration and need custom
 // PersistStorage to detect their old bare-value shape) -- createJSONStorage's plain envelope is
@@ -142,6 +161,7 @@ export const useAchievementsStore = create<AchievementsStore>()(
           id: `${Date.now()}-${index}`,
           earnedAt,
         }));
+        notifyTipPromptOfNewAchievements(recorded, get().achievements);
 
         // Recorded into history unconditionally, regardless of the celebration setting -- that
         // setting only ever gates whether AchievementCelebration shows its screen, never whether the
@@ -170,6 +190,7 @@ export const useAchievementsStore = create<AchievementsStore>()(
           id: `${Date.now()}-created-${index}`,
           earnedAt,
         }));
+        notifyTipPromptOfNewAchievements(recorded, get().achievements);
         set(state => {
           const { celebrations, alerts } = partitionAchievementPresentations(recorded, state.mutedKinds);
           return {

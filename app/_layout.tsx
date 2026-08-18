@@ -8,7 +8,7 @@ import { ActivityIndicator, AppState, InteractionManager, View } from 'react-nat
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AchievementCelebration } from './components/AchievementCelebration';
 import { ToastBanner } from './components/ToastBanner';
-import { ToastProvider } from './context/ToastContext';
+import { ToastProvider, useToast } from './context/ToastContext';
 import { OnboardingHintsProvider } from './context/OnboardingHintsContext';
 import { useThemeColors } from './hooks/useThemeColors';
 import { useAchievementsStore } from './stores/achievementsStore';
@@ -193,6 +193,63 @@ function ReviewPromptCoordinator() {
   return null;
 }
 
+// A short pause, not REVIEW_PROMPT_SETTLE_DELAY_MS's full 2s -- a toast is a much lighter, less
+// intrusive surface than a system review dialog, so it doesn't need as much breathing room after
+// the achievement celebration UI clears.
+const TIP_PROMPT_SETTLE_DELAY_MS = 1200;
+
+// Mirrors ReviewPromptCoordinator's own shape (wait for achievement UI to go idle + the app to be
+// active, then show), but surfaces a friendly toast instead of a native API call -- see
+// tipPrompt.ts for the eligibility rules (a curated "big milestone" allowlist, a 30-day cooldown
+// since the last prompt regardless of app version, and never once the user's already tipped).
+// `tipPromptPending` carries the specific achievement that earned it so the toast can reference
+// it by name (per BRAND.md's "celebrate specifically" guidance) rather than a generic "enjoying
+// the app?" ask.
+function TipPromptCoordinator() {
+  const pending = useSettingsStore(state => state.tipPromptPending);
+  const markTipPromptShown = useSettingsStore(state => state.markTipPromptShown);
+  const achievementUiIdle = useAchievementsStore(
+    state => state.pendingCelebrations.length === 0 && state.pendingAlerts.length === 0
+  );
+  const [appState, setAppState] = useState(AppState.currentState);
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', setAppState);
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    if (!pending || !achievementUiIdle || appState !== 'active') return;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const interaction = InteractionManager.runAfterInteractions(() => {
+      timer = setTimeout(() => {
+        if (cancelled || AppState.currentState !== 'active') return;
+
+        // Recorded the moment it's actually shown, same "record before/at the moment of the
+        // real action" reasoning ReviewPromptCoordinator uses -- there's no ambiguity here about
+        // whether it displayed (unlike the native review sheet, a toast always shows), so this
+        // is simpler, not a compromise.
+        markTipPromptShown();
+        showToast({
+          message: `🎉 ${pending.title} If Streakaholic's been worth it, a small tip means a lot 💛`,
+          action: { label: 'Tip jar', onPress: () => router.push('/tip-jar') },
+        });
+      }, TIP_PROMPT_SETTLE_DELAY_MS);
+    });
+
+    return () => {
+      cancelled = true;
+      interaction.cancel();
+      if (timer) clearTimeout(timer);
+    };
+  }, [appState, achievementUiIdle, pending, markTipPromptShown, showToast]);
+
+  return null;
+}
+
 // Settings, tasks, lastImport, and achievements are all Zustand `persist` stores backed by
 // AsyncStorage -- without this gate, the first frame renders with each store's default in-memory
 // state (wrong theme override, an empty task list flashing the "no tasks yet" empty state) before
@@ -274,6 +331,7 @@ export default function Layout() {
           <ToastBanner />
           <AchievementCelebration />
           <ReviewPromptCoordinator />
+          <TipPromptCoordinator />
         </OnboardingHintsProvider>
       </ToastProvider>
     </GestureHandlerRootView>

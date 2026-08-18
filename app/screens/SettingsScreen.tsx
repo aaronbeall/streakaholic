@@ -59,6 +59,7 @@ export const SettingsScreen: React.FC = () => {
     achievementCelebrationsEnabled, setAchievementCelebrationsEnabled,
     onboardingHintsSeen,
     resetOnboardingHints,
+    previewTipPrompt,
   } = useSettingsStore(
     useShallow(state => ({
       themeMode: state.themeMode,
@@ -73,6 +74,7 @@ export const SettingsScreen: React.FC = () => {
       setAchievementCelebrationsEnabled: state.setAchievementCelebrationsEnabled,
       onboardingHintsSeen: state.onboardingHintsSeen,
       resetOnboardingHints: state.resetOnboardingHints,
+      previewTipPrompt: state.previewTipPrompt,
     }))
   );
   const dismissedOnboardingHintCount = ONBOARDING_HINT_IDS.filter(id => onboardingHintsSeen[id]).length;
@@ -516,6 +518,11 @@ export const SettingsScreen: React.FC = () => {
                 <MaterialCommunityIcons name="trash-can-outline" size={22} color="#FF3B30" />
                 <Text style={[styles.rowLabel, styles.destructiveRowLabel]}>Delete All Trophies</Text>
                 <Text style={styles.rowValue}>{achievementCount}</Text>
+              </TouchableOpacity>
+              <View style={styles.divider} />
+              <TouchableOpacity style={styles.row} onPress={previewTipPrompt} accessibilityRole="button">
+                <MaterialCommunityIcons name="hand-heart-outline" size={22} color={colors.textSecondary} />
+                <Text style={styles.rowLabel}>Preview Tip Prompt</Text>
               </TouchableOpacity>
             </View>
           </>
