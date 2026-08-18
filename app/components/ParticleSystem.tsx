@@ -159,11 +159,18 @@ const ParticleComponent = React.memo(({
   // with where the solid particle's own center always was -- keeps the particle shrinking toward
   // its own center exactly as before, with the glow (offset to share that same center, see below)
   // riding along with it rather than introducing its own drift.
+  //
+  // left/top are `-size/2`, not 0: `translateX`/`translateY` below moves this box's own top-left
+  // corner to (originX, originY), so an un-offset `left: 0, top: 0` would land the *corner*, not
+  // the center, at the sampled origin point -- every particle would render size/2 too far right
+  // and down from where it was actually "spawned" (visible as a systematic rightward/downward
+  // bias across the whole burst, worse for bigger particles). Offsetting the box by half its own
+  // size first means the translate lands its *center* on the origin instead.
   const wrapperStaticStyle = useMemo(
     () => ({
       position: "absolute" as const,
-      left: 0,
-      top: 0,
+      left: -particle.size / 2,
+      top: -particle.size / 2,
       width: particle.size,
       height: particle.size,
     }),
