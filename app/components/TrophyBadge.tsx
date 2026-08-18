@@ -359,6 +359,17 @@ const PULSATE_HALF_CYCLE_DURATION = 2300; // one direction of the breathe; a ful
 const PULSATE_STAGGER = 800;
 
 const SPARKLE_COUNT = 6;
+// How long a burst pauses, fully invisible, before the next one starts -- the pre-shared-timeline
+// version of this component re-triggered the burst by remounting `ParticleSystem` on a JS
+// `setTimeout(..., SPARKLE_PAUSE)` chained off each burst's own `onComplete`. That got dropped
+// during the 2026-08-15 move to one shared `timeline` clock (a real performance win for the
+// drop/shockwave/pulse-ring sequence, which all genuinely need to stay in lockstep with each
+// other and with a possible batch-dock replay) -- the sparkle burst doesn't actually need lockstep
+// with anything else, it just needs to keep firing for as long as the badge is on screen, so it's
+// restored below as its own independent `withRepeat` loop (see `sparkleClock`) instead, matching
+// the exact sweep-then-pause idiom `badgePhase`/`ribbonPhase` already use for their own ambient
+// loops -- still zero JS timers, just not the *same* clock as the one-shot reveal sequence.
+const SPARKLE_PAUSE = 1300;
 // Deliberately sparse and understated relative to ParticleSystem's own fire-themed defaults --
 // small, short-lived, barely-drifting flecks that read as a twinkle rather than a burst. No
 // swirl -- these should feel like they're glinting in place, not flying off anywhere. Colors are
@@ -641,6 +652,16 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({
   // separate opacity toggle is needed to hide either bar between cycles.
   const badgePhase = useSharedValue(0);
   const ribbonPhase = useSharedValue(0);
+  // A dedicated "elapsed ms since this cycle's burst started" clock for the sparkle halo's own
+  // ParticleSystem (controlled/`timeline` mode -- see that prop's own doc comment), independent of
+  // the celebration's own one-shot `timeline`/`introStart`. Sweeps 0 -> sparkleBurstDuration in
+  // lockstep with real elapsed ms (so `getAchievementRevealProgress` inside ParticleSystem reads
+  // it exactly like the real intro clock), then holds at 0 through SPARKLE_PAUSE before the next
+  // burst -- each reset replays the exact same 6-particle pool (its origins/colors/etc. are
+  // computed once, not regenerated per cycle) rather than freshly randomizing it, a deliberate
+  // simplification versus the old keyed-remount version given how small/sparse this burst already
+  // is.
+  const sparkleClock = useSharedValue(0);
   // One linear UI-thread clock drives both the badge's bounce curve and the shockwave's impact
   // threshold. Keeping elapsed intro time in one shared value prevents independent delays from
   // drifting relative to the visible motion.
@@ -668,6 +689,22 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({
       );
     badgePhase.value = withDelay(IMPACT_DELAY, sheenLoop());
     ribbonPhase.value = withDelay(IMPACT_DELAY + RIBBON_START_OFFSET, sheenLoop());
+    // Long enough for every particle -- including the last one to spawn, up to spawnWindow into
+    // the burst -- to finish its own full life before the clock pauses/resets; matches
+    // ParticleSystem's own autonomous-mode `maxLife` formula exactly, just computed here instead
+    // since this clock replaces that mode's own completion timer.
+    const sparkleBurstDuration = sparkleConfig.spawnWindow + sparkleConfig.life + sparkleConfig.lifeVariance;
+    sparkleClock.value = withDelay(
+      DROP_DURATION,
+      withRepeat(
+        withSequence(
+          withTiming(sparkleBurstDuration, { duration: sparkleBurstDuration, easing: Easing.linear }),
+          withDelay(SPARKLE_PAUSE, withTiming(0, { duration: 0 }))
+        ),
+        -1,
+        false
+      )
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -803,10 +840,10 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({
 
       {/* Deliberately NOT `centeredFill` here -- that style fills the *entire* STACK_SIZE box, so
           its own (0,0) top-left corner is the whole stack's corner, not its center. Each particle
-          `ParticleSystem` renders is absolutely positioned with an explicit `left: 0, top: 0` (see
-          ParticleComponent's own wrapperStaticStyle) plus a small originX/originY translate scattered
-          *around* that (0,0) point -- so whatever box directly wraps `<ParticleSystem>` has to *be*
-          the center point itself, not a box whose corner happens to coincide with one. A 0-sized box
+          `ParticleSystem` renders is absolutely positioned around an originX/originY translate
+          scattered *around* its own parent's local (0,0) point (see ParticleComponent's own
+          wrapperStaticStyle) -- so whatever box directly wraps `<ParticleSystem>` has to *be* the
+          center point itself, not a box whose corner happens to coincide with one. A 0-sized box
           pinned at top/left: '50%' (no width/height, so it collapses to a point -- absolutely
           positioned children don't contribute to a parent's own intrinsic size) does exactly that:
           it sits at the stack's true center, the same point `centeredFill`'s alignItems/justifyContent
@@ -817,8 +854,8 @@ export const TrophyBadge: React.FC<TrophyBadgeProps> = React.memo(({
         <ParticleSystem
           count={SPARKLE_COUNT}
           particles={sparkleConfig}
-          timeline={timeline}
-          startTime={introStart + DROP_DURATION}
+          timeline={sparkleClock}
+          startTime={0}
         />
       </View>
     </Reanimated.View>

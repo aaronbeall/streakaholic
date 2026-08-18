@@ -166,6 +166,14 @@ const ParticleComponent = React.memo(({
   // and down from where it was actually "spawned" (visible as a systematic rightward/downward
   // bias across the whole burst, worse for bigger particles). Offsetting the box by half its own
   // size first means the translate lands its *center* on the origin instead.
+  // left/top are `-size/2`, not 0: `translateX`/`translateY` below moves this box's own top-left
+  // corner to (originX, originY), so an un-offset `left: 0, top: 0` would land the *corner*, not
+  // the center, at the sampled origin point -- every particle would render size/2 too far right
+  // and down from where it was actually "spawned" (visible as a systematic rightward/downward
+  // bias across the whole burst, worse for bigger particles). Offsetting the box by half its own
+  // size first means the translate lands its *center* on the origin instead. Confirmed (via a
+  // temporary A/B revert) unrelated to a separate "sparkles only appear once, not periodically"
+  // report on TrophyBadge -- that turned out to be a missing-repeat bug, not a positioning one.
   const wrapperStaticStyle = useMemo(
     () => ({
       position: "absolute" as const,
