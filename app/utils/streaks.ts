@@ -50,12 +50,25 @@ const longestRunIncludingClose = (flags: boolean[], weights: number[]): number =
   return best;
 };
 
-// Day-total of the most recently closed (or still-open) run, including its closing period's
-// own days even when that period is the one that failed to meet quota.
+// Day-total of the most recently closed (or still-open) run, including its closing period's own
+// days even when that period is the one that failed to meet quota -- but not any *later*, separate
+// failed periods past that close. Walks back past trailing failures first to find where a real run
+// last existed, rather than starting the sum at the very last period: starting there meant a
+// second failure settling in behind the closing one collapsed this to 0 (the true run it should
+// still remember fell out of the sum entirely), which is what made a lapsed streak's "sleeping"
+// badge disappear one day after it first appeared instead of persisting -- a real bug, not a
+// deliberate "only shown the day after" design, per direct user report.
 const mostRecentRunIncludingClose = (flags: boolean[], weights: number[]): number => {
-  if (flags.length === 0) return 0;
-  let total = weights[weights.length - 1];
-  let i = flags.length - 2;
+  let i = flags.length - 1;
+  while (i >= 0 && !flags[i]) i--;
+  if (i < 0) return 0; // no period in this history ever actually hit
+  // `i` is the last period that hit. Sum its own trailing true run, plus -- only if it exists --
+  // the single period immediately after it, which is what actually closed this run out (already
+  // guaranteed false, since the walk above skipped past nothing but false periods to reach `i`).
+  // Any failures beyond that one are later, separate lapses, not part of this run's own length.
+  let total = weights[i];
+  if (i + 1 < flags.length) total += weights[i + 1];
+  i--;
   while (i >= 0 && flags[i]) {
     total += weights[i];
     i--;

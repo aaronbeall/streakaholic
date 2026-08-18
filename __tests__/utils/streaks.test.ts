@@ -86,6 +86,28 @@ describe('calculateTaskStats', () => {
       expect(stats.currentStreak).toBe(2);
     });
 
+    it('stays expired (not never_started) with the right lastStreak no matter how many days have passed since the break', () => {
+      const today = new Date();
+      const completions = [
+        makeCompletion('a', subDays(today, 6)),
+        makeCompletion('b', subDays(today, 5)),
+        makeCompletion('c', subDays(today, 4)),
+        makeCompletion('d', subDays(today, 3)),
+        // subDays(today, 2) and subDays(today, 1) both missed -- the streak broke 2 days ago,
+        // not just yesterday.
+      ];
+      const stats = calculateTaskStats(baseTask(), completions);
+      // Regression: mostRecentRunIncludingClose used to only look at the single most recent
+      // settled segment, so a *second* missed day behind the one that actually broke the streak
+      // collapsed lastStreak to 0 and streakStatus to 'never_started' -- the "sleeping" badge
+      // only ever showed for exactly one day after a streak ended, then vanished as if there had
+      // never been a streak at all.
+      expect(stats.streakStatus).toBe('expired');
+      expect(stats.currentStreak).toBe(0);
+      expect(stats.lastStreak).toBe(4);
+      expect(stats.bestStreak).toBe(4);
+    });
+
     it('tracks bestStreak separately from a shorter current streak after a gap', () => {
       const today = new Date();
       const completions = [
