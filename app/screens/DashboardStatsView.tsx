@@ -6,8 +6,15 @@ import { Dimensions, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent,
 import { AchievementsPreviewCard } from '../components/AchievementsPreviewCard';
 import { EmptyState } from '../components/EmptyState';
 import { LazyMount } from '../components/LazyMount';
-import { DashboardStatsShareCard } from '../components/ShareCards';
-import { SharePreviewModal } from '../components/SharePreviewModal';
+import {
+  DashboardActivityShareCard,
+  DashboardMomentumShareCard,
+  DashboardStatsShareCard,
+  DashboardTrophyShareCard,
+  HabitLegendItem,
+  TROPHY_HIGHLIGHT_CAP,
+} from '../components/ShareCards';
+import { ShareVariantOption, SharePreviewModal } from '../components/SharePreviewModal';
 import { CompletionsOverTimeChartCard, HistogramChartCard } from '../components/StatsCharts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
@@ -15,10 +22,24 @@ import { useAchievementsStore } from '../stores/achievementsStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
+import { getFirstEarnedAchievements } from '../utils/achievements';
 import { TimeFrame, calculateAggregateStats, dayOfWeekLabels, getChartData, getCompletionPatterns, getDateRange, hourOfDayLabels } from '../utils/data';
 
 const CARD_HORIZONTAL_PADDING = 16;
 const ACCENT = '#007AFF';
+
+type ShareVariant = 'grid' | 'activity' | 'trophy' | 'momentum';
+
+// Offered as visually distinct alternatives to the original stat-grid share card, per explicit
+// user direction to make the dashboard share screen "more visually appealing and graphical" --
+// each one reuses the same underlying numbers this screen already computes, just laid out to
+// emphasize a different story (a chart of the week, a trophy highlight reel, a momentum ring).
+const SHARE_VARIANTS: ShareVariantOption[] = [
+  { key: 'grid', label: 'Stats', icon: 'view-grid-outline' },
+  { key: 'activity', label: 'Activity', icon: 'chart-bar' },
+  { key: 'trophy', label: 'Trophies', icon: 'trophy-outline' },
+  { key: 'momentum', label: 'Momentum', icon: 'chart-donut' },
+];
 
 interface TimeRangeButtonProps {
   range: TimeFrame;
@@ -53,6 +74,8 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
   const [timeRange, setTimeRange] = useState<TimeFrame>('week');
   const [isCumulative, setIsCumulative] = useState(true);
   const [shareVisible, setShareVisible] = useState(false);
+  const [shareVariant, setShareVariant] = useState<ShareVariant>('grid');
+  const [showHabitIconsInShare, setShowHabitIconsInShare] = useState(true);
   // Measured from the actual rendered container rather than guessed from Dimensions.get('window')
   // minus a hardcoded constant -- see TaskStatsView for why.
   const [chartAreaWidth, setChartAreaWidth] = useState(Dimensions.get('window').width - 32);
@@ -92,12 +115,47 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
   const allActiveTasks = useMemo(() => allTasks.filter(t => !t.archived), [allTasks]);
   const allAchievements = useAchievementsStore(state => state.achievements);
   const handleViewAchievements = useCallback(() => router.push('/trophies'), [router]);
+  // Same unfiltered-by-design reasoning as the achievements preview card above -- the Trophy
+  // variant of the share card shouldn't shrink just because the header's task filter narrowed.
+  // getFirstEarnedAchievements both dedupes a repeatable kind re-earned multiple times down to
+  // one slot and sorts by each identity's own first-ever unlock date (not whichever re-earn is
+  // most recent) -- see that function's own comment for why. `firstEarnedAchievements` is also
+  // what `totalUnlocked` below counts from, so the "+N" overflow bubble stays consistent with what
+  // the reel itself is actually made of (distinct unlocks, not raw re-earn instances).
+  const firstEarnedAchievements = useMemo(() => getFirstEarnedAchievements(allAchievements), [allAchievements]);
+  // Sliced to TROPHY_HIGHLIGHT_CAP (enough to fill the triangle + a full icon row), not just the
+  // 3 actually shown in the triangle -- TrophyHighlightRow itself decides the triangle/icon-row
+  // split; `totalUnlocked` (passed separately below) covers the true "+N" overflow count beyond
+  // even this slice.
+  const recentAchievements = useMemo(
+    () => firstEarnedAchievements.slice(0, TROPHY_HIGHLIGHT_CAP),
+    [firstEarnedAchievements]
+  );
 
   // Headline stats are always all-time across the filtered tasks -- the Activity time-range
   // picker below only scopes the charts, not these numbers. Streak-type stats in particular
   // don't make sense clipped to a sub-window (a streak can span outside the selected range).
   const stats = useMemo(() => calculateAggregateStats(tasks), [tasks]);
   const allCompletionsAllTime = useMemo(() => tasks.flatMap(t => t.completions || []), [tasks]);
+
+  // Which habits actually make up this aggregate -- shown as a compact icon+name legend on every
+  // Dashboard share card variant, so a shared image says *what* it's summarizing, not just a pile
+  // of numbers. Scoped to the same header-filtered `tasks` everything else on this screen already
+  // uses, so the legend always matches whatever's actually being aggregated.
+  const legendHabits: HabitLegendItem[] = useMemo(
+    () => tasks.map(t => ({ icon: t.icon, color: t.color, name: t.name })),
+    [tasks]
+  );
+
+  // Fixed "last 7 days" for the Activity share card variant, deliberately independent of the
+  // Activity section's own timeRange picker below -- a share card should show a stable,
+  // representative view of "this week" regardless of whatever range happens to be selected for
+  // browsing the charts.
+  const weeklyActivity = useMemo(() => getChartData('week', allCompletionsAllTime), [allCompletionsAllTime]);
+  const totalThisWeek = useMemo(
+    () => weeklyActivity.data.reduce((sum, value) => sum + value, 0),
+    [weeklyActivity]
+  );
 
   const earliestCreatedAt = useMemo(() => {
     if (tasks.length === 0) return null;
@@ -213,7 +271,7 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
         </TouchableOpacity>
         <View style={styles.heroEyebrowRow}>
           <MaterialCommunityIcons name="check-decagram" size={16} color={ACCENT} />
-          <Text style={styles.heroEyebrow}>Habit days completed</Text>
+          <Text style={styles.heroEyebrow}>Total completions</Text>
         </View>
         <Text style={[styles.heroValue, { color: ACCENT }]}>{stats.totalCompletions}</Text>
         <Text style={styles.heroSince}>Since {createdAtLabel}</Text>
@@ -348,15 +406,53 @@ export const DashboardStatsView: React.FC<{ tasks: Task[] }> = ({ tasks }) => {
       title="Share progress"
       filename="streakaholic-progress"
       onClose={() => setShareVisible(false)}
+      variants={SHARE_VARIANTS}
+      selectedVariant={shareVariant}
+      onSelectVariant={key => setShareVariant(key as ShareVariant)}
+      option={{
+        label: 'Show habit icons',
+        value: showHabitIconsInShare,
+        onValueChange: setShowHabitIconsInShare,
+      }}
     >
-      <DashboardStatsShareCard
-        totalCompletions={stats.totalCompletions}
-        activeStreaks={activeStreakCount}
-        habitCount={tasks.length}
-        bestStreak={stats.bestStreak}
-        completionRate={stats.completionRate}
-        since={earliestCreatedAt ? format(parseISO(earliestCreatedAt), 'MMM yyyy') : '—'}
-      />
+      {shareVariant === 'activity' ? (
+        <DashboardActivityShareCard
+          labels={weeklyActivity.labels}
+          data={weeklyActivity.data}
+          totalThisWeek={totalThisWeek}
+          totalCompletions={stats.totalCompletions}
+          habits={legendHabits}
+          showHabitIcons={showHabitIconsInShare}
+        />
+      ) : shareVariant === 'trophy' ? (
+        <DashboardTrophyShareCard
+          recentAchievements={recentAchievements}
+          totalUnlocked={firstEarnedAchievements.length}
+          habits={legendHabits}
+          showHabitIcons={showHabitIconsInShare}
+        />
+      ) : shareVariant === 'momentum' ? (
+        <DashboardMomentumShareCard
+          activeStreaks={activeStreakCount}
+          habitCount={tasks.length}
+          bestStreak={stats.bestStreak}
+          totalCompletions={stats.totalCompletions}
+          habits={legendHabits}
+          showHabitIcons={showHabitIconsInShare}
+        />
+      ) : (
+        <DashboardStatsShareCard
+          totalCompletions={stats.totalCompletions}
+          activeStreaks={activeStreakCount}
+          habitCount={tasks.length}
+          bestStreak={stats.bestStreak}
+          completionRate={stats.completionRate}
+          since={createdAtLabel}
+          daysTracked={daysTracked}
+          habits={legendHabits}
+          showHabitIcons={showHabitIconsInShare}
+        />
+      )}
     </SharePreviewModal>
     </>
   );

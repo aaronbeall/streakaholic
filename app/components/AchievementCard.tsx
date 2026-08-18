@@ -213,8 +213,10 @@ const EarnerIconRow: React.FC<{ earners: AchievementEarner[]; styles: ReturnType
 // Builds a fake, throwaway Achievement for a locked Trophy Case card. Ordinary taps use the
 // purpose-built subdued preview; a dev-only long press can request the full congratulations view
 // for visual testing. Neither mode is persisted -- queueCelebration only touches the ephemeral UI
-// queue. The progress snapshot comes from the status already computed for this card.
-const buildPreviewAchievement = (
+// queue. The progress snapshot comes from the status already computed for this card. Exported so
+// AchievementsPreviewCard's own "Next" row can offer the identical preview on tap, rather than a
+// second, separately-maintained implementation of the same fake-achievement construction.
+export const buildPreviewAchievement = (
   status: AchievementCardStatus,
   mode: 'locked-preview' | 'dev-preview' = 'locked-preview'
 ): Achievement => {

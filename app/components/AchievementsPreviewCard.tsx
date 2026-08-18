@@ -1,7 +1,8 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import * as Haptics from 'expo-haptics';
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { AchievementBadgeCard } from './AchievementCard';
+import { AchievementBadgeCard, buildPreviewAchievement } from './AchievementCard';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useAchievementsStore } from '../stores/achievementsStore';
 import { Task } from '../types';
@@ -69,6 +70,16 @@ export const AchievementsPreviewCard: React.FC<AchievementsPreviewCardProps> = (
   const nextUpMeta = nextUp ? ACHIEVEMENT_META[nextUp.kind] : undefined;
   const nextUpProgressPct = nextUp?.progress ? Math.min(1, nextUp.progress.current / nextUp.progress.target) * 100 : 0;
 
+  // Same preview mechanism AchievementBadgeCard's own tap-a-locked-card already uses (a fake,
+  // never-persisted Achievement queued into the celebration flow) -- reused here so the "Next"
+  // row previews consistently with every other locked-achievement preview in the app, rather than
+  // a second implementation of the same idea.
+  const handlePreviewNext = () => {
+    if (!nextUp) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    queueCelebration(buildPreviewAchievement(nextUp));
+  };
+
   if (visibleUnlocked.length === 0 && !nextUp) {
     return (
       <TouchableOpacity
@@ -76,11 +87,11 @@ export const AchievementsPreviewCard: React.FC<AchievementsPreviewCardProps> = (
         onPress={onViewAll}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel="Achievements"
+        accessibilityLabel="Recently Unlocked"
         accessibilityHint="Opens the Trophy Case"
       >
         <View style={styles.headerRow}>
-          <Text style={styles.title}>Achievements</Text>
+          <Text style={styles.title}>Recently Unlocked</Text>
           <View style={styles.viewAllRow}>
             <Text style={[styles.viewAllText, { color: accentColor }]}>View all</Text>
             <MaterialCommunityIcons name="chevron-right" size={18} color={accentColor} />
@@ -101,7 +112,7 @@ export const AchievementsPreviewCard: React.FC<AchievementsPreviewCardProps> = (
         accessibilityLabel="View Trophy Case"
         accessibilityHint="Opens the full Trophy Case"
       >
-        <Text style={styles.title}>Achievements</Text>
+        <Text style={styles.title}>Recently Unlocked</Text>
         <View style={styles.viewAllRow}>
           <Text style={[styles.viewAllText, { color: accentColor }]}>View all</Text>
           <MaterialCommunityIcons name="chevron-right" size={18} color={accentColor} />
@@ -124,7 +135,14 @@ export const AchievementsPreviewCard: React.FC<AchievementsPreviewCardProps> = (
       )}
 
       {nextUp && nextUpMeta && (
-        <View style={[styles.nextBlock, visibleUnlocked.length > 0 && styles.nextBlockSpaced]}>
+        <TouchableOpacity
+          style={[styles.nextBlock, visibleUnlocked.length > 0 && styles.nextBlockSpaced]}
+          onPress={handlePreviewNext}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Next: ${nextUpMeta.title}`}
+          accessibilityHint="Previews this achievement's celebration"
+        >
           <View style={styles.nextLabelRow}>
             <MaterialCommunityIcons name={nextUpMeta.icon} size={13} color={nextUpMeta.color.base} />
             <Text style={styles.nextLabel} numberOfLines={1}>Next: {nextUpMeta.title}</Text>
@@ -139,7 +157,7 @@ export const AchievementsPreviewCard: React.FC<AchievementsPreviewCardProps> = (
           ) : nextUp.opportunityAvailable ? (
             <Text style={styles.readyText}>Ready — restart a streak</Text>
           ) : null}
-        </View>
+        </TouchableOpacity>
       )}
     </View>
   );

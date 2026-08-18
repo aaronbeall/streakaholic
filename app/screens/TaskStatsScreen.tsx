@@ -1,11 +1,17 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { differenceInCalendarDays, format, parseISO } from 'date-fns';
+import { differenceInCalendarDays, format, parseISO, startOfWeek } from 'date-fns';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Dimensions, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AchievementsPreviewCard } from '../components/AchievementsPreviewCard';
-import { HabitStatsShareCard } from '../components/ShareCards';
-import { SharePreviewModal } from '../components/SharePreviewModal';
+import {
+  HabitActivityShareCard,
+  HabitMomentumShareCard,
+  HabitStatsShareCard,
+  HabitTrophyShareCard,
+  TROPHY_HIGHLIGHT_CAP,
+} from '../components/ShareCards';
+import { ShareVariantOption, SharePreviewModal } from '../components/SharePreviewModal';
 import { LazyMount } from '../components/LazyMount';
 import { CompletionsOverTimeChartCard, HistogramChartCard } from '../components/StatsCharts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,9 +19,21 @@ import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useAchievementsStore } from '../stores/achievementsStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { Task } from '../types';
+import { getFirstEarnedAchievements } from '../utils/achievements';
 import { TimeFrame, dayOfWeekLabels, getChartData, getCompletionPatterns, getDateRange, hourOfDayLabels } from '../utils/data';
 
 const CARD_HORIZONTAL_PADDING = 16;
+
+type ShareVariant = 'grid' | 'activity' | 'trophy' | 'momentum';
+
+// Same four styles offered on the Dashboard's own aggregate share screen, adapted to one habit --
+// see DashboardStatsView for the original rationale.
+const SHARE_VARIANTS: ShareVariantOption[] = [
+  { key: 'grid', label: 'Stats', icon: 'view-grid-outline' },
+  { key: 'activity', label: 'Activity', icon: 'chart-bar' },
+  { key: 'trophy', label: 'Trophies', icon: 'trophy-outline' },
+  { key: 'momentum', label: 'Momentum', icon: 'chart-donut' },
+];
 
 interface TimeRangeButtonProps {
   range: TimeFrame;
@@ -51,6 +69,7 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
   const [isCumulative, setIsCumulative] = useState(true);
   const [shareVisible, setShareVisible] = useState(false);
   const [includeNameInShare, setIncludeNameInShare] = useState(true);
+  const [shareVariant, setShareVariant] = useState<ShareVariant>('grid');
   // Measured from the actual rendered container rather than guessed from Dimensions.get('window')
   // minus a hardcoded constant -- that guess didn't account precisely for the content padding,
   // which is what left charts clipping on the right edge on some devices. The fallback here (used
@@ -98,6 +117,19 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
     () => allAchievements.filter(a => a.taskId === task.id),
     [allAchievements, task.id]
   );
+  // For the Trophies share card variant's own highlight reel below. getFirstEarnedAchievements
+  // both dedupes a repeatable kind re-earned multiple times (e.g. a streak breaking and
+  // restarting) down to one slot and sorts by each one's own first-ever unlock date, not
+  // whichever re-earn happens to be most recent -- see that function's own comment for why. Also
+  // what `totalUnlocked` below counts from, so the "+N" overflow bubble stays consistent with
+  // what the reel itself actually contains.
+  const firstEarnedTaskAchievements = useMemo(() => getFirstEarnedAchievements(taskAchievements), [taskAchievements]);
+  // Sliced to TROPHY_HIGHLIGHT_CAP (enough for the triangle + a full icon row), not just the 3
+  // shown in the triangle itself; see DashboardStatsView's identical slice for the same reasoning.
+  const recentTaskAchievements = useMemo(
+    () => firstEarnedTaskAchievements.slice(0, TROPHY_HIGHLIGHT_CAP),
+    [firstEarnedTaskAchievements]
+  );
   const achievementsPreviewTasks = useMemo(() => [task], [task]);
   const handleViewAchievements = useCallback(
     () => router.push({ pathname: '/trophies', params: { taskId: task.id } }),
@@ -116,6 +148,30 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
   );
 
   const { labels, data } = useMemo(() => getChartData(timeRange, task.completions || [], isCumulative), [timeRange, task.completions, isCumulative]);
+
+  // Fixed "last 7 days" for the Activity share card variant -- deliberately independent of the
+  // Progress section's own timeRange picker, same reasoning as DashboardStatsView's own
+  // weeklyActivity: a share card should show a stable "this week," not whatever range happens to
+  // be selected for browsing the charts.
+  const weeklyActivity = useMemo(() => getChartData('week', task.completions || []), [task.completions]);
+  const totalThisWeek = useMemo(
+    () => weeklyActivity.data.reduce((sum, value) => sum + value, 0),
+    [weeklyActivity]
+  );
+  // The single highest calendar-week total across this habit's whole history -- distinct from
+  // totalThisWeek (this week only) and from any due-day streak concept, so the Activity share
+  // card's own "Best week" stat says something a streak count can't (a burst of catch-up
+  // completions in one week counts fully here even if it didn't chain into a streak).
+  const bestWeek = useMemo(() => {
+    const completions = task.completions || [];
+    if (completions.length === 0) return 0;
+    const weekTotals = new Map<string, number>();
+    completions.forEach(completion => {
+      const weekKey = format(startOfWeek(parseISO(completion.date)), 'yyyy-MM-dd');
+      weekTotals.set(weekKey, (weekTotals.get(weekKey) || 0) + completion.timesCompleted);
+    });
+    return Math.max(...weekTotals.values());
+  }, [task.completions]);
   // Memoized so react-native-chart-kit sees a stable `chartData` reference (and can skip its own
   // re-render/redraw work) whenever this component re-renders for an unrelated reason, not just
   // when `labels`/`data`/`task.color` actually change.
@@ -311,18 +367,55 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
           value: includeNameInShare,
           onValueChange: setIncludeNameInShare,
         }}
+        variants={SHARE_VARIANTS}
+        selectedVariant={shareVariant}
+        onSelectVariant={key => setShareVariant(key as ShareVariant)}
       >
-        <HabitStatsShareCard
-          name={task.name}
-          includeName={includeNameInShare}
-          icon={task.icon}
-          color={task.color}
-          currentStreak={currentStreak}
-          bestStreak={bestStreak}
-          totalCompletions={totalCompletions}
-          completionRate={task.stats?.completionRate || 0}
-          since={format(parseISO(task.createdAt), 'MMM yyyy')}
-        />
+        {shareVariant === 'activity' ? (
+          <HabitActivityShareCard
+            name={task.name}
+            includeName={includeNameInShare}
+            icon={task.icon}
+            color={task.color}
+            labels={weeklyActivity.labels}
+            data={weeklyActivity.data}
+            totalThisWeek={totalThisWeek}
+            bestWeek={bestWeek}
+          />
+        ) : shareVariant === 'trophy' ? (
+          <HabitTrophyShareCard
+            name={task.name}
+            includeName={includeNameInShare}
+            icon={task.icon}
+            color={task.color}
+            recentAchievements={recentTaskAchievements}
+            totalUnlocked={firstEarnedTaskAchievements.length}
+          />
+        ) : shareVariant === 'momentum' ? (
+          <HabitMomentumShareCard
+            name={task.name}
+            includeName={includeNameInShare}
+            icon={task.icon}
+            color={task.color}
+            currentStreak={currentStreak}
+            bestStreak={bestStreak}
+            completionRate={task.stats?.completionRate || 0}
+            avgPerWeek={avgPerWeek}
+          />
+        ) : (
+          <HabitStatsShareCard
+            name={task.name}
+            includeName={includeNameInShare}
+            icon={task.icon}
+            color={task.color}
+            currentStreak={currentStreak}
+            bestStreak={bestStreak}
+            totalCompletions={totalCompletions}
+            completionRate={task.stats?.completionRate || 0}
+            since={format(parseISO(task.createdAt), 'MMM yyyy')}
+            daysTracked={daysTracked}
+          />
+        )}
       </SharePreviewModal>
     </View>
   );

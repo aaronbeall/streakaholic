@@ -6,6 +6,7 @@ import * as DocumentPicker from 'expo-document-picker';
 // classic documentDirectory/writeAsStringAsync/readAsStringAsync functions used here still
 // exist, just moved under this subpath.
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import * as StoreReview from 'expo-store-review';
@@ -48,6 +49,7 @@ export const SettingsScreen: React.FC = () => {
   const runRetroactiveScan = useAchievementsStore(state => state.runRetroactiveScan);
   const mutedAchievementCount = useAchievementsStore(state => state.mutedKinds.length);
   const unmuteAllKinds = useAchievementsStore(state => state.unmuteAllKinds);
+  const deleteAllAchievements = useAchievementsStore(state => state.deleteAllAchievements);
   const { showToast } = useToast();
   const {
     themeMode, setThemeMode,
@@ -160,6 +162,19 @@ export const SettingsScreen: React.FC = () => {
       message: count > 0
         ? `Found ${count} achievement${count === 1 ? '' : 's'} you'd already earned!`
         : "No new achievements found — you're all caught up.",
+    });
+  };
+
+  // Dev-only -- see the Developer section below. Immediate on tap, no confirm dialog (unlike the
+  // app's own Archive/Delete Task, the one real user-facing destructive flow that still keeps
+  // one): this is purely a testing shortcut for freely re-triggering achievement detection from a
+  // clean slate, matching this codebase's own established precedent for dev-only destructive
+  // actions elsewhere in this feature's history.
+  const handleDeleteAllAchievements = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    const count = deleteAllAchievements();
+    showToast({
+      message: count > 0 ? `Deleted ${count} trophy record${count === 1 ? '' : 's'}.` : 'No trophies to delete.',
     });
   };
 
@@ -479,6 +494,17 @@ export const SettingsScreen: React.FC = () => {
                 <MaterialCommunityIcons name="bug-outline" size={22} color={colors.textSecondary} />
                 <Text style={styles.rowLabel}>Notification Debug</Text>
                 <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
+              </TouchableOpacity>
+              <View style={styles.divider} />
+              <TouchableOpacity style={styles.row} onPress={scanForMissedAchievements} accessibilityRole="button">
+                <MaterialCommunityIcons name="history" size={22} color={colors.textSecondary} />
+                <Text style={styles.rowLabel}>Run Retroactive Scan</Text>
+              </TouchableOpacity>
+              <View style={styles.divider} />
+              <TouchableOpacity style={styles.row} onPress={handleDeleteAllAchievements} accessibilityRole="button">
+                <MaterialCommunityIcons name="trash-can-outline" size={22} color="#FF3B30" />
+                <Text style={[styles.rowLabel, styles.destructiveRowLabel]}>Delete All Trophies</Text>
+                <Text style={styles.rowValue}>{achievementCount}</Text>
               </TouchableOpacity>
             </View>
           </>

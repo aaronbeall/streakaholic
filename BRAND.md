@@ -63,9 +63,10 @@ names. User-facing copy should use the terms below.
 | Progress over time | Completions over time | Friendlier chart title. |
 | Running total / each period | Cumulative / per-period | Use these in help and accessibility copy. |
 | Stats | Analytics | “Stats” is shorter and already established in the app. |
+| Completions / Total completions | Habit day(s) / Days completed | “Habit day” is ambiguous — a scheduled day, or a completed one? And in an aggregate, multi-habit context, does “7 habit days” mean 7 days of activity across any habits, or one day where 7 habits were each done? “Completions” has no such ambiguity: it always means individual completed-habit events, however they’re distributed across days or habits. |
 
-“Completion” is acceptable when it describes a real completed habit day. Prefer “days
-completed” when a number counts successful days rather than individual taps or reps.
+“Completion” is fine describing a single instance (e.g. “mark a completion”). For a count,
+prefer “Completions” or “Total completions” over “days completed” — see the table row above.
 
 ## Privacy language
 

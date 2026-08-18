@@ -1017,6 +1017,31 @@ export const getRibbonText = (achievement: Achievement): string => {
 
 export const dedupKey = (kind: AchievementKind, scope: string): string => `${kind}:${scope}`;
 
+// Collapses a list of Achievement records down to one representative per distinct KIND -- the
+// FIRST one ever earned -- sorted newest-first by that first-earned date. Meant for "recent
+// achievements" highlight reels (the share cards' own Trophy variant, AchievementsPreviewCard):
+// a repeatable kind re-earned multiple times (e.g. a streak breaking and restarting) should only
+// ever occupy one slot there, placed by when it was originally unlocked, not by whichever re-earn
+// happens to be most recent -- otherwise a routine re-trigger of a low tier could bump ahead of a
+// genuinely rare, once-earned higher one. The identity is kind alone, not kind+task -- matching
+// TrophiesScreen's own Trophy Case grid (one card per kind, not per task+kind), so two different
+// tasks both earning the same kind (e.g. two habits each hitting a 2-day streak) still collapse to
+// one entry here too, not two -- per explicit user direction, "collapse unlocks by kind" applies
+// even on an unfiltered, multi-task list. A caller that wants the result scoped to one task should
+// pre-filter its own input list to that task's own achievements first (every existing call site
+// already does exactly this where relevant), which naturally makes kind-only and kind+task
+// equivalent within that already-narrowed set.
+export const getFirstEarnedAchievements = (achievements: Achievement[]): Achievement[] => {
+  const firstByKind = new Map<AchievementKind, Achievement>();
+  for (const achievement of achievements) {
+    const existing = firstByKind.get(achievement.kind);
+    if (!existing || achievement.earnedAt < existing.earnedAt) {
+      firstByKind.set(achievement.kind, achievement);
+    }
+  }
+  return [...firstByKind.values()].sort((a, b) => b.earnedAt.localeCompare(a.earnedAt));
+};
+
 // Whether a kind is attributable to a single task, vs. a global condition that spans every task
 // (or none in particular) -- e.g. Century Club's cross-task completion sum, or Perfect Day's
 // "every due task today" condition, can't meaningfully be scoped down to just one task. Shared by
@@ -1935,13 +1960,17 @@ export const getAchievementCardStatus = (
     ? earnedForKind.reduce((most, a) => (a.earnedAt > most.earnedAt ? a : most))
     : undefined;
 
-  // Dedup to one entry per distinct task, keeping whichever instance is most recent for that
-  // task, then sort the *tasks* themselves newest-first by that same instance.
+  // Dedup to one entry per distinct task, keeping each task's own FIRST instance of this kind --
+  // not whichever re-earn happens to be most recent. Matches getFirstEarnedAchievements' own
+  // reasoning (a repeatable kind re-earned after a streak resets shouldn't read as "more recent"
+  // than a task that unlocked it earlier and simply hasn't needed to re-earn it since), applied
+  // consistently everywhere achievements are ordered by recency, not just the share cards' own
+  // highlight reel. Sort the *tasks* themselves by that same first-earned date, newest-first.
   const earnersByTask = new Map<string, Achievement>();
   for (const a of earnedForKind) {
     if (!a.taskId) continue;
     const existing = earnersByTask.get(a.taskId);
-    if (!existing || a.earnedAt > existing.earnedAt) earnersByTask.set(a.taskId, a);
+    if (!existing || a.earnedAt < existing.earnedAt) earnersByTask.set(a.taskId, a);
   }
   const earners: AchievementEarner[] = Array.from(earnersByTask.values())
     .sort((a, b) => b.earnedAt.localeCompare(a.earnedAt))
@@ -2199,11 +2228,23 @@ export const getGroupedAchievementCardStatuses = (
 ): GroupedAchievementCardStatuses[] => {
   const statuses = getAllAchievementCardStatuses(achievements, activeTasks, today, kinds);
 
+  // Each kind's own first-ever earn (across any task -- this grid is already collapsed to one
+  // card per kind, unlike the share cards' own per-task highlight reel), not its most recent one:
+  // a repeatable kind re-earned again later (a streak breaking and restarting) shouldn't jump
+  // ahead of a kind that was itself first unlocked more recently but hasn't needed re-earning
+  // since. Same "sort by first occurrence" rule as getFirstEarnedAchievements, applied at the
+  // per-kind (not per-kind-per-task) granularity this grid already uses everywhere else.
+  const firstEarnedAtByKind = new Map<AchievementKind, string>();
+  for (const a of achievements) {
+    const existing = firstEarnedAtByKind.get(a.kind);
+    if (!existing || a.earnedAt < existing) firstEarnedAtByKind.set(a.kind, a.earnedAt);
+  }
+
   const unlocked = statuses
     .filter(s => s.unlocked)
-    // Most recently earned first -- ISO timestamps sort lexically in chronological order, so a
-    // plain string comparison is sufficient with no date parsing needed.
-    .sort((a, b) => (b.latest?.earnedAt ?? '').localeCompare(a.latest?.earnedAt ?? ''));
+    // ISO timestamps sort lexically in chronological order, so a plain string comparison is
+    // sufficient with no date parsing needed.
+    .sort((a, b) => (firstEarnedAtByKind.get(b.kind) ?? '').localeCompare(firstEarnedAtByKind.get(a.kind) ?? ''));
 
   const inProgress = statuses
     .filter(s => !s.unlocked && progressFraction(s) > 0)

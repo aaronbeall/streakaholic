@@ -75,6 +75,13 @@ interface AchievementsStore {
   // Settings' own "restore full celebrations" action -- clears every muted kind at once, for
   // when the per-kind toggle above isn't a convenient way to restore several at once.
   unmuteAllKinds: () => void;
+  // Dev-only (Settings' own __DEV__-gated Developer section) -- wipes every earned achievement,
+  // plus any celebration/alert already queued (nothing left to display once its own history is
+  // gone), so a developer can freely re-trigger detection from a clean slate while testing rather
+  // than needing to reinstall the app. Returns how many records were actually cleared, for the
+  // caller's own confirmation toast. Deliberately leaves `mutedKinds` untouched -- that's a
+  // separate user preference, not part of "trophies."
+  deleteAllAchievements: () => number;
 }
 
 type PersistedAchievementsState = { achievements: Achievement[]; mutedKinds: AchievementKind[] };
@@ -233,6 +240,13 @@ export const useAchievementsStore = create<AchievementsStore>()(
       )),
 
       unmuteAllKinds: () => set({ mutedKinds: [] }),
+
+      deleteAllAchievements: () => {
+        const count = get().achievements.length;
+        if (count === 0) return 0;
+        set({ achievements: [], pendingCelebrations: [], pendingAlerts: [] });
+        return count;
+      },
     }),
     {
       name: 'achievements',

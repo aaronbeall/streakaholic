@@ -12,6 +12,7 @@ import {
   detectTaskCreatedAchievements,
   getAchievementCardStatus,
   getAllAchievementCardStatuses,
+  getFirstEarnedAchievements,
   getGroupedAchievementCardStatuses,
 } from '../../app/utils/achievements';
 
@@ -981,6 +982,19 @@ describe('getAchievementCardStatus', () => {
       expect(status.latest?.taskName).toBe('Second');
     });
 
+    it('orders earners by each task\'s own FIRST earn of this kind, not whichever re-earn is most recent', () => {
+      // Task 'first' unlocked this kind earliest (Jan); task 'second' unlocked it later (Feb).
+      // 'first' then re-earns it again later still (Apr, e.g. after a streak reset) -- the most
+      // recent event in this whole fixture -- but that must NOT let 'first' outrank 'second':
+      // 'second's own first (and only) earn (Feb) is more recent than 'first's real first unlock
+      // (Jan), so 'second' still ranks ahead of 'first' in the earners row.
+      const firstTaskFirstEarn = makeAchievement('streak-10', { taskId: 'first', taskName: 'First', earnedAt: '2026-01-01T00:00:00.000Z' });
+      const secondTaskEarn = makeAchievement('streak-10', { taskId: 'second', taskName: 'Second', earnedAt: '2026-02-01T00:00:00.000Z' });
+      const firstTaskReEarn = makeAchievement('streak-10', { taskId: 'first', taskName: 'First', earnedAt: '2026-04-01T00:00:00.000Z' });
+      const status = getAchievementCardStatus('streak-10', [firstTaskFirstEarn, secondTaskEarn, firstTaskReEarn], []);
+      expect(status.earners.map(e => e.taskId)).toEqual(['second', 'first']);
+    });
+
     it('reads totalCompletions (not currentStreak) for milestone-N kinds', () => {
       const task = makeTask({ id: 't1', name: 'Reader' }, { currentStreak: 1, totalCompletions: 7 });
       const status = getAchievementCardStatus('milestone-10', [], [task]);
@@ -1277,13 +1291,26 @@ describe('getGroupedAchievementCardStatuses', () => {
     expect(groups[0].statuses.map(s => s.kind)).toEqual(expectedOrder);
   });
 
-  it('sorts the Unlocked group by most recently earned first', () => {
+  it('sorts the Unlocked group by first-earned date, newest first (no kind here has more than one instance, so this also happens to match "most recently earned")', () => {
     const older = makeAchievement('milestone-10', { taskId: 't1', earnedAt: '2026-01-01T00:00:00.000Z' });
     const newest = makeAchievement('streak-10', { taskId: 't2', earnedAt: '2026-06-01T00:00:00.000Z' });
     const middle = makeAchievement('perfect-day', { dedupScope: '2026-03-01', earnedAt: '2026-03-01T00:00:00.000Z' });
     const groups = getGroupedAchievementCardStatuses([older, newest, middle], []);
     const unlocked = groups.find(g => g.group === 'unlocked');
     expect(unlocked?.statuses.map(s => s.kind)).toEqual(['streak-10', 'perfect-day', 'milestone-10']);
+  });
+
+  it('for a kind re-earned multiple times, sorts by its own FIRST-ever earn, not whichever re-earn is most recent', () => {
+    // streak-10 was first earned in Jan (earlier than milestone-10's own Feb earn) but re-earned
+    // again in Jun (e.g. a streak resetting and climbing back up). Jun is the most recent event in
+    // this whole fixture, but it must not bump streak-10 ahead of milestone-10 -- streak-10's real
+    // first unlock (Jan) is still earlier than milestone-10's (Feb), so milestone-10 ranks first.
+    const streak10First = makeAchievement('streak-10', { taskId: 't1', earnedAt: '2026-01-01T00:00:00.000Z' });
+    const milestone10 = makeAchievement('milestone-10', { taskId: 't2', earnedAt: '2026-02-01T00:00:00.000Z' });
+    const streak10ReEarn = makeAchievement('streak-10', { taskId: 't1', earnedAt: '2026-06-01T00:00:00.000Z' });
+    const groups = getGroupedAchievementCardStatuses([streak10First, milestone10, streak10ReEarn], []);
+    const unlocked = groups.find(g => g.group === 'unlocked');
+    expect(unlocked?.statuses.map(s => s.kind)).toEqual(['milestone-10', 'streak-10']);
   });
 
   it('within the Locked group, sorts the in-progress portion by closeness (highest fraction first), ahead of every not-yet-started kind', () => {
@@ -1319,5 +1346,49 @@ describe('getGroupedAchievementCardStatuses', () => {
     // 1) is the *only* kind with any progress here -- it lands first in the concatenated list,
     // ahead of every zero-progress, not-started kind that follows it.
     expect(kinds.indexOf('comeback')).toBe(0);
+  });
+});
+
+describe('getFirstEarnedAchievements', () => {
+  it('collapses a repeatable kind re-earned multiple times down to its own first instance', () => {
+    const first = makeAchievement('streak-2', { id: 'a', taskId: 't1', earnedAt: '2026-01-01T00:00:00.000Z' });
+    const secondEarn = makeAchievement('streak-2', { id: 'b', taskId: 't1', earnedAt: '2026-03-01T00:00:00.000Z' });
+    const result = getFirstEarnedAchievements([first, secondEarn]);
+    expect(result).toEqual([first]);
+  });
+
+  it('sorts by each identity\'s own first-earned date, not by whichever re-earn is most recent', () => {
+    // streak-2 was FIRST earned on 2026-01-01 -- earlier than milestone-10's own single earn on
+    // 2026-01-15. streak-2 is later re-earned on 2026-03-01, the most recent event in the whole
+    // list -- but that re-earn must NOT let it jump ahead of milestone-10 in the sort:
+    // milestone-10 still ranks first, since its own (only) unlock is more recent than streak-2's
+    // real first unlock, which is what the sort actually keys on.
+    const streak2First = makeAchievement('streak-2', { id: 'a', taskId: 't1', earnedAt: '2026-01-01T00:00:00.000Z' });
+    const milestone10 = makeAchievement('milestone-10', { id: 'b', taskId: 't1', earnedAt: '2026-01-15T00:00:00.000Z' });
+    const streak2ReEarn = makeAchievement('streak-2', { id: 'c', taskId: 't1', earnedAt: '2026-03-01T00:00:00.000Z' });
+    const result = getFirstEarnedAchievements([streak2First, milestone10, streak2ReEarn]);
+    expect(result.map(a => a.id)).toEqual(['b', 'a']);
+  });
+
+  it('collapses the same kind earned by two different tasks into one entry -- whichever task earned it first', () => {
+    // Identity is kind alone, not kind+task -- per explicit user direction, two different habits
+    // both hitting a 2-day streak should still read as one "2-Day Streak" trophy on an unfiltered,
+    // multi-task list, not two. The earlier of the two instances (task t1's) wins as the
+    // representative.
+    const taskAEarn = makeAchievement('streak-2', { id: 'a', taskId: 't1', earnedAt: '2026-01-01T00:00:00.000Z' });
+    const taskBEarn = makeAchievement('streak-2', { id: 'b', taskId: 't2', earnedAt: '2026-02-01T00:00:00.000Z' });
+    const result = getFirstEarnedAchievements([taskAEarn, taskBEarn]);
+    expect(result.map(a => a.id)).toEqual(['a']);
+  });
+
+  it('groups global (taskless) kinds by kind alone', () => {
+    const firstPerfectDay = makeAchievement('perfect-day', { id: 'a', taskId: undefined, earnedAt: '2026-01-01T00:00:00.000Z' });
+    const laterPerfectDay = makeAchievement('perfect-day', { id: 'b', taskId: undefined, earnedAt: '2026-02-01T00:00:00.000Z' });
+    const result = getFirstEarnedAchievements([firstPerfectDay, laterPerfectDay]);
+    expect(result.map(a => a.id)).toEqual(['a']);
+  });
+
+  it('an empty list produces an empty result', () => {
+    expect(getFirstEarnedAchievements([])).toEqual([]);
   });
 });
