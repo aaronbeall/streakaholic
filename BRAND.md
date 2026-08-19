@@ -104,13 +104,21 @@ exists. Currently used by a derived asset below:
   opaque — needed for compositing onto a *new* background, since the interior fill would
   otherwise show through as a mismatched patch. Feeds `notification-icon.png` and
   `logo-mark-solid.png` (ShareCards' brand footer).
+- `logo4-solid-vibrant.png` — flat mint-on-violet two-tone rendition of the mark, full-bleed (no
+  centered-safe-zone padding needed, since favicons pass through no OS/store masking). The
+  **current favicon source** for both `assets/images/favicon.png` (the Expo web build's browser-tab
+  icon, `app.json`'s `expo.web.favicon` — not the marketing site) and `website/assets/favicon-32.png`
+  / `favicon-192.png` / `apple-touch-icon.png`. Chosen **2026-08-19** over the app-icon's own
+  `logo4-aurora-solid-white.png` specifically because a favicon renders as small as 16px, where the
+  aurora gradient's soft multi-hue blend turns muddy — flat, high-contrast, two-color art stays
+  legible at that size. A `logo4-solid-vibrant-gradient.png` sibling exists (same mark, gradient
+  background instead of flat violet) but wasn't used here.
 - `logo4-aurora-solid-white.png` — the **current app-icon source**: `logo4-solid-white-only.png`'s
   line art, scaled to ~53% of canvas height, centered horizontally and shifted up by 10% of the
   mark's own height (not dead-center — reads better slightly above center), composited onto
   `aurora-background-soft.png` (a supplied gradient/starfield plate, softer/lower-noise than the
-  original `aurora-background.png`, with no mark baked in). Also the source for `favicon.png`, so
-  the browser-tab icon matches the actual app icon. First regenerated **2026-08-19** after the
-  prior edge-to-edge version (mark nearly filling the full 1254px canvas, off-center) clipped badly
+  original `aurora-background.png`, with no mark baked in). First regenerated **2026-08-19** after
+  the prior edge-to-edge version (mark nearly filling the full 1254px canvas, off-center) clipped badly
   on real Android launchers — the mark's flame tips and ring bottom extended well past Android's
   adaptive-icon safe zone (a centered ~66dp-diameter circle within the 108dp foreground canvas;
   anything outside it is fair game for any launcher's mask, up to the most aggressive case of a
