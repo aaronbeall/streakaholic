@@ -30,7 +30,7 @@ own Google/Play Console login left undone — see below for exactly what those a
   `react-native-circular-progress-indicator`, `react-native-confetti-cannon`,
   `react-native-particle-system`, `react-native-progress`) have been removed.
 - **Privacy Policy is hosted and live**: https://www.metamodernmonkey.com/privacy/streakaholic
-  — a dedicated page (not a shared/generic URL — each Metamodern Monkey app gets its own
+  — a dedicated page (not a shared/generic URL — each Meta Modern Monkey app gets its own
   under `/privacy/<slug>`, matching the `id` slugs already used in that site's
   `data/projects.json`), built in the `metamodernmonkey/website` repo to match its
   existing Next.js/Tailwind "synthwave" design system, mirroring the About screen's

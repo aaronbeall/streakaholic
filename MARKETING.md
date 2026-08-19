@@ -451,7 +451,7 @@ Use time and money in this order:
 3. Produce reusable short demo clips.
 4. Add shareable achievement and streak cards.
 5. Participate helpfully in relevant communities.
-6. Cross-promote through Metamodern Monkey.
+6. Cross-promote through Meta Modern Monkey.
 7. Launch on Product Hunt and Indie Hackers.
 8. Pitch small Android, productivity, and self-improvement creators.
 9. Contact small newsletters, blogs, podcasts, and app-review channels.
