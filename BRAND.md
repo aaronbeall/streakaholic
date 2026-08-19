@@ -132,11 +132,12 @@ add the starfield texture.
 **Where the free-form shape (the flame breaking out of its own circle) is safe to use**: only
 where this repo owns the entire rendered canvas and nothing external — an OS launcher mask, a
 store's own listing-icon cropper — is going to re-crop or mask it afterward. That's the splash
-screen, the feature graphic, and the Home empty state; it is deliberately *not* used for any of
-the four release-facing icon contexts (app icon, adaptive icon, Play/App Store listing icons),
-all of which now use the full-bleed `logo4-aurora-solid-white.png` instead. The About screen's
-72×72 icon display intentionally also uses the real app icon (`icon.png`), not the free-form
-mark, so it visually matches what the user actually sees on their home screen.
+screen, the feature graphic, the Home empty state, and the About screen's 72×72 icon display
+(a plain React Native `<Image>` on our own themed card background — no OS/store masking
+involved); it is deliberately *not* used for any of the four release-facing icon contexts (app
+icon, adaptive icon, Play/App Store listing icons), all of which use the full-bleed
+`logo4-aurora-solid-white.png` instead since those genuinely are rendered through masking we
+don't control.
 
 Every app icon, the Android adaptive-icon foreground/background, the web favicon, the splash
 screen, the Play/App Store hi-res icons, and the feature graphic are all derived from these

@@ -29,3 +29,4 @@ A playful, private habit & streak tracker for Android. Build streaks worth celeb
 - [BRAND.md](BRAND.md)
 - [COMPETITIVE_ANALYSIS.md](COMPETITIVE_ANALYSIS.md)
 - [demo-data/](demo-data/) — a realistic dataset (with backfilled history) for showing off the app
+- [website/](website/) — the marketing landing page (static HTML/CSS, no build step)

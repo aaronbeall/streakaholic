@@ -42,7 +42,7 @@ export const AboutScreen: React.FC = () => {
 
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: insets.bottom }}>
         <View style={styles.appCard}>
-          <Image source={require('../../assets/images/icon.png')} style={styles.appIcon} />
+          <Image source={require('../../assets/images/logo-mark.png')} style={styles.appIcon} resizeMode="contain" />
           <Text style={styles.appName}>{appName}</Text>
           {!!version && <Text style={styles.appVersion}>Version {version}</Text>}
           <Text style={styles.appTagline}>{BRAND_TAGLINE}</Text>
@@ -154,7 +154,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   appIcon: {
     width: 72,
     height: 72,
-    borderRadius: 18,
     marginBottom: 12,
   },
   appName: {
