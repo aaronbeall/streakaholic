@@ -388,9 +388,19 @@ const RANGE_SWEEP_MIN_DISTINCT_TASKS = 4;
 // constant's own comment) -- counting it here too would let a pile of same-day first completions
 // alone earn "Streak Addict," which isn't the "consistency may be contagious" moment this kind is
 // meant to celebrate.
-const isGenuineActiveStreak = (task: Task): boolean =>
-  (task.stats?.currentStreak ?? 0) >= FIRST_STREAK_THRESHOLD &&
-  (task.stats?.streakStatus === 'up_to_date' || task.stats?.streakStatus === 'expiring');
+// `today` decides whether *today itself* is what's actually keeping the streak alive right now --
+// per explicit user direction, a task shouldn't count as an "active streak" here on a day whose
+// only reason for reading 'up_to_date' is that today didn't require anything (a non-due
+// pass-through day) or was explicitly skipped (Task.skippedDates) -- neither is a real completion,
+// just today not counting against you. 'expiring' (today IS due, still pending) is unaffected --
+// that's a real due day still in play, not a free pass, so it stays included exactly as before.
+const isGenuineActiveStreak = (task: Task, today: Date): boolean => {
+  if ((task.stats?.currentStreak ?? 0) < FIRST_STREAK_THRESHOLD) return false;
+  const status = task.stats?.streakStatus;
+  if (status === 'expiring') return true;
+  if (status !== 'up_to_date') return false;
+  return isTaskCompleted(task, today) || isDueOnDate(task, today);
+};
 // A day/week with only one due task still trivially "wins" without this -- per explicit user
 // direction (2026-08-12), a genuine "perfect" day needs a little more actually riding on it. 2 is
 // the smallest change that rules out the trivial one-task case without meaningfully raising the
@@ -1650,7 +1660,7 @@ export const detectCompletionAchievements = (
   }
 
   if (!options?.skipActiveStreakAggregate && isFirstEarn('streak-addict', 'global')) {
-    const activeStreaks = activeTasksAfter.filter(isGenuineActiveStreak).length;
+    const activeStreaks = activeTasksAfter.filter(t => isGenuineActiveStreak(t, date)).length;
     if (activeStreaks >= STREAK_ADDICT_TARGET) {
       earned.push({ kind: 'streak-addict', value: activeStreaks, dedupScope: 'global' });
     }
@@ -1817,7 +1827,7 @@ export const detectRetroactiveAchievements = (
   // require recomputing every other task's stats at every event, so scan mode intentionally catches
   // the useful import/settings case from the fully refreshed snapshot and skips it in the replay.
   if (!alreadyEarnedScopes.has(dedupKey('streak-addict', 'global'))) {
-    const activeStreaks = activeTasks.filter(isGenuineActiveStreak).length;
+    const activeStreaks = activeTasks.filter(t => isGenuineActiveStreak(t, today)).length;
     if (activeStreaks >= STREAK_ADDICT_TARGET) {
       earned.push({
         kind: 'streak-addict', value: activeStreaks, dedupScope: 'global', earnedAt: today.toISOString(),
@@ -2229,7 +2239,7 @@ export const getAchievementCardStatus = (
     }
 
     case 'active-streak-count': {
-      const activeStreaks = activeTasks.filter(isGenuineActiveStreak).length;
+      const activeStreaks = activeTasks.filter(t => isGenuineActiveStreak(t, today)).length;
       return { ...base, progress: { current: Math.min(activeStreaks, strategy.target), target: strategy.target } };
     }
 

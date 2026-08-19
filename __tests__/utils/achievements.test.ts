@@ -593,6 +593,56 @@ describe('detectCompletionAchievements', () => {
       const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
       expect(kindsOf(earned)).not.toContain('streak-addict');
     });
+
+    it('does not count a habit whose "up to date" today is only because today was explicitly skipped, not completed', () => {
+      const todayString = format(today, 'yyyy-MM-dd');
+      const tasks = [
+        ...Array.from({ length: 5 }, (_, index) => makeTask(
+          { id: `streak-${index}` },
+          { currentStreak: index + 2, streakStatus: 'up_to_date' },
+        )),
+        // Real streak history (currentStreak 4), but today itself is a skip -- no active
+        // completion actually happened today, just a pass per Task.skippedDates.
+        makeTask({ id: 'streak-skipped-today', skippedDates: [todayString] }, { currentStreak: 4, streakStatus: 'up_to_date' }),
+      ];
+      const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
+      expect(kindsOf(earned)).not.toContain('streak-addict');
+    });
+
+    it('does not count a habit whose "up to date" today is only because today is a non-due pass-through day', () => {
+      const notDueDay = (today.getDay() + 1) % 7;
+      const tasks = [
+        ...Array.from({ length: 5 }, (_, index) => makeTask(
+          { id: `streak-${index}` },
+          { currentStreak: index + 2, streakStatus: 'up_to_date' },
+        )),
+        // specific_days_of_week, due on a day that isn't today -- today reads 'up_to_date' purely
+        // because nothing is required today, not because of an actual completion today.
+        makeTask(
+          { id: 'streak-not-due-today', frequency: 'specific_days_of_week', daysOfWeek: [notDueDay] },
+          { currentStreak: 5, streakStatus: 'up_to_date' },
+        ),
+      ];
+      const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
+      expect(kindsOf(earned)).not.toContain('streak-addict');
+    });
+
+    it('still counts a habit that is genuinely due today and was actually completed today', () => {
+      const todayString = format(today, 'yyyy-MM-dd');
+      const completedToday: TaskCompletion = { id: 'c1', taskId: 'streak-due-today', date: todayString, completedAt: today.toISOString(), timesCompleted: 1 };
+      const tasks = [
+        ...Array.from({ length: 5 }, (_, index) => makeTask(
+          { id: `streak-${index}` },
+          { currentStreak: index + 2, streakStatus: 'up_to_date' },
+        )),
+        makeTask(
+          { id: 'streak-due-today', completions: [completedToday] },
+          { currentStreak: 4, streakStatus: 'up_to_date' },
+        ),
+      ];
+      const earned = detectCompletionAchievements(tasks[0], tasks[0], tasks, today, new Set());
+      expect(kindsOf(earned)).toContain('streak-addict');
+    });
   });
 
   describe('century-club (four tiers: 100/500/1000/10000)', () => {
