@@ -52,19 +52,15 @@ own Google/Play Console login left undone — see below for exactly what those a
    page is the single source of truth going forward, not this repo.
 
 ### Prepped — ready for you, but finishing needs your Play Console/Google login
-5. **Store listing assets**, mostly closed:
-   - **512×512 hi-res icon**: `design/AppIcons/playstore.png`, regenerated 2026-08-19 from the
-     now-canonical "logo4" mark (see BRAND.md). Correctly sized, matches the current icon.
-   - **1024×500 feature graphic**: rebuilt at `design/store-assets/feature-graphic.png` — the
-     same banner layout as before (icon + name + tagline), now on the mark's own navy
-     (`#01073B`) with the flame's mint-green (`#65FC7C`) for the tagline, using the new
-     transparent mark cutout. Treat this as a solid first pass, not the final word —
-     swapping in real in-app screenshots once you have them would likely make it more
-     compelling than a logo card alone.
-   - **Short/full description**: drafted below, ready to paste into Play Console.
+5. **Store listing assets**, mostly closed — the actual copy/assets moved to a dedicated
+   doc, [STORE_LISTING.md](STORE_LISTING.md), so they don't drift out of sync with a
+   second draft here. Current status:
+   - **512×512 hi-res icon**: done, `design/AppIcons/playstore.png`.
+   - **1024×500 feature graphic**: done (first pass), `design/store-assets/feature-graphic.png`.
+   - **Short/full description**: drafted, ready to paste into Play Console.
    - **Screenshots (≥2 required)**: still need to be captured on an actual device — see
-     the shot list below. This is the one asset item that's still genuinely on you, since
-     it means running the real app.
+     STORE_LISTING.md's shot list. This is the one asset item that's still genuinely on
+     you, since it means running the real app.
 6. **Data Safety form & content rating questionnaire**: the cheat sheet below has the
    actual answers worked out from the app's real behavior, but clicking through Play
    Console's forms themselves needs your login.
@@ -86,56 +82,12 @@ own Google/Play Console login left undone — see below for exactly what those a
 is now the canonical mark; every icon/store/in-app asset was regenerated from it. See BRAND.md's
 "Visual identity status" for the full record.
 
-### Store listing copy (ready to paste into Play Console)
+### Store listing copy and assets
 
-**Short description** (80 char max, this is 76):
-> Build habit streaks worth celebrating. Private by design, no account needed.
-
-**Full description** (4000 char max, this is ~1,400):
-> Build streaks worth celebrating. Streakaholic is a playful, privacy-first habit tracker
-> that makes consistency feel rewarding without the guilt trips.
->
-> **Why Streakaholic**
-> - Flexible schedules — track habits daily, on chosen days, or a set number of days per
->   week or month
-> - Multiple completions per day — for habits you do more than once, like water intake or
->   exercise sets
-> - Streak tracking that's actually fair — miss a non-due day and your streak doesn't
->   break; catch up early and it counts right away
-> - Satisfying animations — a press-and-hold to complete, a streak ring that fills in, and
->   a flame celebration when you hit a new best streak
-> - Flip any habit card to see its full calendar history or detailed stats, right from the
->   home screen
-> - A Dashboard with aggregate stats and charts across every habit — completion trends,
->   best days, and more
-> - Quickly see which habits are on track and which need attention today
-> - Customize every habit with its own icon and color
-> - Light and dark mode, matching your system theme
->
-> **Your data stays yours**
-> Streakaholic doesn't require an account, doesn't use the cloud, and doesn't track you.
-> Every habit, streak, and completion is stored only on your device. Export your data
-> anytime as a backup, and import it back whenever you need to.
->
-> Whether you're building a workout habit, a reading habit, or just trying to drink more
-> water, Streakaholic keeps you honest without keeping your data.
-
-### Screenshot shot list (for you to capture on-device)
-
-Play requires at least 2 phone screenshots; these 5–6 cover the app's actual range
-without needing any staged/fake data — just use your own real habits:
-
-1. **Home screen**, a handful of habits with a mix of states (some complete, some not, at
-   least one multi-completion habit showing its split ring) — this is the first thing anyone sees.
-2. **Dashboard → Stats tab** — the aggregate charts, ideally with a few weeks of real data
-   behind them so the charts aren't empty.
-3. **Dashboard → Calendar tab**, Bars mode — the stacked-bar timeline is one of the more
-   visually distinct things in the app.
-4. **Habit detail → Streaks tab** — the hero "Best streak" callout plus history list.
-5. **A habit card mid-celebration** (the flame particle burst on a new best streak) —
-   timing-dependent to capture, but the most "alive" moment the app has.
-6. **Settings or New habit**, showing the icon/color customization — communicates
-   personalization without needing words.
+Moved to [STORE_LISTING.md](STORE_LISTING.md) — title, short/full description, screenshot
+shot list, feature graphic, hi-res icon, and category/content-rating notes all live there
+now, ready to paste into Play Console. Kept out of this file so there's exactly one place
+that copy can drift out of date.
 
 ### Data Safety & content rating cheat sheet
 

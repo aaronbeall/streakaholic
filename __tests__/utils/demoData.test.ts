@@ -61,7 +61,11 @@ describe('generated marketing demo data', () => {
     const deepClean = byName('Deep Clean');
     const spanish = byName('Learn Spanish');
 
-    expect(workout.stats).toMatchObject({ currentStreak: 35, bestStreak: 132, streakStatus: 'up_to_date' });
+    // 34, not 35 -- one day in the middle of this live streak is a genuine skip
+    // (Task.skippedDates), not a completion; it doesn't count toward the streak length,
+    // but per the skip feature's own design it doesn't break the streak either.
+    expect(workout.stats).toMatchObject({ currentStreak: 34, bestStreak: 132, streakStatus: 'up_to_date' });
+    expect(workout.skippedDates).toHaveLength(1);
     expect(water.stats).toMatchObject({ currentStreak: 75, bestStreak: 100, streakStatus: 'expiring' });
     expect(getCompletionCount(water, anchor)).toBe(2);
     expect(reading.stats).toMatchObject({ currentStreak: 1, streakStatus: 'expiring' });
@@ -71,17 +75,30 @@ describe('generated marketing demo data', () => {
     expect(spanish.stats).toMatchObject({ currentStreak: 0, bestStreak: 0, streakStatus: 'never_started' });
   });
 
+  // Deliberately includes both Sunday and non-Sunday anchor dates (only 2026-03-01 is a
+  // Sunday). Regression coverage for a real bug found 2026-08-19: Morning Workout/Drink
+  // Water's shared "first seven days" window used to be pinned to a literal 420-day
+  // offset, and 420 % 7 == 0 means `daysAgo(420)` always lands on the *same* weekday as
+  // whatever `--today` is -- so the window only actually formed a real Sunday-Saturday
+  // week (and only then could Perfect Week unlock) when the generator happened to run on
+  // a Sunday. This suite's own `it.each` never caught it because it only checked `.stats`,
+  // never which achievements the generated history actually unlocks, for anything but the
+  // one date `tasks`/`anchor` above happened to be generated with.
   it.each(['2026-01-01', '2026-02-28', '2026-03-01', '2026-12-31'])(
-    'keeps its intended states across weekday and month boundaries (%s)',
+    'keeps its intended states, and still unlocks Perfect Week, across weekday and month boundaries (%s)',
     generatedDate => {
       const generated = generateFor(generatedDate);
       const generatedByName = (name: string) => generated.find(task => task.name === name)!;
-      expect(generatedByName('Morning Workout').stats).toMatchObject({ currentStreak: 35, bestStreak: 132, streakStatus: 'up_to_date' });
+      expect(generatedByName('Morning Workout').stats).toMatchObject({ currentStreak: 34, bestStreak: 132, streakStatus: 'up_to_date' });
       expect(generatedByName('Drink Water').stats).toMatchObject({ currentStreak: 75, bestStreak: 100, streakStatus: 'expiring' });
       expect(generatedByName('Read Before Bed').stats).toMatchObject({ currentStreak: 1, streakStatus: 'expiring' });
       expect(generatedByName('Meal Prep').stats?.streakStatus).toBe('expired');
       expect(generatedByName('Deep Clean').stats?.streakStatus).toBe('up_to_date');
       expect(generatedByName('Learn Spanish').stats?.streakStatus).toBe('never_started');
+
+      const active = generated.filter(task => !task.archived);
+      const earned = detectRetroactiveAchievements([], active, new Date(generatedDate));
+      expect(earned.some(item => item.kind === 'perfect-week')).toBe(true);
     },
   );
 

@@ -56,6 +56,16 @@ def build_demo_export(today: date) -> dict:
         # Python: Monday=0. JavaScript/date-fns and Streakaholic: Sunday=0.
         return (day.weekday() + 1) % 7
 
+    def sunday_on_or_before(approx_offset: int) -> int:
+        # Nudges a days-ago offset further into the past (never forward) so it lands on a
+        # Sunday. Needed because 420 % 7 == 0, so `days_ago(420)` always falls on the *same*
+        # weekday as `today` -- the "first seven days form one clean Sunday-Saturday Perfect
+        # Week" setup below silently only worked when the generator happened to run on a
+        # Sunday (2026-08-19, discovered while adding Morning Workout's skip demo below: the
+        # achievement failed to unlock for every other day of the week, including the actual
+        # default -- run with no --today flag at all).
+        return approx_offset + js_weekday(days_ago(approx_offset))
+
     def task(
         slug: str,
         name: str,
@@ -108,17 +118,29 @@ def build_demo_export(today: date) -> dict:
 
     # 1. The flagship habit: old enough for One Year Strong, with a 120-day
     # historical run, an intentionally backfilled gap that creates a new 132-day
-    # record, realistic misses, and a clean 35-day live streak through today.
+    # record, realistic misses, and a 34-day live streak through today with one
+    # deliberate skip in it (see SKIPPED_OFFSET below) -- the walkthrough's own
+    # Calendar-tab tour lands on exactly this habit and this month, so it doubles
+    # as the demo's only live demonstration of the skip feature: a real day with
+    # no completion that still doesn't break the chain, right next to 33 days that
+    # do carry one.
+    SKIPPED_OFFSET = 1
+    # Sunday-aligned (see sunday_on_or_before) so its first 7 days -- shared with Drink
+    # Water below -- always form one real Sunday-Saturday week, regardless of today's
+    # own weekday. Everything else in this habit's history is anchored to the literal
+    # 420/300/295/etc. boundaries below, unaffected by this 0-6-day nudge.
+    WORKOUT_START_OFFSET = sunday_on_or_before(420)
     workout = task(
         "morning-workout",
         "Morning Workout",
         "dumbbell",
         "#FF5A5F",
         "daily",
-        420,
+        WORKOUT_START_OFFSET,
         notifications={"level": 2, "time": "06:30", "nagIntervalMinutes": 30},
+        skippedDates=[days_ago(SKIPPED_OFFSET).isoformat()],
     )
-    for offset in range(420, 300, -1):  # 120-day original best
+    for offset in range(WORKOUT_START_OFFSET, 300, -1):  # 120-day original best
         add_completion(workout, days_ago(offset), hour=6, minute=15)
     for offset in range(295, 225, -1):  # 70 days after a visible five-day break
         add_completion(workout, days_ago(offset), hour=6, minute=20)
@@ -135,17 +157,22 @@ def build_demo_export(today: date) -> dict:
     for offset in range(150, 34, -1):
         # A guaranteed one-day lapse/revival around day -59 demonstrates Welcome
         # Back; the other misses make the year chart look human rather than synthetic.
-        should_skip = offset == 35 or offset == 59 or (offset % 11 == 0) or (offset % 17 == 0)
-        if should_skip:
+        # (Plain misses -- these break the chain, unlike SKIPPED_OFFSET below, which
+        # deliberately doesn't.)
+        should_miss = offset == 35 or offset == 59 or (offset % 11 == 0) or (offset % 17 == 0)
+        if should_miss:
             continue
         hour, minute = (23, 0) if 138 <= offset <= 145 else (6, 15 + rng.randint(0, 10))
         add_completion(workout, days_ago(offset), hour=hour, minute=minute)
     for offset in range(34, -1, -1):
+        if offset == SKIPPED_OFFSET:
+            continue  # this day is in skippedDates instead of completions -- see above
         add_completion(workout, days_ago(offset), hour=6, minute=15 + rng.randint(0, 10))
     tasks.append(workout)
 
     # 2. A multi-completion habit. The first seven days align with Morning Workout
-    # so the history contains exactly one clean Perfect Week; later it has a
+    # (same WORKOUT_START_OFFSET) so the history contains exactly one clean, real
+    # Sunday-Saturday Perfect Week regardless of today's weekday; later it has a
     # 100-day record, a gap, and a 75-day live streak that is only 2/4 complete today.
     water = task(
         "drink-water",
@@ -153,11 +180,11 @@ def build_demo_export(today: date) -> dict:
         "cup-water",
         "#32B5A4",
         "daily",
-        420,
+        WORKOUT_START_OFFSET,
         timesPerDay=4,
         notifications={"level": 1, "time": "09:00"},
     )
-    for offset in range(420, 413, -1):
+    for offset in range(WORKOUT_START_OFFSET, WORKOUT_START_OFFSET - 7, -1):
         add_completion(water, days_ago(offset), count=4, hour=6, minute=40)
     for offset in range(180, 80, -1):  # exactly 100 full days
         hour, minute = (23, 10) if 138 <= offset <= 145 else (18, rng.randint(0, 40))

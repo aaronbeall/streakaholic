@@ -106,7 +106,7 @@ Return to Home.
 > weekly goal does not force Monday, Wednesday, and Friday—you choose the days while the
 > app keeps the period accountable.
 
-### 6. Open one habit's full story (35 seconds)
+### 6. Open one habit's full story, including a skip (55 seconds)
 
 **Action:** Long-press the already-completed **Morning Workout** card. Visit its
 **Calendar**, **Stats**, and **Streaks** tabs.
@@ -114,12 +114,25 @@ Return to Home.
 **Say:**
 
 > A streak is more useful when you can see the story behind it. Morning Workout has a
-> 35-day live streak, but its personal record is 132 days. The calendar shows completed,
-> missed, and connected days; Stats shows consistency over time; and Streaks keeps every
-> historical run instead of reducing the habit to one number.
+> 34-day live streak, but its personal record is 132 days. The calendar shows completed,
+> missed, connected, and skipped days; Stats shows consistency over time; and Streaks keeps
+> every historical run instead of reducing the habit to one number.
 
 **Show:**
 
+- Calendar: without swiping anywhere, point out the one day in the current month with a
+  faded, struck-through number instead of a filled dot or a plain miss mark — that is a real
+  skip. Long-press it to open the day-details popover and show its **Remove skip** option
+  (close without tapping it), then say:
+
+  > Life happens. A skip is different from just not showing up — it tells the app this day
+  > was a deliberate pass, so the streak keeps going instead of resetting to zero. Skips
+  > only apply to daily and specific-weekday habits, and only to a day that was actually
+  > scheduled — you can't skip a day that was never due in the first place.
+
+- Long-press a different, still-empty recent day to open the same popover, tap **Skip this
+  day**, and show the toast with **Undo**. Tap **Undo** so the dataset returns to its known
+  state before continuing.
 - Calendar: swipe to an older month to expose longer runs and breaks.
 - Stats: choose **Year**, toggle cumulative activity, and scroll through weekday and
   time-of-day charts. Tap the share icon to show the generated habit-progress card and its
@@ -207,7 +220,7 @@ These features are implemented, but deliberately left out of the polished 4–5 
 | Calendar editing | Per-habit **Year** mode, directly adding/removing a past completion, multiple-rep corrections from a calendar day, future-day restrictions, and opening a task calendar from a Dashboard day/month card |
 | Analytics variants | The **Month** and **All Time** Stats ranges, every chart at every range, Dashboard mini month cards, the Streaks **Recent** sort, and loading very old streak/calendar pages |
 | Achievement presentation variants | Snoozing one achievement kind, the lightweight achievement alert used for snoozed kinds, unsnoozing, and a batch where several achievements unlock in one full-screen sequence |
-| Settings and support | System/Light/Dark theme switching; the individual card-display toggles as live before/after comparisons; export; merge import; import Undo; Send Feedback; Rate This App; **Share Streakaholic** as a store link; replaying onboarding hints; and the About/Privacy/Terms/Open Source screens |
+| Settings and support | System/Light/Dark theme switching; the individual card-display toggles as live before/after comparisons; export; merge import; import Undo; Send Feedback; Rate This App; the Tip Jar and its three purchase tiers; **Share Streakaholic** as a store link; replaying onboarding hints; and the About/Privacy/Terms/Open Source screens |
 | Data lifecycle | Deleting a habit and restoring via Undo, archiving/restoring as a full flow, duplicate-import messaging, and malformed-import handling |
 | Developer-only tooling | The notification debug screen |
 
@@ -220,8 +233,10 @@ The following roadmap items cannot be demonstrated because they are not implemen
 
 - Commitment Mode (formerly Ironman/Hard Mode), locked history, Commitment achievement
   provenance, and Streak Saves
-- Planned skips, pauses, and vacation handling
-- Pro purchase/unlimited habits, the tip jar, and any paid flow
+- Pausing a habit for a prospective date range (distinct from a single-day skip, which
+  *is* implemented -- see step 6 above -- and from Commitment Mode's own Streak Saves)
+- Pro purchase/unlimited habits and any paid unlock flow (the tip jar itself is
+  implemented -- see the "Settings and support" omissions above -- Pro is not)
 - Android home-screen widgets
 
 ## Short store/social cut (about 60 seconds)

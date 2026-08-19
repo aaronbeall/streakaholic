@@ -317,32 +317,22 @@ Keep a small hook library:
 
 ## Phase 4: Improve the Play Store listing
 
-- [ ] Consider the title **“Streakaholic: Habit Tracker”** for clearer search intent.
-- [ ] Lead the short description with streak motivation, not privacy.
-- [ ] Make the first three screenshot captions tell a story:
-  1. **Turn daily progress into motivating streaks**
-  2. **Celebrate milestones and collect achievements**
-  3. **See your momentum across calendars and charts**
-- [ ] Use later screenshots for flexible schedules, customization, reminders, and
-      privacy.
+The actual title/short/full-description copy and screenshot shot list live in
+[STORE_LISTING.md](STORE_LISTING.md) now, not here — this phase is the surrounding
+process, not the copy itself.
+
+- [ ] Decide the title question in STORE_LISTING.md ("Streakaholic" vs. "Streakaholic:
+      Habit Tracker" for clearer search intent).
 - [ ] Make the first screenshot visually striking even at thumbnail size.
-- [ ] Use consistent headline placement, type, colors, and phone framing.
+- [ ] Use consistent headline placement, type, colors, and phone framing across all
+      screenshots.
 - [ ] Add a preview video after the short social demo has been tested on real viewers.
 - [ ] Prompt for ratings after positive moments such as a milestone or sustained streak,
       never immediately after launch, an error, or a broken streak.
 - [ ] Review Play Console acquisition, conversion, retention, and review themes weekly.
 - [ ] Test new screenshot order or short-description copy when store traffic is
-      sufficient to learn from the result.
-
-Suggested short description:
-
-> Build habit streaks worth celebrating. Private by design, no account needed.
-
-Suggested opening for the full description:
-
-> Build streaks worth celebrating. Streakaholic turns everyday habits into motivating
-> streaks, satisfying celebrations, meaningful milestones, and a Trophy Case that fills
-> as you make progress—all while your data stays on your device and under your control.
+      sufficient to learn from the result — see STORE_LISTING.md's own open questions
+      for what's still undecided enough to be worth testing.
 
 ## Phase 5: Public launch
 

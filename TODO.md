@@ -173,7 +173,9 @@
   - [x] Apply the verbal identity to the in-app About screen, share cards/share text, README,
         marketing plan, competitive positioning, and Play Store listing copy
   - [ ] Apply the chosen visual identity to the Play Store title/icon/feature graphic, screenshots,
-        demo videos, press kit, and `streakaholic.app`
+        demo videos, press kit, and `streakaholic.app` — icon/feature graphic done, see
+        [STORE_LISTING.md](STORE_LISTING.md) for current status and the remaining open questions
+        (title format, screenshots still uncaptured)
 - [ ] Monetization — see [MONETIZATION.md](MONETIZATION.md) for the actual plan (one-time
       Pro unlock + tip jar + Commitment Mode Streak Saves, no ads/subscription) and sequencing
   - [x] Tip jar (`expo-iap`, three tiers, `useTipJar` + three Supporter achievements + a

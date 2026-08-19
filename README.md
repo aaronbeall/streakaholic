@@ -21,6 +21,7 @@ A playful, private habit & streak tracker for Android. Build streaks worth celeb
 - [TODO.md](TODO.md)
 - [CLAUDE.md](CLAUDE.md)
 - [PUBLISHING.md](PUBLISHING.md)
+- [STORE_LISTING.md](STORE_LISTING.md)
 - [MONETIZATION.md](MONETIZATION.md)
 - [COMMITMENT_MODE.md](COMMITMENT_MODE.md)
 - [MARKETING.md](MARKETING.md)

@@ -26,7 +26,7 @@ date-relative set into an older demo import can retain stale completion records.
 
 | Habit | Schedule and state | What it demonstrates |
 |---|---|---|
-| Morning Workout | Daily; 35-day live streak, 132-day record | Long-term consistency, a broken-and-rebuilt streak, backfill-created record, morning activity peak, reminder with repeat nags |
+| Morning Workout | Daily; 34-day live streak (with one genuine skip in it), 132-day record | Long-term consistency, a broken-and-rebuilt streak, backfill-created record, the skip feature (a real day with no completion that still doesn't break the chain), morning activity peak, reminder with repeat nags |
 | Drink Water | Daily, 4×; 2/4 today, 75-day streak at risk, 100-day record | Segmented partial progress, completion counter, expiring streak, afternoon activity peak |
 | Read Before Bed | Four selected weekdays; due today with a one-day live streak | Specific weekday scheduling, late-night activity peak, and a staged live completion that triggers the full-screen 2-day-streak celebration |
 | Meal Prep | 3×/week; last week fell short | Weekly quota, expired/dormant state, multiple historical streak chains |
