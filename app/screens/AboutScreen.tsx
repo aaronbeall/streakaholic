@@ -51,9 +51,9 @@ export const AboutScreen: React.FC = () => {
             accessibilityRole="link"
             accessibilityLabel="Visit metamodernmonkey.com"
           >
-            <Text style={styles.appMadeByLink}>Made by Metamodern Monkey</Text>
+            <Text style={styles.appMadeByLink}>Made by Meta Modern Monkey</Text>
           </TouchableOpacity>
-          <Text style={styles.appCopyright}>© {copyrightYear} Metamodern Monkey. All rights reserved.</Text>
+          <Text style={styles.appCopyright}>© {copyrightYear} Meta Modern Monkey. All rights reserved.</Text>
         </View>
 
         <Text style={styles.sectionTitle}>Support</Text>

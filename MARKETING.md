@@ -360,7 +360,7 @@ Treat launch as a two-week campaign rather than a single announcement.
 - Android and indie-development Discord communities
 - Bluesky, Mastodon, Threads, X, LinkedIn, and personal Facebook/Instagram accounts
 - Dev.to or Hashnode for a development case study
-- The existing Metamodern Monkey website and accounts
+- The existing Meta Modern Monkey website and accounts
 
 Adapt the story to the audience instead of pasting identical promotional copy:
 
