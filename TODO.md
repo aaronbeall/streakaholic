@@ -34,13 +34,21 @@
 - [x] Haptic feedback (task completion, long-press gesture recognition, calendar day toggle, toast Undo, archive/delete/restore — see CLAUDE.md)
 - [ ] Hide unscheduled tasks option (Home filter to only show tasks due today)
 - [ ] Pass/skip due units for Standard habits so vacations, sickness, recovery, and other
-      intentional breaks do not destroy an otherwise meaningful streak
-  - [ ] Let a user mark one due day/period or a date range as passed/skipped, with undo/edit support
-        and an optional note/reason; keep the exception visibly distinct from a completion
-  - [ ] Preserve streak continuity without adding a completion, increasing completion-based streak
-        length, advancing achievements, or unfairly lowering the completion rate
+      intentional breaks do not destroy an otherwise meaningful streak (single-day skip for
+      daily/specific-weekday habits shipped 2026-08-18 — see the checked sub-items below; date
+      ranges, notes/reasons, and quota-type (X/week, X/month) support are still open)
+  - [x] Let a user mark one due day as passed/skipped, with undo support, kept visibly distinct
+        from a completion (`TaskCalendarScreen`'s calendar long-press day-details popover +
+        `TaskHeader`'s status-popover toggle, backed by `taskStore.skipDate`/`unskipDate` and
+        `Task.skippedDates`; a date-range version and an optional note/reason are still open)
+  - [x] Preserve streak continuity without adding a completion, increasing completion-based streak
+        length, advancing achievements, or unfairly lowering the completion rate (`isDueOnDate`
+        treats a skipped date as never-due, so it behaves exactly like an ordinary unscheduled day
+        everywhere that reads due-ness: streaks, achievements, completion rate)
   - [ ] Define fair behavior for daily, specific-weekday, X/week, X/month, and multi-repetition
         habits, including reminders, calendar/streak history, Stats, sharing, and import/export
+        (daily/specific-weekday done; X/week, X/month, and multi-repetition deliberately deferred —
+        every-N-day scheduling will need this too once that frequency type exists)
   - [ ] In Commitment Mode, do not offer free passes/skips: the only continuity-preserving exception
         is a paid Streak Save after a failed unit closes. It remains visible, records the save count,
         and disqualifies the current chain plus later achievements whose qualifying window includes
@@ -150,7 +158,11 @@
         demo videos, press kit, and `streakaholic.app`
 - [ ] Monetization — see [MONETIZATION.md](MONETIZATION.md) for the actual plan (one-time
       Pro unlock + tip jar + Commitment Mode Streak Saves, no ads/subscription) and sequencing
-  - [ ] Tip jar (build first — see PUBLISHING.md's implementation guide)
+  - [x] Tip jar (`expo-iap`, three tiers, `useTipJar` + three Supporter achievements + a
+        review-prompt-style Tip Prompt; see PUBLISHING.md's implementation guide. Code-complete but
+        never run against real Play Billing — PUBLISHING.md's own testing checklist, including the
+        killed-mid-purchase recovery path, still needs a Play Console product setup + Internal
+        testing track pass before this can be considered launch-ready)
   - [ ] Pro unlock (unlimited tasks, widgets, extra customization — build once task cap + widgets exist)
   - [ ] Commitment Mode + paid Streak Saves (locked history, visible/non-completing saves,
         and mode-specific achievement credibility — see [COMMITMENT_MODE.md](COMMITMENT_MODE.md))

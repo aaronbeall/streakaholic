@@ -277,13 +277,6 @@ live from `expo-notifications`' own inspection APIs rather than trusting app-sid
   intentional exits that shouldn't trigger a confirm (Save success, etc.) needs a bypass ref
   checked *inside* the callback, not a timing-dependent prop toggle.
 
-## Known gaps / open bugs
-
-- Reported (2026-08-13, not yet investigated): the calendar streak-count badge on
-  `specific_days_of_week` tasks can land one day early relative to `TaskHeader`'s own status badge
-  — likely in `getDueDayStreakChains`'/`isFirstDueDayAfter`'s handling of "today" as a live,
-  not-yet-closed chain.
-
 ## MVP status
 
 Original MVP checklist is fully implemented (naming, Reanimated migration, frequency-aware

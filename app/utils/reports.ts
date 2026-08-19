@@ -102,7 +102,40 @@ const getDueDayStreakChains = (
     cursor = addDays(cursor, 1);
   }
 
-  return chainMetSegments(segments);
+  const chains = chainMetSegments(segments);
+
+  // The stretch since the last real due-day gate (today, plus any earlier non-due days
+  // accumulated since) never gets its own segment above -- there's no due day left to flush it
+  // against yet, whether because today isn't due at all or is due but not yet completed. But its
+  // real completions still already count toward the live streak -- calculateDueDayStats
+  // (streaks.ts) folds these same days into its own currentStreak via `pendingCount`, unconditionally
+  // (not just when today itself is the due day). Skipping that here is exactly the "badge lands one
+  // day early" bug: a bonus completion that's already happened (e.g. today, on a non-due day) didn't
+  // move the chain's own endDate/length forward to match, so the calendar badge stayed stuck on the
+  // last real gate while TaskHeader's status badge (reading task.stats.currentStreak) already
+  // counted it.
+  const pendingCompleted = segmentDates.filter(d => completedDates.has(format(d, 'yyyy-MM-dd')));
+  if (pendingCompleted.length > 0) {
+    // Mirrors calculateDueDayStats' own `priorChainIntact`: true when there's no settled history
+    // yet, or the most recently settled gate was itself met -- i.e. the chain that's still open
+    // actually reaches all the way up to just before this pending stretch, with no break in between.
+    const priorChainIntact = segments.length === 0 || segments[segments.length - 1].met;
+    const lastCompleted = pendingCompleted[pendingCompleted.length - 1];
+    const lastChain = priorChainIntact ? chains[chains.length - 1] : undefined;
+    if (lastChain) {
+      // Extends the currently-forming chain in place -- chainMetSegments only ever returns freshly
+      // built chain objects, so this can't leak into anything else.
+      lastChain.endDate = lastCompleted;
+      lastChain.length += pendingCompleted.length;
+    } else {
+      // Either there's no chain data yet, or the last real gate was a miss -- these pending bonus
+      // days start a fresh chain of their own rather than stitching onto whatever came before,
+      // matching `pendingCount` becoming its own openStreak value when priorChainIntact is false.
+      chains.push({ startDate: pendingCompleted[0], endDate: lastCompleted, length: pendingCompleted.length });
+    }
+  }
+
+  return chains;
 };
 
 // Same idea as getDueDayStreakChains, but for quota frequencies (days_per_week/days_per_month):

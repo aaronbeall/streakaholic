@@ -92,6 +92,52 @@ describe('getTaskStreakChains', () => {
     }
   });
 
+  it('specific_days_of_week: a live chain\'s endDate/length reaches today even when today itself is a non-due bonus day (regression -- reported 2026-08-13, calendar badge landed one day early on Wed instead of Thu)', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 7, 6)); // Thursday Aug 6 2026
+    try {
+      const task = baseTask({
+        frequency: 'specific_days_of_week',
+        daysOfWeek: [0, 1, 3, 5], // Sun/Mon/Wed/Fri
+        completions: [
+          makeCompletion('tue', new Date(2026, 7, 4)), // non-due bonus day
+          makeCompletion('wed', new Date(2026, 7, 5)), // due, met -- the last real gate
+          makeCompletion('thu', new Date(2026, 7, 6)), // non-due bonus day (today) -- was dropped
+        ],
+      });
+      const chains = getTaskStreakChains(task);
+      expect(chains).toHaveLength(1);
+      expect(chains[0].length).toBe(3); // Tue+Wed+Thu -- matches calculateTaskStats' currentStreak
+      expect(chains[0].startDate).toEqual(new Date(2026, 7, 4));
+      expect(chains[0].endDate).toEqual(new Date(2026, 7, 6)); // today, not the Wed gate
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('specific_days_of_week: today\'s bonus completion starts its own fresh chain when the last real gate was a miss, not stitched onto the broken one', () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 7, 6)); // Thursday Aug 6 2026
+    try {
+      const task = baseTask({
+        frequency: 'specific_days_of_week',
+        daysOfWeek: [0, 1, 3, 5], // Sun/Mon/Wed/Fri
+        completions: [
+          makeCompletion('mon', new Date(2026, 7, 3)), // due, met
+          // Wed 8/5 missed -- due day, breaks the chain
+          makeCompletion('thu', new Date(2026, 7, 6)), // non-due bonus day (today), after the miss
+        ],
+      });
+      const chains = getTaskStreakChains(task);
+      expect(chains).toHaveLength(2);
+      expect(chains[0].length).toBe(1); // Mon alone
+      expect(chains[0].endDate).toEqual(new Date(2026, 7, 3));
+      expect(chains[1].length).toBe(1); // Thu alone -- a fresh chain, not 2 stitched across the miss
+      expect(chains[1].startDate).toEqual(new Date(2026, 7, 6));
+      expect(chains[1].endDate).toEqual(new Date(2026, 7, 6));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('days_per_week: chains link across a met week but break on a genuinely missed one (matches the streaks.ts quota-miss test)', () => {
     jest.useFakeTimers().setSystemTime(new Date(2026, 7, 5)); // Wednesday Aug 5 2026
     try {
