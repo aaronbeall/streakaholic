@@ -209,32 +209,17 @@ same device/build while you're already in a realistic, populated state.
 
 ---
 
-## 1. Publishing to Google Play
+## Publishing to Google Play
 
-1. **Create a Google Play Console developer account** ($25 one-time fee) if you don't
-   have one: https://play.google.com/console/signup
-2. **Prepare store listing assets** (see "Prepped" #5 above): hi-res icon, feature
-   graphic, screenshots, short/full description.
-3. ~~Host the Privacy Policy at a real URL~~ — done:
-   https://www.metamodernmonkey.com/privacy/streakaholic. Use that URL directly in Play
-   Console's store listing.
-4. **Create the app in Play Console**: app name, default language, package name
-   `com.metamodernmonkey.Streakaholic`, free (or paid — note: switching a free app to
-   paid later is far more restricted than the reverse, so decide this deliberately), and
-   declare it as an app (not a game).
-5. **Fill out Data Safety and content rating questionnaires** ("Prepped" #6 above).
-6. **Build the production AAB**:
-   ```bash
-   eas build --platform android --profile production
-   ```
-7. **First upload — do this manually.** Download the `.aab` EAS produces and upload it
-   yourself via Play Console → your app → Testing → (Internal or Closed testing) →
-   Create new release. This is the one release `eas submit` can't do for you, since the
-   app doesn't exist in Play Console until this step.
-8. **(Optional) Set up automated submission** for every release after the first — see
-   below.
-9. **Progress through testing tracks** (Internal → Closed → Production) per whatever
-   Play's current policy requires for a new developer account ("Prepped" #8 above).
+The actual chronological steps — create the app, complete the store listing, Data Safety,
+build, upload to Internal testing, promote to production — live in
+[RELEASE_GUIDE.md](RELEASE_GUIDE.md#5a-first-google-play-release) for the first release and
+[RELEASE_GUIDE.md](RELEASE_GUIDE.md#5b-release-a-new-version) for every one after. This file
+used to duplicate that whole walkthrough, which just meant two versions to keep in sync.
+
+One prerequisite not covered there: **create the Google Play Console developer account
+itself** ($25 one-time fee) if you don't have one yet:
+https://play.google.com/console/signup — needed before any of RELEASE_GUIDE.md's steps apply.
 
 ### (Optional) Set up automated submission
 

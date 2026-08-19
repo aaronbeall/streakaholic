@@ -194,13 +194,20 @@ def build_demo_export(today: date) -> dict:
     add_completion(water, today, count=2, hour=13)  # partial ring; does not extend the streak yet
     tasks.append(water)
 
-    # 3. A selected-weekdays habit. Its schedule is generated so today is always a
-    # due day, while the other selected days are spread across the week. The due day
-    # four days ago is deliberately missed and the one two days ago is complete, so
-    # today's empty state is a one-day expiring streak. Completing it live during the
-    # walkthrough crosses the repeatable two-day threshold and reliably launches the
-    # full-screen "Streak Started!" celebration. Late timestamps give the time-of-day
-    # chart a clear second peak.
+    # 3. A selected-weekdays habit. Its schedule is generated so today is always a due
+    # day, while the other selected days are spread across the week. "New Best Streak"
+    # deliberately isn't the target here even though it sounds more exciting: per
+    # achievements.ts's own `new-best-streak` block, it only fires on a *bridging* jump
+    # (a backfilled completion recorded after an already-open run exists -- see that
+    # kind's own test), never on an ordinary same-day completion, no matter how the
+    # surrounding history is shaped -- confirmed by direct probe while building this.
+    # A streak-tier crossing has no such gate, so it's the achievable, reliable choice:
+    # the 9 due days immediately before today are unconditionally completed (indexed by
+    # due-day *count*, not calendar offset, so this lands on exactly 9 regardless of
+    # which weekday "today" actually is), a cooldown gap isolates that run from older
+    # history, and completing today live extends it to 10 -- crossing the streak-10
+    # tier and launching a much bigger full-screen celebration than "Streak Started."
+    # Late timestamps give the time-of-day chart a clear second peak.
     read_days = sorted({js_weekday(days_ago(offset)) for offset in (0, 2, 4, 6)})
     reading = task(
         "read-before-bed",
@@ -212,15 +219,22 @@ def build_demo_export(today: date) -> dict:
         daysOfWeek=read_days,
         notifications={"level": 1, "time": "21:30"},
     )
-    for offset in range(150, 0, -1):
-        day = days_ago(offset)
-        if js_weekday(day) not in read_days:
+    reading_due_dates = [
+        days_ago(offset) for offset in range(150, 0, -1) if js_weekday(days_ago(offset)) in read_days
+    ]
+    RECENT_UNBROKEN_COUNT = 9  # today's live completion extends this to 10 -- crossing streak-10
+    COOLDOWN_COUNT = 6  # isolates the recent run so no older run links into it
+    recent_unbroken = set(reading_due_dates[-RECENT_UNBROKEN_COUNT:])
+    cooldown = set(reading_due_dates[-(RECENT_UNBROKEN_COUNT + COOLDOWN_COUNT):-RECENT_UNBROKEN_COUNT])
+    for index, day in enumerate(reading_due_dates):
+        if day in cooldown:
             continue
-        if offset == 4:
-            continue  # breaks the old chain so today's completion starts a fresh two-day streak
-        recent_due_day = offset <= 12
-        realistic_hit = ((offset * 7 + 3) % 10) < 7
-        if recent_due_day or realistic_hit:
+        if day in recent_unbroken:
+            add_completion(reading, day, hour=22, minute=15 + rng.randint(0, 30))
+            continue
+        forced_short_miss = index % 6 == 0  # keeps every older run well short of 9
+        realistic_hit = (((today - day).days * 7 + 3) % 10) < 6
+        if realistic_hit and not forced_short_miss:
             add_completion(reading, day, hour=22, minute=15 + rng.randint(0, 30))
     tasks.append(reading)
 
