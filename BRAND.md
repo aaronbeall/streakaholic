@@ -87,15 +87,40 @@ on a starfield texture. Source art lives in `design/logo/`:
 - `logo4-transparent.png` — a clean alpha cutout of the mark alone, derived from `logo4.png` via
   flood-fill background removal; this is the source for every asset that needs the mark on a
   non-navy or variable background
+- `logo4-solid.png` — a flat, single-color (white) line-art rendition of the mark on navy,
+  purpose-built for small sizes where the gradient/starfield detail turns to mush (favicon,
+  notification icon)
+- `logo4-solid-transparent.png` / `logo4-solid-white-only.png` — alpha cutouts of the solid
+  variant; the former keeps the mark's own navy interior fill opaque (fine where only the alpha
+  channel is read, e.g. Android's notification icon), the latter chroma-keys that fill out too,
+  leaving pure white line art with nothing but the glyph itself opaque -- needed as the source for
+  compositing onto a *new* background, since the interior fill would otherwise show through as a
+  mismatched navy patch
+- `logo4-aurora-solid.png` — `logo4-solid-white-only.png` composited onto a hand-built
+  Shepards-interpolated gradient (magenta `#FD21A7` → violet `#7A12CE` → blue `#1C5FE5` → mint
+  `#05E997`, sampled from the real mark's own palette) — a solid (non-transparent), on-brand,
+  colorful background for small-size placements that don't have Android's monochrome-icon
+  constraint (see below)
 
 Every app icon, the Android adaptive-icon foreground/background, the web favicon, the splash
 screen, the Play/App Store hi-res icons, and the feature graphic are all derived from these
-four files (`assets/images/icon.png`, `adaptive-icon.png`, `favicon.png`, `splash-icon.png`,
-`logo-mark.png`; `design/AppIcons/*`; `design/store-assets/feature-graphic.png`) — regenerate from
-the `design/logo/` files above if the mark ever changes, rather than hand-editing any derived
+files (`assets/images/icon.png`, `adaptive-icon.png`, `favicon.png`, `splash-icon.png`,
+`logo-mark.png`, `notification-icon.png`; `design/AppIcons/*`; `design/store-assets/feature-graphic.png`)
+— regenerate from the `design/logo/` files above if the mark ever changes, rather than hand-editing any derived
 export directly. `#01073B` is the canonical navy brand background color (Android adaptive-icon
 `backgroundColor`, feature graphic background); `#65FC7C` (the flame's own mint-green) is the
 accent used for tagline/accent text against navy.
+
+**`assets/images/notification-icon.png` stays a plain white silhouette on transparent, not the
+aurora-solid treatment** — this is an Android platform constraint, not a design choice: the OS
+renders every app's status-bar/notification small icon as a flat monochrome alpha mask regardless
+of what color the source image actually is, so a colorful source there would just get its color
+silently discarded at render time. The one lever that *does* reach the actual notification
+presentation is the `expo-notifications` plugin's `color` field (`app.json`) — set to `#A110D4`
+(vivid violet, sampled from the real mark), used by Android for the icon's accent backdrop/LED
+color where the OS/launcher supports it. A genuinely colorful notification would need a separate
+runtime *large icon* (Android's expanded-notification-body image, which does render full color) —
+not built, since that's a `app/utils/notifications.ts` scheduling-code change, not an asset swap.
 
 Not yet done: light/dark-background variants beyond what's listed above, a maskable-safe web
 favicon set, and formal clear-space/minimum-size rules — revisit if the mark shows up somewhere

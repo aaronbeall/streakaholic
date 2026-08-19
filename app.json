@@ -44,7 +44,8 @@
       [
         "expo-notifications",
         {
-          "color": "#007AFF"
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#A110D4"
         }
       ],
       "expo-iap"

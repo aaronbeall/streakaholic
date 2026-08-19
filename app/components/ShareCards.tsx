@@ -33,7 +33,10 @@ const ShareCardFrame: React.FC<{ accentColor: string; children: React.ReactNode 
     <ShareDateStamp />
     <View style={styles.cardContent}>{children}</View>
     <View style={styles.brandRow}>
-      <Image source={require('../../assets/images/logo-mark.png')} style={styles.brandIcon} resizeMode="contain" />
+      {/* The solid/monochrome mark, not the full gradient one -- at this small a badge size
+          (~30px) the flat white silhouette stays crisp where the gradient's aurora/starfield
+          detail would start to blur together. See BRAND.md's "Visual identity status". */}
+      <Image source={require('../../assets/images/logo-mark-solid.png')} style={styles.brandIcon} resizeMode="contain" />
       <View>
         <Text style={styles.brandName}>Streakaholic</Text>
         <Text style={styles.brandTagline}>{BRAND_TAGLINE}</Text>
