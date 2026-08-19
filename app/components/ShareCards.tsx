@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { format, parseISO } from 'date-fns';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { BRAND_TAGLINE } from '../constants/brand';
 import { TrophyEmblem } from './AchievementCard';
@@ -33,9 +33,7 @@ const ShareCardFrame: React.FC<{ accentColor: string; children: React.ReactNode 
     <ShareDateStamp />
     <View style={styles.cardContent}>{children}</View>
     <View style={styles.brandRow}>
-      <View style={[styles.brandIcon, { backgroundColor: accentColor }]}>
-        <MaterialCommunityIcons name="fire" size={14} color="#fff" />
-      </View>
+      <Image source={require('../../assets/images/logo-mark.png')} style={styles.brandIcon} resizeMode="contain" />
       <View>
         <Text style={styles.brandName}>Streakaholic</Text>
         <Text style={styles.brandTagline}>{BRAND_TAGLINE}</Text>
@@ -967,12 +965,11 @@ const styles = StyleSheet.create({
     gap: 9,
     marginTop: 14,
   },
+  // The actual logo mark (transparent PNG, its own circular badge shape) -- no backdrop/border
+  // radius needed, unlike the old plain-fire-glyph placeholder this replaced.
   brandIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 30,
+    height: 30,
   },
   brandName: {
     color: '#fff',

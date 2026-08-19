@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
+  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -530,19 +531,21 @@ export const HomeScreen: React.FC = () => {
         ]}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Reanimated.View
-              entering={FadeIn.duration(400)}
-              style={[
-                styles.emptyIconBadge,
-                { backgroundColor: hasAnyTasks ? colors.surfaceSecondary : 'rgba(255, 107, 107, 0.12)' },
-              ]}
-            >
-              <MaterialCommunityIcons
-                name={hasAnyTasks ? 'filter-off-outline' : 'fire'}
-                size={40}
-                color={hasAnyTasks ? colors.textTertiary : '#FF6B6B'}
-              />
-            </Reanimated.View>
+            {hasAnyTasks ? (
+              <Reanimated.View
+                entering={FadeIn.duration(400)}
+                style={[styles.emptyIconBadge, { backgroundColor: colors.surfaceSecondary }]}
+              >
+                <MaterialCommunityIcons name="filter-off-outline" size={40} color={colors.textTertiary} />
+              </Reanimated.View>
+            ) : (
+              // The very first thing a brand-new user sees -- the actual logo mark instead of a
+              // generic fire glyph in a tinted circle, since this is the app's own first real
+              // branding moment rather than a routine "nothing here" state.
+              <Reanimated.View entering={FadeIn.duration(400)}>
+                <Image source={require('../../assets/images/logo-mark.png')} style={styles.emptyLogo} resizeMode="contain" />
+              </Reanimated.View>
+            )}
             <Reanimated.View entering={FadeInDown.duration(400).delay(100)} style={styles.emptyStateTextGroup}>
               <Text style={styles.emptyStateTitle}>
                 {hasAnyTasks ? 'No habits match this filter' : 'Start your first streak'}
@@ -742,6 +745,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 20,
+  },
+  // The logo mark is already its own circular badge -- a bit bigger than emptyIconBadge since it
+  // has no solid tinted backdrop drawing extra attention the way that badge's fill color does.
+  emptyLogo: {
+    width: 104,
+    height: 104,
     marginBottom: 20,
   },
   emptyStateTextGroup: {

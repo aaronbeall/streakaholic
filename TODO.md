@@ -152,11 +152,18 @@
 ## MMP
 
 - [ ] Finalize Streakaholic branding and launch identity
-  - [ ] Audit the existing logo/app-icon variants under `assets/images/` and `logo/`; choose one
-        canonical mark and wordmark, document which alternates are still valid, and retire ambiguous
-        duplicates so future store/website assets come from one source of truth
-  - [ ] Validate the chosen mark at launcher, adaptive-mask, notification/small-icon, splash,
-        favicon, share-card, feature-graphic, light-background, and dark-background sizes
+  - [x] Audit the existing logo/app-icon variants under `assets/images/` and `logo/`; choose one
+        canonical mark and wordmark (done 2026-08-19 — "logo4", see BRAND.md's "Visual identity
+        status" for the full derivation record). Old `logo`/`logo2`/`logo3` source variants under
+        `logo/source/` are superseded but left as historical record, not deleted
+  - [x] Validate the chosen mark at launcher, adaptive-mask, notification/small-icon, splash,
+        favicon, share-card, feature-graphic, light-background, and dark-background sizes (app
+        icon, Android adaptive-icon foreground + `#01073B` background, web favicon, splash icon
+        (now a true transparent cutout, correct on both light and dark splash backgrounds),
+        Play/App Store hi-res icons, feature graphic, ShareCards' brand footer, and the Home
+        empty state all regenerated/updated from the chosen mark; notification small-icon not
+        separately checked -- it's Android's own auto-generated silhouette from the app icon, not
+        a distinct asset this repo controls)
   - [x] Use the canonical tagline “Build streaks worth celebrating,” distinct from the category
         descriptor “A playful, private habit & streak tracker”
   - [x] Define [BRAND.md](BRAND.md) as the source of truth for name/capitalization, messaging,

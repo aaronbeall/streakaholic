@@ -268,8 +268,8 @@ switching tools for every video.
 - **Detail crop:** Zoom into the streak ring, badge, or achievement for a short payoff.
   Use this briefly, then show enough context that viewers understand what happened.
 
-For Streakaholic, a centered phone recording on the brand purple with a headline above
-it is a good default. Use detail crops for completions and celebrations.
+For Streakaholic, a centered phone recording on the brand navy (`#01073B`, see BRAND.md) with a
+headline above it is a good default. Use detail crops for completions and celebrations.
 
 ### Storyboard: 15-second core demo
 

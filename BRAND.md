@@ -77,6 +77,26 @@ store listing, website, and this guide before release.
 
 ## Visual identity status
 
-The verbal identity above is final. The canonical logo/app-icon variant is still an MMP
-decision; see `TODO.md`. Once chosen, add exact asset paths, clear-space guidance, color
-variants, and small-size usage rules here.
+The verbal identity above is final. **The canonical mark is chosen (2026-08-19): "logo4"** —
+a circular aurora-gradient (magenta → violet → cyan → mint) flame wrapping a checkmark ring,
+on a starfield texture. Source art lives in `logo/source/`:
+- `logo4.png` — mark on a near-white background (the original, as generated)
+- `logo4-solid-background.png` — mark on flat navy `#01073B` (used for every opaque icon export)
+- `logo4-thematic-background.png` — mark on a full starfield/nebula background (not currently
+  used by any derived asset, kept for future full-bleed placements)
+- `logo4-transparent.png` — a clean alpha cutout of the mark alone, derived from `logo4.png` via
+  flood-fill background removal; this is the source for every asset that needs the mark on a
+  non-navy or variable background
+
+Every app icon, the Android adaptive-icon foreground/background, the web favicon, the splash
+screen, the Play/App Store hi-res icons, and the feature graphic are all derived from these
+four files (`assets/images/icon.png`, `adaptive-icon.png`, `favicon.png`, `splash-icon.png`,
+`logo-mark.png`; `logo/AppIcons/*`; `logo/store-assets/feature-graphic.png`) — regenerate from
+the `logo/source/` files above if the mark ever changes, rather than hand-editing any derived
+export directly. `#01073B` is the canonical navy brand background color (Android adaptive-icon
+`backgroundColor`, feature graphic background); `#65FC7C` (the flame's own mint-green) is the
+accent used for tagline/accent text against navy.
+
+Not yet done: light/dark-background variants beyond what's listed above, a maskable-safe web
+favicon set, and formal clear-space/minimum-size rules — revisit if the mark shows up somewhere
+new that these derived assets don't already cover.

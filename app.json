@@ -14,7 +14,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#01073B"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.metamodernmonkey.Streakaholic",

@@ -53,15 +53,14 @@ own Google/Play Console login left undone — see below for exactly what those a
 
 ### Prepped — ready for you, but finishing needs your Play Console/Google login
 5. **Store listing assets**, mostly closed:
-   - **512×512 hi-res icon**: turns out this already existed and just hadn't been found in
-     the earlier audit — `logo/AppIcons/playstore.png`, correctly sized, matches the
-     current icon design. Nothing to do here.
-   - **1024×500 feature graphic**: built at `logo/store-assets/feature-graphic.png` — a
-     clean banner (icon + name + tagline on the brand purple, `#463D5E`, sampled directly
-     from the approved logo) using only the existing, already-approved icon art — no new
-     illustration. Treat this as a solid first pass, not the final word — swapping in real
-     in-app screenshots once you have them would likely make it more compelling than a
-     logo card alone.
+   - **512×512 hi-res icon**: `logo/AppIcons/playstore.png`, regenerated 2026-08-19 from the
+     now-canonical "logo4" mark (see BRAND.md). Correctly sized, matches the current icon.
+   - **1024×500 feature graphic**: rebuilt at `logo/store-assets/feature-graphic.png` — the
+     same banner layout as before (icon + name + tagline), now on the mark's own navy
+     (`#01073B`) with the flame's mint-green (`#65FC7C`) for the tagline, using the new
+     transparent mark cutout. Treat this as a solid first pass, not the final word —
+     swapping in real in-app screenshots once you have them would likely make it more
+     compelling than a logo card alone.
    - **Short/full description**: drafted below, ready to paste into Play Console.
    - **Screenshots (≥2 required)**: still need to be captured on an actual device — see
      the shot list below. This is the one asset item that's still genuinely on you, since
@@ -83,12 +82,9 @@ own Google/Play Console login left undone — see below for exactly what those a
    check the current requirement in Play Console when you get to this step. Nothing to
    prep for this one, just a heads-up.
 
-**On the app icon itself**: the current `icon.png`/`adaptive-icon.png` art (upscaled in
-place, not redesigned) is still the original design. A separate attempt this session to
-explore alternative color treatments for the logo mark (circle/checkmark/flame) via
-hand-authored SVG didn't meet the bar and was abandoned — that remains open, and needs
-either real source art from whatever tool made the original, a proper design tool/human
-designer, or an actual image-generation model this assistant doesn't have access to.
+**On the app icon itself**: resolved 2026-08-19 — real source art ("logo4") was provided and
+is now the canonical mark; every icon/store/in-app asset was regenerated from it. See BRAND.md's
+"Visual identity status" for the full record.
 
 ### Store listing copy (ready to paste into Play Console)
 
