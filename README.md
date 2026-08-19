@@ -8,6 +8,7 @@ A playful, private habit & streak tracker for Android. Build streaks worth celeb
 - Track streaks with beautiful animations and visual feedback
 - Flip a habit card to see its calendar history or detailed stats
 - Filter habits to see what is on track or needs attention today
+- Collect achievements and browse your Trophy Case
 - View aggregate stats and charts across all habits on the Dashboard
 - Customize habits with icons and colors
 - Set multiple completions per day
