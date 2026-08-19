@@ -2,7 +2,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { addMonths, addYears, format, getDay, getDaysInMonth, startOfMonth, subMonths, subYears } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import React, { useMemo, useState } from 'react';
-import { AccessibilityActionEvent, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AccessibilityActionEvent, LayoutChangeEvent, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { MissedDayMark } from '../components/MissedDayMark';
@@ -12,7 +12,7 @@ import { useOnboardingHintTarget } from '../context/OnboardingHintsContext';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useTaskStore } from '../stores/taskStore';
-import { Task } from '../types';
+import { MaterialCommunityIconName, Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { buildDayConnectionInfo, getCachedTaskStreakChains, getDayStreakState } from '../utils/reports';
 import { getCachedCompletionCountsByDate, isScheduledOnDate } from '../utils/streaks';
@@ -71,6 +71,9 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
   const [currentMonth, setCurrentMonth] = useState(initialMonth ?? new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [yearGridWidth, setYearGridWidth] = useState(0);
+  // Long-press opens this day's details popover rather than acting directly -- see
+  // handleDayLongPress/dayPopoverInfo below.
+  const [dayPopoverDate, setDayPopoverDate] = useState<Date | null>(null);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -241,26 +244,38 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
     }
   };
 
-  // Long-press marks/unmarks a one-off skip -- only for daily/specific_days_of_week (quota tasks
-  // don't support this at all, see Task.skippedDates' own comment), never for a day that's already
-  // completed (nothing to skip) or in the future (matches handleDayPress' own restriction), and
-  // never to *create* a new skip on a day that isn't actually scheduled in the first place (per
-  // explicit user direction -- redundant: a Weekday-only task shouldn't offer to "skip" a
-  // Saturday). Removing an *existing* skip is still allowed regardless, since that's just
-  // reverting a real, already-made choice. Toggling (skip <-> unskip) on repeated long-presses is
-  // what gives this its own "edit" path later, not just the toast's immediate Undo.
+  // Long-press no longer acts directly (it used to instant-toggle skip) -- per explicit user
+  // direction, a single gesture (tap) should stay the fast path for the common case
+  // (complete/clear), while the rarer/less-obvious actions live behind a self-describing details
+  // popover instead of a gesture you have to remember. Nothing to review for a day that hasn't
+  // happened yet, matching handleDayPress' own future restriction.
   const handleDayLongPress = (date: Date) => {
+    const dateString = format(date, 'yyyy-MM-dd');
+    if (dateString > today) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDayPopoverDate(date);
+  };
+
+  // The popover's own skip action -- only for daily/specific_days_of_week (quota tasks don't
+  // support this at all, see Task.skippedDates' own comment), never for a day that's already
+  // completed (nothing to skip), and never to *create* a new skip on a day that isn't actually
+  // scheduled in the first place (per explicit user direction -- redundant: a Weekday-only task
+  // shouldn't offer to "skip" a Saturday). Removing an *existing* skip is still allowed
+  // regardless, since that's just reverting a real, already-made choice. The popover only ever
+  // renders this button when dayPopoverInfo.canSkip is true, but the guard is repeated here too,
+  // matching the store's own skipDate defense-in-depth.
+  const handleToggleSkip = (date: Date) => {
     if (task.frequency !== 'daily' && task.frequency !== 'specific_days_of_week') return;
 
     const dateString = format(date, 'yyyy-MM-dd');
     const isCompleted = (completionCounts.get(dateString) ?? 0) >= requiredTimes;
-    const isFuture = dateString > today;
-    if (isCompleted || isFuture) return;
+    if (isCompleted) return;
 
     const alreadySkipped = task.skippedDates?.includes(dateString) ?? false;
     if (!alreadySkipped && !isScheduledOnDate(task, date)) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDayPopoverDate(null);
     const label = format(date, 'MMM d');
 
     if (alreadySkipped) {
@@ -274,6 +289,60 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
       });
     }
   };
+
+  // Recomputes the popover's own status line + which actions apply, independent of the day-cell
+  // rendering loop below (which needs row/column neighbor info the popover doesn't) -- same
+  // "recompute fresh, don't cache" reasoning as TaskHeader's own statusInfo, since "today" is
+  // part of what a day's own state depends on.
+  const dayPopoverInfo = useMemo(() => {
+    if (!dayPopoverDate) return null;
+    const date = dayPopoverDate;
+    const dateString = format(date, 'yyyy-MM-dd');
+    const completionCount = completionCounts.get(dateString) ?? 0;
+    const isCompleted = completionCount >= requiredTimes;
+    const isPartial = completionCount > 0 && !isCompleted;
+    const isPast = dateString < today;
+    const isEmpty = isPast && !isCompleted && !isPartial;
+    const streakState = isEmpty ? getDayStreakState(task, date, streakChains, completionCounts) : null;
+    const isMissed = streakState === 'hardMiss';
+    const isPassThrough = streakState === 'connected';
+    const isUserSkipped = (task.frequency === 'daily' || task.frequency === 'specific_days_of_week')
+      && (task.skippedDates?.includes(dateString) ?? false);
+    const canSkip = !isCompleted
+      && (task.frequency === 'daily' || task.frequency === 'specific_days_of_week')
+      && (isUserSkipped || isScheduledOnDate(task, date));
+
+    let statusIcon: MaterialCommunityIconName;
+    let statusColor: string;
+    let statusText: string;
+    if (isCompleted) {
+      statusIcon = 'check-circle';
+      statusColor = task.color;
+      statusText = 'Completed';
+    } else if (isPartial) {
+      statusIcon = 'circle-half-full';
+      statusColor = task.color;
+      statusText = `${completionCount} of ${requiredTimes} completed`;
+    } else if (isMissed) {
+      statusIcon = 'close-circle';
+      statusColor = colors.textSecondary;
+      statusText = 'Missed';
+    } else if (isUserSkipped) {
+      statusIcon = 'calendar-remove';
+      statusColor = colors.textSecondary;
+      statusText = 'Skipped';
+    } else if (isPassThrough) {
+      statusIcon = 'calendar-blank-outline';
+      statusColor = colors.textTertiary;
+      statusText = 'Not due';
+    } else {
+      statusIcon = 'circle-outline';
+      statusColor = colors.textSecondary;
+      statusText = 'Nothing logged';
+    }
+
+    return { date, completionCount, isCompleted, isUserSkipped, canSkip, statusIcon, statusColor, statusText };
+  }, [dayPopoverDate, completionCounts, requiredTimes, today, task, streakChains, colors]);
 
   const handlePrev = () => {
     setCurrentMonth(viewMode === 'year' ? subYears(currentMonth, 1) : subMonths(currentMonth, 1));
@@ -458,16 +527,10 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                     ? 'Not due'
                     : '';
 
-                  // Same eligibility handleDayLongPress itself checks -- kept alongside it (not
-                  // re-derived from scratch there) purely so the accessibility action can be
-                  // offered/withheld to match what the physical long-press would actually do.
-                  // Requires the day be actually *scheduled* (or already skipped, to still allow
-                  // undoing one) -- per explicit user direction, skipping an already-non-due day
-                  // is redundant (a Weekday-only task shouldn't offer to "skip" a Saturday; an
-                  // M/W/F task shouldn't offer to skip a Tuesday).
-                  const canToggleSkip = !isFuture && !isCompleted
-                    && (task.frequency === 'daily' || task.frequency === 'specific_days_of_week')
-                    && (isUserSkipped || isScheduledOnDate(task, date));
+                  // Long-press opens a details popover instead of acting directly -- available
+                  // for any day that's already happened (nothing to review for the future,
+                  // matching handleDayPress' own restriction on tap).
+                  const canOpenDayDetails = !isFuture;
 
                   const handleAccessibilityAction = (event: AccessibilityActionEvent) => {
                     if (event.nativeEvent.actionName === 'longpress') {
@@ -480,16 +543,16 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                       key={dateString}
                       style={styles.day}
                       onPress={() => handleDayPress(date)}
-                      onLongPress={canToggleSkip ? () => handleDayLongPress(date) : undefined}
+                      onLongPress={canOpenDayDetails ? () => handleDayLongPress(date) : undefined}
                       delayLongPress={500}
                       accessibilityRole="button"
                       accessibilityLabel={`${format(date, 'EEEE, MMMM d')}${stateLabel ? `, ${stateLabel}` : ''}`}
                       accessibilityHint={isFuture ? undefined : 'Double tap to toggle completion'}
                       accessibilityState={{ disabled: isFuture }}
-                      accessibilityActions={canToggleSkip
-                        ? [{ name: 'longpress', label: isUserSkipped ? 'Remove skip' : 'Mark as skipped' }]
+                      accessibilityActions={canOpenDayDetails
+                        ? [{ name: 'longpress', label: 'Day details' }]
                         : undefined}
-                      onAccessibilityAction={canToggleSkip ? handleAccessibilityAction : undefined}
+                      onAccessibilityAction={canOpenDayDetails ? handleAccessibilityAction : undefined}
                     >
                       {connection?.isConnectedSelf && !(connection.isRunStart && connection.isRunEnd) && (
                         // Vertically centered via plain flex (not a percentage `top` + negative
@@ -579,17 +642,6 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                           <MaterialCommunityIcons name="clock-outline" size={10} color="#fff" />
                         </View>
                       )}
-                      {/* A small, deliberately subtle persistent reminder that long-press is
-                          available here -- per direct user concern that the gesture is easy to
-                          forget once its one-time onboarding hint is gone. Opposite corner from
-                          the streak/expiring badges above (top-left, not top-right) so it never
-                          competes with either. Narrowed to just the two moments it's actually
-                          relevant -- a hard miss worth reconsidering, or an existing skip worth
-                          knowing you can undo -- rather than every eligible day (which would
-                          paper most of a typical month in dots, the opposite of subtle). */}
-                      {canToggleSkip && (isMissed || isUserSkipped) && (
-                        <View style={styles.skipAffordanceDot} pointerEvents="none" />
-                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -601,12 +653,117 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
         {/* A persistent reminder of both gestures, not just the one-time onboarding hint --
             per direct user concern that long-press specifically is easy to forget once that
             hint is gone. Month view only, matching tapDayHint's own gating (Year view's dots
-            aren't interactive at all). */}
+            aren't interactive at all). Each gesture is its own low-contrast pill so it reads as
+            a quiet legend rather than a call to action; the gesture name is bold/higher-contrast
+            and the resulting action is lighter, so the eye parses "which gesture -> what it
+            does" instead of one flat run of text. */}
         {viewMode === 'month' && (
-          <Text style={styles.gestureLegend}>Tap: complete/clear · Hold: skip</Text>
+          <View style={styles.gestureLegend}>
+            <View style={styles.gestureLegendChip}>
+              <MaterialCommunityIcons name="gesture-tap" size={12} color={colors.textTertiary} />
+              <Text style={styles.gestureLegendText}>
+                <Text style={styles.gestureLegendName}>Tap</Text> complete/clear
+              </Text>
+            </View>
+            <View style={styles.gestureLegendChip}>
+              <MaterialCommunityIcons name="gesture-tap-hold" size={12} color={colors.textTertiary} />
+              <Text style={styles.gestureLegendText}>
+                <Text style={styles.gestureLegendName}>Hold</Text> day details
+              </Text>
+            </View>
+          </View>
         )}
       </View>
 
+      {/* Same Modal + manual-backdrop pattern as TaskHeader's own status popover -- a plain
+          absolute overlay would only cover this View's own bounds, not the full screen. Opens on
+          long-press instead of long-press acting directly, so every action here is a labeled
+          button rather than something you have to remember a gesture for. */}
+      <Modal
+        transparent
+        visible={dayPopoverInfo !== null}
+        animationType="fade"
+        onRequestClose={() => setDayPopoverDate(null)}
+      >
+        <Pressable
+          style={styles.dayPopoverBackdrop}
+          onPress={() => setDayPopoverDate(null)}
+          accessibilityRole="none"
+        >
+          {dayPopoverInfo && (
+            <Pressable style={styles.dayPopoverCard} onPress={() => {}}>
+              <View style={styles.dayPopoverHeader}>
+                <Text style={styles.dayPopoverTitle}>{format(dayPopoverInfo.date, 'EEEE, MMM d')}</Text>
+                <TouchableOpacity
+                  onPress={() => setDayPopoverDate(null)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                  hitSlop={8}
+                >
+                  <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.dayPopoverStatusRow}>
+                <View style={[styles.dayPopoverStatusIconWrap, { backgroundColor: `${dayPopoverInfo.statusColor}26` }]}>
+                  <MaterialCommunityIcons name={dayPopoverInfo.statusIcon} size={16} color={dayPopoverInfo.statusColor} />
+                </View>
+                <Text style={styles.dayPopoverStatusText}>{dayPopoverInfo.statusText}</Text>
+              </View>
+
+              <View style={styles.dayPopoverActions}>
+                <TouchableOpacity
+                  style={styles.dayPopoverAction}
+                  onPress={() => {
+                    handleDayPress(dayPopoverInfo.date);
+                    setDayPopoverDate(null);
+                  }}
+                  accessibilityRole="button"
+                >
+                  <View style={[styles.dayPopoverActionIconWrap, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+                    <MaterialCommunityIcons
+                      name={dayPopoverInfo.isCompleted ? 'close-circle-outline' : 'check-circle-outline'}
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                  </View>
+                  <Text style={styles.dayPopoverActionText}>
+                    {dayPopoverInfo.isCompleted
+                      ? 'Clear completion'
+                      : dayPopoverInfo.completionCount > 0
+                      ? `Log another (${dayPopoverInfo.completionCount}/${requiredTimes})`
+                      : 'Mark complete'}
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textTertiary} />
+                </TouchableOpacity>
+
+                {dayPopoverInfo.canSkip && (
+                  <TouchableOpacity
+                    style={styles.dayPopoverAction}
+                    onPress={() => handleToggleSkip(dayPopoverInfo.date)}
+                    accessibilityRole="button"
+                    accessibilityHint={dayPopoverInfo.isUserSkipped
+                      ? 'Removes the skip, restoring it to a normal due day'
+                      : "Marks this day as a one-off pass -- doesn't break your streak"}
+                  >
+                    <View style={[styles.dayPopoverActionIconWrap, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+                      <MaterialCommunityIcons
+                        name={dayPopoverInfo.isUserSkipped ? 'calendar-remove' : 'calendar-remove-outline'}
+                        size={16}
+                        color={colors.textSecondary}
+                      />
+                    </View>
+                    <Text style={styles.dayPopoverActionText}>
+                      {dayPopoverInfo.isUserSkipped ? 'Remove skip' : 'Skip this day'}
+                    </Text>
+                    <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </Pressable>
+          )}
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -635,10 +792,27 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.text,
   },
   gestureLegend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+  },
+  gestureLegendChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  gestureLegendText: {
     fontSize: 11,
     color: colors.textTertiary,
-    textAlign: 'center',
-    marginTop: 16,
+  },
+  gestureLegendName: {
+    fontWeight: '700',
+    color: colors.textSecondary,
   },
   viewModeToggle: {
     flexDirection: 'row',
@@ -777,18 +951,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  // Deliberately just a plain dot, not a full badge like expiringBadge -- this is a passive
-  // "there's more here" reminder, not a status fact competing for attention.
-  skipAffordanceDot: {
-    position: 'absolute',
-    top: 4,
-    left: 4,
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#90A4AE',
-    opacity: 0.7,
-  },
   yearScroll: {
     flex: 1,
     marginTop: 16,
@@ -822,5 +984,82 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   yearDotFuture: {
     opacity: 0.3,
+  },
+  dayPopoverBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  dayPopoverCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  dayPopoverHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  dayPopoverTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  dayPopoverStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  dayPopoverStatusIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayPopoverStatusText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 19,
+    color: colors.text,
+  },
+  dayPopoverActions: {
+    gap: 8,
+  },
+  // Same icon-circle + text + chevron row shape as TaskHeader's own status-popover actions
+  // (Schedule/Status/Best/Skip rows there) -- a familiar, already-proven "this is tappable"
+  // pattern, not a new visual language just for this screen.
+  dayPopoverAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  dayPopoverActionIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayPopoverActionText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
   },
 });

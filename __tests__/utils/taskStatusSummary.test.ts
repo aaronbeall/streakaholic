@@ -209,4 +209,46 @@ describe('getTaskStatusInfo', () => {
       expect(getTaskStatusInfo(task, today).status.text).toContain('You’ve reached this week’s goal');
     });
   });
+
+  describe('canSkipToday / isSkippedToday', () => {
+    it('allows skipping a due, incomplete daily task', () => {
+      const task = makeTask({ frequency: 'daily' });
+      const info = getTaskStatusInfo(task, today);
+      expect(info.canSkipToday).toBe(true);
+      expect(info.isSkippedToday).toBe(false);
+    });
+
+    it('allows skipping a specific_days_of_week task only on a day it is actually due', () => {
+      const dueTask = makeTask({ frequency: 'specific_days_of_week', daysOfWeek: [today.getDay()] });
+      expect(getTaskStatusInfo(dueTask, today).canSkipToday).toBe(true);
+
+      const notDueDay = (today.getDay() + 1) % 7;
+      const notDueTask = makeTask({ frequency: 'specific_days_of_week', daysOfWeek: [notDueDay] });
+      expect(getTaskStatusInfo(notDueTask, today).canSkipToday).toBe(false);
+    });
+
+    it('does not allow skipping once today is already completed', () => {
+      const task = makeTask({ frequency: 'daily', completions: [{ id: 'c1', taskId: 't1', date: todayStr, completedAt: today.toISOString(), timesCompleted: 1 }] });
+      expect(getTaskStatusInfo(task, today).canSkipToday).toBe(false);
+    });
+
+    it('does not allow skipping for quota-based frequencies (days_per_week / days_per_month)', () => {
+      const weekTask = makeTask({ frequency: 'days_per_week', daysPerWeek: 3 });
+      expect(getTaskStatusInfo(weekTask, today).canSkipToday).toBe(false);
+      const monthTask = makeTask({ frequency: 'days_per_month', daysPerMonth: 10 });
+      expect(getTaskStatusInfo(monthTask, today).canSkipToday).toBe(false);
+    });
+
+    it('reports isSkippedToday when today is in skippedDates, and stops offering canSkipToday', () => {
+      const task = makeTask({ frequency: 'daily', skippedDates: [todayStr] });
+      const info = getTaskStatusInfo(task, today);
+      expect(info.isSkippedToday).toBe(true);
+      expect(info.canSkipToday).toBe(false);
+    });
+
+    it('ignores skippedDates for quota-based frequencies', () => {
+      const task = makeTask({ frequency: 'days_per_week', daysPerWeek: 3, skippedDates: [todayStr] });
+      expect(getTaskStatusInfo(task, today).isSkippedToday).toBe(false);
+    });
+  });
 });
