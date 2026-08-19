@@ -5,7 +5,7 @@ import { PersistStorage, persist } from 'zustand/middleware';
 import { Task, TaskCompletion } from '../types';
 import { mergeTaskLists } from '../utils/importExport';
 import { cancelTaskNotifications, rescheduleAllTaskNotifications, scheduleTaskNotifications } from '../utils/notifications';
-import { calculateTaskStats, getCachedCompletionCountsByDate } from '../utils/streaks';
+import { calculateTaskStats, getCachedCompletionCountsByDate, isScheduledOnDate } from '../utils/streaks';
 import { useAchievementsStore } from './achievementsStore';
 import { useLastImportStore } from './lastImportStore';
 import { useSettingsStore } from './settingsStore';
@@ -26,6 +26,62 @@ const cancelFor = (taskId: string): void => {
   cancelTaskNotifications(taskId).catch(error => console.warn('Failed to cancel notifications for task', taskId, error));
 };
 
+// A generous debounce specifically for calendar-sourced completions (TaskCalendarScreen's
+// handleDayPress, via completeTask's own `deferAchievements` option) -- per explicit user
+// direction, only calendar edits should debounce; Home/TaskHeader's own press-and-hold stays
+// fully immediate, since that's one deliberate real-time action that deserves instant feedback.
+// Calendar backfilling is different: rapidly tapping through several days in a row (correcting a
+// week of missed history, say) would otherwise run a full achievement check -- and possibly pop a
+// celebration screen -- after *every single tap*, which reads as spammy for what's really one
+// editing session, not several distinct "I just did this" moments.
+//
+// Module-level (not component state) so a pending check survives navigating away from the
+// calendar screen entirely -- it's keyed off the store's own mutation, not the screen's mount
+// lifecycle, and still needs to fire even if the user has already moved on to the Stats tab.
+// Keyed per task, since edits to two different tasks' calendars shouldn't debounce against each
+// other. `prevTask` is captured once, at the *start* of a debounce burst, and deliberately not
+// overwritten by subsequent calls within the same burst (only the timer resets) -- achievement
+// detection needs the true before/after pair spanning the *whole* burst, not just its final step,
+// or a crossing that happened partway through (e.g. hitting streak-25 on the third of five
+// backfilled days) could be missed entirely once later edits change what "next" looks like.
+const ACHIEVEMENT_CHECK_DEBOUNCE_MS = 4000;
+const pendingDeferredAchievementChecks = new Map<string, { prevTask: Task; date: Date; timer: ReturnType<typeof setTimeout> }>();
+
+const scheduleDeferredAchievementCheck = (taskId: string, prevTaskAtBurstStart: Task, date: Date): void => {
+  const existing = pendingDeferredAchievementChecks.get(taskId);
+  if (existing) clearTimeout(existing.timer);
+
+  // The *true* start-of-burst prevTask -- reused across every reschedule within the same burst,
+  // only ever set fresh when there's no burst already in progress for this task. Read by the
+  // timer callback below via the map (not this function's own `prevTaskAtBurstStart` parameter
+  // directly), since that parameter is whatever the *latest* call happened to pass, not
+  // necessarily the one that should actually win.
+  const effectivePrevTask = existing?.prevTask ?? prevTaskAtBurstStart;
+
+  const timer = setTimeout(() => {
+    pendingDeferredAchievementChecks.delete(taskId);
+    const allTasksNow = useTaskStore.getState().tasks;
+    const nextTask = allTasksNow.find(t => t.id === taskId);
+    // The task could have been archived/deleted since this was scheduled -- a quiet no-op, not
+    // an error, same as any other "state moved on" race this app already tolerates elsewhere.
+    if (!nextTask) return;
+    const completionCountsByTaskId = new Map(
+      allTasksNow
+        .filter(t => !t.archived)
+        .map(t => [t.id, getCachedCompletionCountsByDate(t.completions || [])] as const)
+    );
+    useAchievementsStore.getState().recordCompletionAchievements(
+      effectivePrevTask,
+      nextTask,
+      allTasksNow,
+      date,
+      completionCountsByTaskId
+    );
+  }, ACHIEVEMENT_CHECK_DEBOUNCE_MS);
+
+  pendingDeferredAchievementChecks.set(taskId, { prevTask: effectivePrevTask, date, timer });
+};
+
 interface ImportOptions {
   mode?: 'replace' | 'merge';
   exportMeta?: { exportId: string };
@@ -39,10 +95,21 @@ interface TaskStore {
   updateTask: (task: Task) => void;
   deleteTask: (taskId: string) => void;
   restoreDeletedTask: (task: Task) => void;
-  completeTask: (taskId: string, date?: Date) => void;
+  // `deferAchievements` -- see scheduleDeferredAchievementCheck's own comment. Only
+  // TaskCalendarScreen passes `true`; every other caller (Home, TaskHeader) omits it and gets the
+  // existing immediate behavior.
+  completeTask: (taskId: string, date?: Date, options?: { deferAchievements?: boolean }) => void;
   uncompleteTask: (taskId: string, date: Date) => void;
   undoCompleteTask: (taskId: string, date?: Date) => void;
   restoreCompletion: (taskId: string, completion: TaskCompletion) => void;
+  // Marks `date` a one-off pass -- see Task.skippedDates' own comment (types/index.ts). A no-op
+  // for a quota-type task (days_per_week/days_per_month) or a date already marked skipped; the
+  // caller (TaskCalendarScreen) is expected to not even offer the gesture there, this is just the
+  // same defense-in-depth isDueOnDate itself applies.
+  skipDate: (taskId: string, date: Date) => void;
+  // Reverses skipDate -- also the calendar's own long-press-to-toggle "undo" path, not just the
+  // toast's Undo action.
+  unskipDate: (taskId: string, date: Date) => void;
   archiveTask: (taskId: string) => void;
   restoreTask: (taskId: string) => void;
   // Receives the complete active-task id order. Archived tasks retain their slots, so reordering
@@ -155,7 +222,7 @@ export const useTaskStore = create<TaskStore>()(
         rescheduleFor(task);
       },
 
-      completeTask: (taskId, date = new Date()) => {
+      completeTask: (taskId, date = new Date(), options) => {
         const dateString = format(date, 'yyyy-MM-dd');
         // Captured from inside the same map() that performs the mutation, rather than a separate
         // get().tasks.find() before/after -- guarantees prevTask/nextTask are the exact before/
@@ -186,7 +253,16 @@ export const useTaskStore = create<TaskStore>()(
                   },
                 ];
 
-            nextTask = withUpdatedStats({ ...task, completions: newCompletions });
+            // A day can't be both "I did it" and "I skipped it" at once -- completing a
+            // previously-skipped date (e.g. tapping it after having long-pressed it earlier, see
+            // TaskCalendarScreen's handleDayPress/handleDayLongPress) clears the stale skip
+            // rather than leaving it sitting there contradicted by a real completion. Cheap
+            // no-op when there was nothing to clear (the common case).
+            const clearedSkip = task.skippedDates?.includes(dateString)
+              ? task.skippedDates.filter(d => d !== dateString)
+              : task.skippedDates;
+
+            nextTask = withUpdatedStats({ ...task, completions: newCompletions, skippedDates: clearedSkip });
             return nextTask;
           }),
         });
@@ -196,34 +272,41 @@ export const useTaskStore = create<TaskStore>()(
         // triggers this -- restoreCompletion/uncompleteTask/undoCompleteTask/importTasks are
         // corrections or bulk data operations, not a user completing a task right now.
         if (prevTask && nextTask) {
-          const allTasksNow = get().tasks;
-          // A performance-review finding (2026-08-13): perfect-day's own check (which runs
-          // unconditionally on every single completion) and perfect-week's (up to 12 more day
-          // checks, whenever perfect-day happens to pass) both look up "is task T done on date D"
-          // for several tasks/dates per call. Without this map, that falls through to
-          // isTaskCompleted's plain linear .find() over a task's *entire* completions array, from
-          // the start -- the worst-case access pattern for finding a *recent* date in an
-          // array that's appended in chronological order. This was already fixed for the
-          // retroactive scan (see detectRetroactiveAchievements' own completionCountsByTaskId
-          // usage) but never wired into this, the app's single most frequent interaction. Built
-          // once per completion, scoped to non-archived tasks only (the same universe
-          // detectCompletionAchievements' own perfect-day/perfect-week checks already restrict
-          // themselves to). The shared accessor is keyed by each exact immutable completions-array
-          // reference: only nextTask's new array is indexed now; every unchanged task reuses its
-          // existing read-only map. This retains O(1) day lookups without rescanning unrelated
-          // histories on the app's most frequent interaction.
-          const completionCountsByTaskId = new Map(
-            allTasksNow
-              .filter(t => !t.archived)
-              .map(t => [t.id, getCachedCompletionCountsByDate(t.completions || [])] as const)
-          );
-          useAchievementsStore.getState().recordCompletionAchievements(
-            prevTask,
-            nextTask,
-            allTasksNow,
-            date,
-            completionCountsByTaskId
-          );
+          if (options?.deferAchievements) {
+            // See scheduleDeferredAchievementCheck's own comment -- calendar backfill edits get a
+            // generous debounce instead of an immediate check, so rapidly correcting several past
+            // days doesn't fire (and possibly celebrate) after every single tap.
+            scheduleDeferredAchievementCheck(taskId, prevTask, date);
+          } else {
+            const allTasksNow = get().tasks;
+            // A performance-review finding (2026-08-13): perfect-day's own check (which runs
+            // unconditionally on every single completion) and perfect-week's (up to 12 more day
+            // checks, whenever perfect-day happens to pass) both look up "is task T done on date D"
+            // for several tasks/dates per call. Without this map, that falls through to
+            // isTaskCompleted's plain linear .find() over a task's *entire* completions array, from
+            // the start -- the worst-case access pattern for finding a *recent* date in an
+            // array that's appended in chronological order. This was already fixed for the
+            // retroactive scan (see detectRetroactiveAchievements' own completionCountsByTaskId
+            // usage) but never wired into this, the app's single most frequent interaction. Built
+            // once per completion, scoped to non-archived tasks only (the same universe
+            // detectCompletionAchievements' own perfect-day/perfect-week checks already restrict
+            // themselves to). The shared accessor is keyed by each exact immutable completions-array
+            // reference: only nextTask's new array is indexed now; every unchanged task reuses its
+            // existing read-only map. This retains O(1) day lookups without rescanning unrelated
+            // histories on the app's most frequent interaction.
+            const completionCountsByTaskId = new Map(
+              allTasksNow
+                .filter(t => !t.archived)
+                .map(t => [t.id, getCachedCompletionCountsByDate(t.completions || [])] as const)
+            );
+            useAchievementsStore.getState().recordCompletionAchievements(
+              prevTask,
+              nextTask,
+              allTasksNow,
+              date,
+              completionCountsByTaskId
+            );
+          }
           // Review engagement is deliberately narrower than task history: only a genuine action
           // for today counts. Imports and backfilled calendar dates bypass this path entirely,
           // while undo/restore operations don't increment it elsewhere in the store.
@@ -289,7 +372,56 @@ export const useTaskStore = create<TaskStore>()(
           tasks: get().tasks.map(task => {
             if (task.id !== taskId) return task;
             const withoutDate = (task.completions || []).filter(c => c.date !== completion.date);
-            updatedTask = withUpdatedStats({ ...task, completions: [...withoutDate, completion] });
+            // Same mutual-exclusivity guard completeTask applies -- see its own comment.
+            const clearedSkip = task.skippedDates?.includes(completion.date)
+              ? task.skippedDates.filter(d => d !== completion.date)
+              : task.skippedDates;
+            updatedTask = withUpdatedStats({ ...task, completions: [...withoutDate, completion], skippedDates: clearedSkip });
+            return updatedTask;
+          }),
+        });
+        if (updatedTask) rescheduleFor(updatedTask);
+      },
+
+      skipDate: (taskId, date) => {
+        const dateString = format(date, 'yyyy-MM-dd');
+        let updatedTask: Task | undefined;
+        set({
+          tasks: get().tasks.map(task => {
+            if (task.id !== taskId) return task;
+            if (task.frequency !== 'daily' && task.frequency !== 'specific_days_of_week') return task;
+            if (task.skippedDates?.includes(dateString)) return task;
+            // Skipping a day that was never actually scheduled is redundant -- per explicit user
+            // direction (a Weekday-only task shouldn't allow "skipping" a Saturday, an M/W/F task
+            // shouldn't allow skipping a Tuesday). The UI is expected to not even offer this (see
+            // TaskCalendarScreen's canToggleSkip), this is the defense-in-depth backstop.
+            if (!isScheduledOnDate(task, date)) return task;
+            // Mirrors completeTask's own guard in the other direction -- a day that's already
+            // completed can't also be skipped; same defense-in-depth reasoning.
+            const requiredTimes = Math.max(1, task.timesPerDay || 1);
+            const existing = (task.completions || []).find(c => c.date === dateString);
+            if (existing && existing.timesCompleted >= requiredTimes) return task;
+            updatedTask = withUpdatedStats({
+              ...task,
+              skippedDates: [...(task.skippedDates || []), dateString],
+            });
+            return updatedTask;
+          }),
+        });
+        if (updatedTask) rescheduleFor(updatedTask);
+      },
+
+      unskipDate: (taskId, date) => {
+        const dateString = format(date, 'yyyy-MM-dd');
+        let updatedTask: Task | undefined;
+        set({
+          tasks: get().tasks.map(task => {
+            if (task.id !== taskId) return task;
+            if (!task.skippedDates?.includes(dateString)) return task;
+            updatedTask = withUpdatedStats({
+              ...task,
+              skippedDates: task.skippedDates.filter(d => d !== dateString),
+            });
             return updatedTask;
           }),
         });

@@ -70,6 +70,7 @@ export const ONBOARDING_HINT_CATALOG: Record<OnboardingHintId, OnboardingHintDef
   },
   'task-calendar-tap-day': {
     text: 'Tap a day to mark it complete, then tap again to clear it',
+    footer: 'Hold a day to mark it skipped',
     priority: 10,
   },
 };

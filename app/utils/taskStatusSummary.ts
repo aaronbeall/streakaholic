@@ -33,6 +33,16 @@ export interface TaskStatusInfo {
   // Only present when the task's current streak equals its own best -- not a general "your record
   // is N days" fact, purely a celebratory acknowledgment of the moment.
   best: TaskStatusBadge | null;
+  // Whether "Skip today" is worth offering as a popover action right now -- today is due, not
+  // already completed, and this frequency actually supports skip at all (see Task.skippedDates'
+  // own comment, streaks.ts -- quota types never do). Mirrors TaskCalendarScreen's own
+  // canToggleSkip eligibility, scoped specifically to today rather than an arbitrary date.
+  canSkipToday: boolean;
+  // The other side of canSkipToday -- today was already marked skipped, so the popover should
+  // offer to remove it instead of offering to create a new one. Mutually exclusive with
+  // canSkipToday (isDueOnDate already reads false for an already-skipped date, so canSkipToday
+  // can never also be true here).
+  isSkippedToday: boolean;
 }
 
 // Same red/orange/gray language getStreakBadgeStyle (streaks.ts) already established for the
@@ -160,7 +170,7 @@ const buildStatusBadge = (task: Task, today: Date): TaskStatusBadge => {
 // specific_days_of_week gets a different, but related, explainer (2026-08-14, per explicit user
 // direction that this frequency "uses similar logic and counts streaks by days" too): the schedule
 // sentence above already lists *which* days are due, but not the actual streak rule -- a missed due
-// day breaks the streak, while a non-due day is simply skipped (never counted as a miss), and still
+// day breaks the streak, while a non-due day simply passes through (never counted as a miss), and still
 // adds to the streak as a bonus if completed anyway (the same mechanic buildStatusBadge's own
 // non-due-and-completed branch surfaces case-by-case, here stated as a standing rule independent of
 // today). No explainer at all for a selection that collapses to "Daily" (empty or all 7 days) --
@@ -190,6 +200,8 @@ export const getTaskStatusInfo = (task: Task, today: Date = new Date()): TaskSta
   const bestStreak = task.stats?.bestStreak ?? 0;
   const isOnBestStreak = bestStreak > 0 && currentStreak === bestStreak;
   const createdAtLabel = format(parseISO(task.createdAt), 'MMM d, yyyy');
+  const timesPerDay = task.timesPerDay || 1;
+  const isCompletedToday = getCompletionCount(task, today) >= timesPerDay;
 
   return {
     scheduleSentence: `${formatFrequencySentence(task)} Started ${createdAtLabel}.`,
@@ -200,5 +212,9 @@ export const getTaskStatusInfo = (task: Task, today: Date = new Date()): TaskSta
     best: isOnBestStreak
       ? { icon: 'trophy', color: BEST_COLOR, text: 'This is your best streak yet!' }
       : null,
+    canSkipToday: (task.frequency === 'daily' || task.frequency === 'specific_days_of_week')
+      && isDueOnDate(task, today) && !isCompletedToday,
+    isSkippedToday: (task.frequency === 'daily' || task.frequency === 'specific_days_of_week')
+      && (task.skippedDates?.includes(format(today, 'yyyy-MM-dd')) ?? false),
   };
 };

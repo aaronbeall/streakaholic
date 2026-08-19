@@ -7,6 +7,9 @@ export interface StreakScheduleInfo {
   daysPerWeek: number;
   daysPerMonth: number;
   timesPerDay: number;
+  // See Task.skippedDates' own comment (types/index.ts) -- optional so every existing caller
+  // that builds a synthetic StreakScheduleInfo without it (tests, etc.) is unaffected.
+  skippedDates?: string[];
 }
 
 const emptyStats: TaskStats = {
@@ -76,7 +79,13 @@ const mostRecentRunIncludingClose = (flags: boolean[], weights: number[]): numbe
   return total;
 };
 
-export const isDueOnDate = (task: StreakScheduleInfo, date: Date): boolean => {
+// The raw schedule's own due-ness, ignoring any skip override entirely -- what isDueOnDate falls
+// back to once it's confirmed this date isn't explicitly skipped. Exported so a caller that
+// specifically needs "was this day ever actually scheduled" independent of whether it's *been*
+// skipped -- e.g. TaskCalendarScreen/taskStore deciding whether skip is even a meaningful action
+// to offer for a given date at all (skipping an already-non-due day is redundant, per explicit
+// user direction) -- doesn't have to duplicate the specific_days_of_week logic itself.
+export const isScheduledOnDate = (task: StreakScheduleInfo, date: Date): boolean => {
   if (task.frequency === 'specific_days_of_week') {
     // Treat "no days selected" as always-due rather than never-due, so a misconfigured
     // task doesn't silently look like it has no schedule at all.
@@ -84,6 +93,22 @@ export const isDueOnDate = (task: StreakScheduleInfo, date: Date): boolean => {
     return task.daysOfWeek.includes(date.getDay());
   }
   return true;
+};
+
+export const isDueOnDate = (task: StreakScheduleInfo, date: Date): boolean => {
+  // A skip makes a day behave exactly like it was never due, regardless of what the schedule
+  // otherwise says -- checked first, and only for the two frequency types skip actually supports
+  // (see Task.skippedDates' own comment for why quota types are excluded). Every other consumer
+  // of isDueOnDate (streak math, achievements, notifications, the status popover, calendar
+  // day-state) reads this same function, so this one check is what makes a skip propagate
+  // correctly everywhere without any of them needing their own awareness of it.
+  if (
+    (task.frequency === 'daily' || task.frequency === 'specific_days_of_week')
+    && task.skippedDates?.includes(format(date, 'yyyy-MM-dd'))
+  ) {
+    return false;
+  }
+  return isScheduledOnDate(task, date);
 };
 
 // For 'daily' and 'specific_days_of_week': a streak only *breaks* on a missed due day, but every

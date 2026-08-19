@@ -2,7 +2,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { addMonths, addYears, format, getDay, getDaysInMonth, startOfMonth, subMonths, subYears } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import React, { useMemo, useState } from 'react';
-import { LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AccessibilityActionEvent, LayoutChangeEvent, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { MissedDayMark } from '../components/MissedDayMark';
@@ -15,7 +15,7 @@ import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { buildDayConnectionInfo, getCachedTaskStreakChains, getDayStreakState } from '../utils/reports';
-import { getCachedCompletionCountsByDate } from '../utils/streaks';
+import { getCachedCompletionCountsByDate, isScheduledOnDate } from '../utils/streaks';
 
 type ViewMode = 'month' | 'year';
 
@@ -57,12 +57,14 @@ type CalendarItem = CalendarDay | EmptyDay;
 // TaskDetailScreen) rather than a full navigation that re-transitions the header too.
 export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = ({ task, initialMonth }) => {
   const taskId = task.id;
-  const { completeTask, uncompleteTask, undoCompleteTask, restoreCompletion } = useTaskStore(
+  const { completeTask, uncompleteTask, undoCompleteTask, restoreCompletion, skipDate, unskipDate } = useTaskStore(
     useShallow(state => ({
       completeTask: state.completeTask,
       uncompleteTask: state.uncompleteTask,
       undoCompleteTask: state.undoCompleteTask,
       restoreCompletion: state.restoreCompletion,
+      skipDate: state.skipDate,
+      unskipDate: state.unskipDate,
     }))
   );
   const { showToast } = useToast();
@@ -228,10 +230,47 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
       } else {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
-      completeTask(taskId, date);
+      // Calendar completions get a generous achievement debounce -- see taskStore's own
+      // scheduleDeferredAchievementCheck comment for why. Home/TaskHeader's own completeTask
+      // calls omit this and stay fully immediate.
+      completeTask(taskId, date, { deferAchievements: true });
       showToast({
         message: nextCount >= timesPerDay ? `${label} completed` : `${label}: ${nextCount}/${timesPerDay}`,
         action: { label: 'Undo', onPress: () => undoCompleteTask(taskId, date) },
+      });
+    }
+  };
+
+  // Long-press marks/unmarks a one-off skip -- only for daily/specific_days_of_week (quota tasks
+  // don't support this at all, see Task.skippedDates' own comment), never for a day that's already
+  // completed (nothing to skip) or in the future (matches handleDayPress' own restriction), and
+  // never to *create* a new skip on a day that isn't actually scheduled in the first place (per
+  // explicit user direction -- redundant: a Weekday-only task shouldn't offer to "skip" a
+  // Saturday). Removing an *existing* skip is still allowed regardless, since that's just
+  // reverting a real, already-made choice. Toggling (skip <-> unskip) on repeated long-presses is
+  // what gives this its own "edit" path later, not just the toast's immediate Undo.
+  const handleDayLongPress = (date: Date) => {
+    if (task.frequency !== 'daily' && task.frequency !== 'specific_days_of_week') return;
+
+    const dateString = format(date, 'yyyy-MM-dd');
+    const isCompleted = (completionCounts.get(dateString) ?? 0) >= requiredTimes;
+    const isFuture = dateString > today;
+    if (isCompleted || isFuture) return;
+
+    const alreadySkipped = task.skippedDates?.includes(dateString) ?? false;
+    if (!alreadySkipped && !isScheduledOnDate(task, date)) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const label = format(date, 'MMM d');
+
+    if (alreadySkipped) {
+      unskipDate(taskId, date);
+      showToast({ message: `${label} skip removed` });
+    } else {
+      skipDate(taskId, date);
+      showToast({
+        message: `${label} marked as skipped`,
+        action: { label: 'Undo', onPress: () => unskipDate(taskId, date) },
       });
     }
   };
@@ -364,9 +403,18 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                   const isEmpty = isPast && !isCompleted && !isPartial;
                   const streakState = isEmpty ? getDayStreakState(task, date, streakChains, completionCounts) : null;
                   const isMissed = streakState === 'hardMiss';
-                  const isSkipped = streakState === 'connected';
+                  // Schedule-driven slack (non-due, or quota slack) -- NOT the user-initiated skip
+                  // feature below. A real skip mechanically becomes non-due (see isDueOnDate,
+                  // streaks.ts) and so also reads as pass-through here, same as any other non-due
+                  // day would -- isUserSkipped is what actually distinguishes "you chose to skip
+                  // this" from "this was never due in the first place" for display purposes.
+                  const isPassThrough = streakState === 'connected';
                   const isSoftMissed = streakState === 'softMiss';
                   const isFuture = dateString > today;
+                  // The real, user-initiated skip (Task.skippedDates) -- only meaningful for
+                  // daily/specific_days_of_week, matching isDueOnDate's own restriction.
+                  const isUserSkipped = (task.frequency === 'daily' || task.frequency === 'specific_days_of_week')
+                    && (task.skippedDates?.includes(dateString) ?? false);
                   const connection = dayConnectionInfo.get(dateString);
                   // A horizontal track can only ever visually bridge two cells sitting side by
                   // side in the *same* row -- a streak that data-wise continues past a week's
@@ -401,20 +449,47 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                     ? `${completionCount} of ${task.timesPerDay || 1} completed`
                     : isMissed
                     ? 'Missed'
-                    : isSkipped
+                    // Checked before the more general pass-through case -- a real skip is a
+                    // specific reason a day reads as pass-through, worth naming distinctly rather
+                    // than folding into the same generic label an ordinary non-due day gets.
+                    : isUserSkipped
                     ? 'Skipped'
+                    : isPassThrough
+                    ? 'Not due'
                     : '';
+
+                  // Same eligibility handleDayLongPress itself checks -- kept alongside it (not
+                  // re-derived from scratch there) purely so the accessibility action can be
+                  // offered/withheld to match what the physical long-press would actually do.
+                  // Requires the day be actually *scheduled* (or already skipped, to still allow
+                  // undoing one) -- per explicit user direction, skipping an already-non-due day
+                  // is redundant (a Weekday-only task shouldn't offer to "skip" a Saturday; an
+                  // M/W/F task shouldn't offer to skip a Tuesday).
+                  const canToggleSkip = !isFuture && !isCompleted
+                    && (task.frequency === 'daily' || task.frequency === 'specific_days_of_week')
+                    && (isUserSkipped || isScheduledOnDate(task, date));
+
+                  const handleAccessibilityAction = (event: AccessibilityActionEvent) => {
+                    if (event.nativeEvent.actionName === 'longpress') {
+                      handleDayLongPress(date);
+                    }
+                  };
 
                   return (
                     <TouchableOpacity
                       key={dateString}
                       style={styles.day}
                       onPress={() => handleDayPress(date)}
+                      onLongPress={canToggleSkip ? () => handleDayLongPress(date) : undefined}
                       delayLongPress={500}
                       accessibilityRole="button"
                       accessibilityLabel={`${format(date, 'EEEE, MMMM d')}${stateLabel ? `, ${stateLabel}` : ''}`}
                       accessibilityHint={isFuture ? undefined : 'Double tap to toggle completion'}
                       accessibilityState={{ disabled: isFuture }}
+                      accessibilityActions={canToggleSkip
+                        ? [{ name: 'longpress', label: isUserSkipped ? 'Remove skip' : 'Mark as skipped' }]
+                        : undefined}
+                      onAccessibilityAction={canToggleSkip ? handleAccessibilityAction : undefined}
                     >
                       {connection?.isConnectedSelf && !(connection.isRunStart && connection.isRunEnd) && (
                         // Vertically centered via plain flex (not a percentage `top` + negative
@@ -453,12 +528,20 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                         ]}>
                         {isMissed ? (
                           <MissedDayMark color={colors.textTertiary} size={16} />
-                        ) : isSkipped ? (
+                        ) : isUserSkipped ? (
+                          // A real skip still *behaves* exactly like an ordinary non-due day
+                          // (streak math, isDueOnDate) -- but per explicit user direction it now
+                          // gets its own visual instead of blending into the same faded treatment
+                          // an ordinary non-due day gets: same faded color, plus a strikethrough,
+                          // so "I explicitly chose to skip this" reads as a deliberate mark, not
+                          // just an absence.
+                          <Text style={[styles.dayNumber, styles.fadedDayNumber, styles.skippedDayNumber]}>{dayNumber}</Text>
+                        ) : isPassThrough ? (
                           <Text style={[styles.dayNumber, styles.fadedDayNumber]}>{dayNumber}</Text>
                         ) : isSoftMissed ? (
                           // No streak currently at stake here -- just a faded day number, no
                           // mark or connecting line at all, deliberately less notable than either
-                          // a hard miss or a skip.
+                          // a hard miss or a pass-through day.
                           <Text style={[styles.dayNumber, styles.fadedDayNumber]}>{dayNumber}</Text>
                         ) : isPartial ? (
                           <>
@@ -496,12 +579,31 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                           <MaterialCommunityIcons name="clock-outline" size={10} color="#fff" />
                         </View>
                       )}
+                      {/* A small, deliberately subtle persistent reminder that long-press is
+                          available here -- per direct user concern that the gesture is easy to
+                          forget once its one-time onboarding hint is gone. Opposite corner from
+                          the streak/expiring badges above (top-left, not top-right) so it never
+                          competes with either. Narrowed to just the two moments it's actually
+                          relevant -- a hard miss worth reconsidering, or an existing skip worth
+                          knowing you can undo -- rather than every eligible day (which would
+                          paper most of a typical month in dots, the opposite of subtle). */}
+                      {canToggleSkip && (isMissed || isUserSkipped) && (
+                        <View style={styles.skipAffordanceDot} pointerEvents="none" />
+                      )}
                     </TouchableOpacity>
                   );
                 })}
               </View>
             ))}
           </View>
+        )}
+
+        {/* A persistent reminder of both gestures, not just the one-time onboarding hint --
+            per direct user concern that long-press specifically is easy to forget once that
+            hint is gone. Month view only, matching tapDayHint's own gating (Year view's dots
+            aren't interactive at all). */}
+        {viewMode === 'month' && (
+          <Text style={styles.gestureLegend}>Tap: complete/clear · Hold: skip</Text>
         )}
       </View>
 
@@ -531,6 +633,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 18,
     fontWeight: '500',
     color: colors.text,
+  },
+  gestureLegend: {
+    fontSize: 11,
+    color: colors.textTertiary,
+    textAlign: 'center',
+    marginTop: 16,
   },
   viewModeToggle: {
     flexDirection: 'row',
@@ -601,6 +709,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   fadedDayNumber: {
     opacity: 0.4,
   },
+  // Layered on top of fadedDayNumber -- same faded color, plus a strikethrough, so a real
+  // user-chosen skip reads as a deliberate mark rather than blending into an ordinary non-due
+  // day's own identical fade.
+  skippedDayNumber: {
+    textDecorationLine: 'line-through',
+  },
   // Full-sized, behind the whole outer `day` cell (not nested inside dayContent, a smaller
   // overflow:hidden circle) so its edges reach the cell's true left/right bounds and adjacent
   // connected cells' tracks touch seamlessly -- centers its one child (the actual track) via
@@ -662,6 +776,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+  },
+  // Deliberately just a plain dot, not a full badge like expiringBadge -- this is a passive
+  // "there's more here" reminder, not a status fact competing for attention.
+  skipAffordanceDot: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#90A4AE',
+    opacity: 0.7,
   },
   yearScroll: {
     flex: 1,

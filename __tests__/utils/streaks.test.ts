@@ -1,6 +1,6 @@
 import { format, subDays } from 'date-fns';
 import { Task, TaskCompletion } from '../../app/types';
-import { buildCompletionCountsByDate, calculateTaskStats, getCachedCompletionCountsByDate, getCompletionCount, isTaskCompleted, StreakScheduleInfo } from '../../app/utils/streaks';
+import { buildCompletionCountsByDate, calculateTaskStats, getCachedCompletionCountsByDate, getCompletionCount, isDueOnDate, isScheduledOnDate, isTaskCompleted, StreakScheduleInfo } from '../../app/utils/streaks';
 
 const makeCompletion = (id: string, date: Date, timesCompleted = 1): TaskCompletion => ({
   id,
@@ -401,6 +401,78 @@ describe('calculateTaskStats', () => {
         jest.useRealTimers();
       }
     });
+  });
+});
+
+describe('isDueOnDate skip support', () => {
+  it('treats a skipped date as not due for a daily task', () => {
+    const day = new Date(2026, 7, 12); // Wednesday
+    const task = baseTask({ skippedDates: [format(day, 'yyyy-MM-dd')] });
+    expect(isDueOnDate(task, day)).toBe(false);
+  });
+
+  it('treats a skipped date as not due even on an otherwise-due specific weekday', () => {
+    const monday = new Date(2026, 7, 10);
+    const task = baseTask({
+      frequency: 'specific_days_of_week',
+      daysOfWeek: [monday.getDay()],
+      skippedDates: [format(monday, 'yyyy-MM-dd')],
+    });
+    expect(isDueOnDate(task, monday)).toBe(false);
+  });
+
+  it('does not affect an unskipped date', () => {
+    const monday = new Date(2026, 7, 10);
+    const tuesday = new Date(2026, 7, 11);
+    const task = baseTask({ skippedDates: [format(monday, 'yyyy-MM-dd')] });
+    expect(isDueOnDate(task, tuesday)).toBe(true);
+  });
+
+  // Explicit per direct user instruction: quota-type habits don't support skip at all -- there's
+  // no clean per-day due/not-due gate for it to plug into the way there is for daily/
+  // specific_days_of_week, so this is deliberately out of scope rather than half-solved.
+  it('is ignored entirely for quota-type frequencies (days_per_week/days_per_month)', () => {
+    const day = new Date(2026, 7, 12);
+    const dateString = format(day, 'yyyy-MM-dd');
+    const weekly = baseTask({ frequency: 'days_per_week', daysPerWeek: 3, skippedDates: [dateString] });
+    const monthly = baseTask({ frequency: 'days_per_month', daysPerMonth: 5, skippedDates: [dateString] });
+    expect(isDueOnDate(weekly, day)).toBe(true);
+    expect(isDueOnDate(monthly, day)).toBe(true);
+  });
+
+  it('a skipped due day does not break an otherwise-live streak', () => {
+    const today = new Date(2026, 7, 12);
+    const skippedDay = subDays(today, 1);
+    const task = baseTask({ skippedDates: [format(skippedDay, 'yyyy-MM-dd')] });
+    const completions = [
+      makeCompletion('a', subDays(today, 3)),
+      makeCompletion('b', subDays(today, 2)),
+      // subDays(today, 1) is skipped, not completed -- would ordinarily break the streak.
+      makeCompletion('c', today),
+    ];
+    const stats = calculateTaskStats(task, completions, today);
+    expect(stats.streakStatus).toBe('up_to_date');
+    // The skipped day passes through invisibly, same as any other non-due day -- it neither
+    // breaks the chain nor adds its own day to the count.
+    expect(stats.currentStreak).toBe(3);
+  });
+});
+
+describe('isScheduledOnDate', () => {
+  it('ignores any skip -- reflects the raw schedule only', () => {
+    const day = new Date(2026, 7, 12); // Wednesday
+    const task = baseTask({ skippedDates: [format(day, 'yyyy-MM-dd')] });
+    // isDueOnDate would read false for this exact date; isScheduledOnDate must not.
+    expect(isDueOnDate(task, day)).toBe(false);
+    expect(isScheduledOnDate(task, day)).toBe(true);
+  });
+
+  it('reflects specific_days_of_week exactly like isDueOnDate does when nothing is skipped', () => {
+    const monday = new Date(2026, 7, 10);
+    const tuesday = new Date(2026, 7, 11);
+    const task = baseTask({ frequency: 'specific_days_of_week', daysOfWeek: [monday.getDay()] });
+    expect(isScheduledOnDate(task, monday)).toBe(true);
+    expect(isScheduledOnDate(task, tuesday)).toBe(false);
   });
 });
 

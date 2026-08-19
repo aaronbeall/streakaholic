@@ -309,8 +309,8 @@ const latestQualifyingDateBefore = (dates: Date[], day: Date): Date | null => {
   return result;
 };
 
-// Assuming no completion after `anchor`, find the first date on which another skipped day would
-// make the schedule fail. For due-day schedules that is simply the next due day. For quota
+// Assuming no completion after `anchor`, find the first date on which another allowed-miss day
+// would make the schedule fail. For due-day schedules that is simply the next due day. For quota
 // schedules it is the first day where every remaining opportunity in the week/month is needed.
 const findNextMandatoryDate = (
   task: Task,
@@ -343,10 +343,13 @@ const findNextMandatoryDate = (
 };
 
 // Builds the streamgraph's per-day momentum once per task/date page. A qualifying completion is a
-// full-width reset; partial multi-repetition progress retains its literal completion fraction;
-// an allowed empty day tapers according to how much schedule slack remains before action becomes
-// mandatory. The same `isPassThrough` flag also powers the day-details box so its textual state
-// cannot disagree with the stream.
+// full-width reset; partial multi-repetition progress retains its literal completion fraction; an
+// allowed-miss (empty, schedule-tolerated) day tapers according to how much slack remains before
+// action becomes mandatory. The same `isPassThrough` flag also powers the day-details box so its
+// textual state cannot disagree with the stream. Note this is entirely about *schedule-driven*
+// slack (a non-due day, or quota slack) -- unrelated to the user-initiated skip feature
+// (Task.skippedDates, streaks.ts) even though a skipped day mechanically becomes non-due and so
+// also reads as pass-through here, same as any other non-due day would.
 export const buildDayMomentumInfo = (
   task: Task,
   dates: Date[],
@@ -388,40 +391,40 @@ export const buildDayMomentumInfo = (
       mandatoryDate = findNextMandatoryDate(task, anchor, qualifyingDates);
       mandatoryDateByAnchor.set(anchorTime, mandatoryDate);
     }
-    const allowedSkipDays = Math.max(0, differenceInCalendarDays(mandatoryDate, anchor) - 1);
-    const skipsElapsed = differenceInCalendarDays(day, anchor);
-    if (day >= mandatoryDate || skipsElapsed > allowedSkipDays) {
+    const allowedMissDays = Math.max(0, differenceInCalendarDays(mandatoryDate, anchor) - 1);
+    const missesElapsed = differenceInCalendarDays(day, anchor);
+    if (day >= mandatoryDate || missesElapsed > allowedMissDays) {
       result.set(key, { isPassThrough: false, fraction: 0 });
       continue;
     }
 
-    const remainingOptionalDaysAfterThis = Math.max(0, allowedSkipDays - skipsElapsed);
+    const remainingOptionalDaysAfterThis = Math.max(0, allowedMissDays - missesElapsed);
     result.set(key, {
       isPassThrough: true,
       // Normalize the *first* optional day to 1 and the last to 0. The stream renderer then maps
       // that continuation-only range into its deliberately weaker visual band (currently 50%
       // down to ~1px), keeping this schedule calculation independent of a particular chart size.
-      fraction: allowedSkipDays > 1
-        ? remainingOptionalDaysAfterThis / (allowedSkipDays - 1)
+      fraction: allowedMissDays > 1
+        ? remainingOptionalDaysAfterThis / (allowedMissDays - 1)
         : 0,
     });
   }
   return result;
 };
 
-// Whether this date reads as part of a connected streak thread at all -- completed, or a soft
-// skip (see getDayStreakState). Used to decide whether two adjacent day cells should show a
-// connector line between them: a day gets a left/right connector stub exactly when its neighbor
-// on that side is *also* connected, which naturally reproduces "no left connector on a streak's
-// first day, no right connector on its last day" without needing to special-case either --
-// a day with a broken/missing neighbor has nothing connected to draw a line into. Today itself is
-// never marked completed or skipped on its own (calendars never judge "today" as a miss/skip --
-// see each screen's `isPast` gating), so it's handled separately here: connected exactly when
-// today's own status is `'up_to_date'` -- comfortably safe, nothing riding on today specifically
-// -- not merely whenever `currentStreak > 0`. That distinction matters: `'expiring'` *also* has
-// `currentStreak > 0` (a real streak exists), but it specifically means today (or, for a quota
-// task, every remaining day in the period) is the make-or-break day -- skip it and the streak
-// breaks. Per explicit user direction, an expiring today gets no "free pass" connector; only a
+// Whether this date reads as part of a connected streak thread at all -- completed, or a
+// pass-through day (see getDayStreakState). Used to decide whether two adjacent day cells should
+// show a connector line between them: a day gets a left/right connector stub exactly when its
+// neighbor on that side is *also* connected, which naturally reproduces "no left connector on a
+// streak's first day, no right connector on its last day" without needing to special-case either
+// -- a day with a broken/missing neighbor has nothing connected to draw a line into. Today itself
+// is never marked completed or pass-through on its own (calendars never judge "today" as a hard
+// miss or pass-through -- see each screen's `isPast` gating), so it's handled separately here:
+// connected exactly when today's own status is `'up_to_date'` -- comfortably safe, nothing riding
+// on today specifically -- not merely whenever `currentStreak > 0`. That distinction matters:
+// `'expiring'` *also* has `currentStreak > 0` (a real streak exists), but it specifically means
+// today (or, for a quota task, every remaining day in the period) is the make-or-break day -- miss
+// it and the streak breaks. Per explicit user direction, an expiring today gets no "free pass" connector; only a
 // genuinely safe today (not due, or already covered with slack) does.
 export const isConnectedDay = (
   task: Task,
@@ -506,7 +509,7 @@ const isBridgedNeighbor = (
 };
 
 export interface DayConnectionInfo {
-  // Whether this day itself is part of a connected streak thread -- completed, a soft-skip day
+  // Whether this day itself is part of a connected streak thread -- completed, a pass-through day
   // inside a real chain's span, or (today specifically) reaching into a still-live streak. Same
   // definition isConnectedDay already uses; exposed per-day here for rendering a continuous
   // capsule instead of a per-cell mark.

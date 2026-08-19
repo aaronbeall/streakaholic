@@ -22,7 +22,7 @@ import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useSettingsStore } from '../stores/settingsStore';
 import { Task } from '../types';
 import { MissedDayMark } from './MissedDayMark';
-import { SkippedDayMark } from './SkippedDayMark';
+import { PassThroughDayMark } from './PassThroughDayMark';
 import { ParticleSystem } from './ParticleSystem';
 import { PartialDayPie } from './PartialDayPie';
 import { TaskProgressIcon } from './TaskProgressIcon';
@@ -295,10 +295,14 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
     const isEmpty = isPast && !isCompleted && !isPartial;
     const streakState = isEmpty ? getDayStreakState(task, date, streakChains, completionCounts) : null;
     const isMissed = streakState === 'hardMiss';
-    const isSkipped = streakState === 'connected';
+    // Schedule-driven slack (non-due, or quota slack) -- not the user-initiated skip feature
+    // (Task.skippedDates, streaks.ts). A real skip mechanically becomes non-due and so also
+    // reads as pass-through here, same as any other non-due day would.
+    const isPassThrough = streakState === 'connected';
     const isSoftMissed = streakState === 'softMiss';
-    // Only completed days need an explicit connector stub -- a skipped day's own line already
-    // spans its full cell width unconditionally (see SkippedDayMark), so it never needs one.
+    // Only completed days need an explicit connector stub -- a pass-through day's own line
+    // already spans its full cell width unconditionally (see PassThroughDayMark), so it never
+    // needs one.
     const hasLeftConnector = isCompleted && isConnectedDay(task, subDays(date, 1), streakChains, completionCounts);
     const hasRightConnector = isCompleted && isConnectedDay(task, addDays(date, 1), streakChains, completionCounts);
     return {
@@ -308,7 +312,7 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
       completionCount,
       isToday,
       isMissed,
-      isSkipped,
+      isPassThrough,
       isSoftMissed,
       hasLeftConnector,
       hasRightConnector,
@@ -352,10 +356,10 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
                     {day.isCompleted ? (
                       <>
                         {day.hasLeftConnector && (
-                          <View style={styles.leftConnector}><SkippedDayMark color={task.color} /></View>
+                          <View style={styles.leftConnector}><PassThroughDayMark color={task.color} /></View>
                         )}
                         {day.hasRightConnector && (
-                          <View style={styles.rightConnector}><SkippedDayMark color={task.color} /></View>
+                          <View style={styles.rightConnector}><PassThroughDayMark color={task.color} /></View>
                         )}
                         <View style={[styles.calendarDot, { backgroundColor: task.color }]} />
                       </>
@@ -367,14 +371,14 @@ const CardCalendar = React.memo(({ task }: { task: Task }) => {
                       <View style={[styles.calendarDot, { borderWidth: 2, borderColor: task.color, backgroundColor: 'transparent' }]} />
                     ) : day.isMissed ? (
                       <MissedDayMark color={colors.textTertiary} size={11} />
-                    ) : day.isSkipped ? (
-                      <View style={styles.calendarSkippedLineWrap}>
-                        <SkippedDayMark color={task.color} thickness={4} />
+                    ) : day.isPassThrough ? (
+                      <View style={styles.calendarPassThroughLineWrap}>
+                        <PassThroughDayMark color={task.color} thickness={4} />
                       </View>
                     ) : (
                       // Covers both an actual future day and a "soft miss" (isSoftMissed) --
                       // an empty day with no streak currently at stake, neither a hard miss nor
-                      // a connecting skip. Both read identically: a plain faded, empty dot.
+                      // a connecting pass-through. Both read identically: a plain faded, empty dot.
                       <View style={[styles.calendarDot, styles.calendarDotFuture]} />
                     )}
                   </View>
@@ -829,8 +833,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   // A completed day's connector stub -- half the cell's width, anchored to that side, rendered
   // behind the solid dot (which covers its inner half) so only the outer stub reaching toward
-  // the cell edge shows. Matches SkippedDayMark's own opacity so the connecting thread reads
-  // consistently whether it's passing behind a dot or standing alone across a skipped day.
+  // the cell edge shows. Matches PassThroughDayMark's own opacity so the connecting thread reads
+  // consistently whether it's passing behind a dot or standing alone across a pass-through day.
   leftConnector: {
     position: 'absolute',
     top: 0,
@@ -849,12 +853,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
     opacity: 0.3,
   },
-  // A soft-skip day on this particular face reads as a short, thick, semi-transparent tick
+  // A pass-through day on this particular face reads as a short, thick, semi-transparent tick
   // rather than the full-width edge-to-edge connector the other calendars use -- at this small
   // a cell size (this is the densest calendar grid in the app), a thin line spanning the whole
   // cell read as too faint/busy; a short bold tick is more legible without needing to actually
   // touch neighboring cells the way the larger calendars' connecting line does.
-  calendarSkippedLineWrap: {
+  calendarPassThroughLineWrap: {
     width: '55%',
     alignSelf: 'center',
     opacity: 0.5,

@@ -35,6 +35,16 @@ export interface Task {
   // are never silently upgraded; only newly-created tasks default to a nonzero level (see
   // AddTaskScreen's creation path).
   notifications?: TaskNotificationSettings;
+  // Dates ("yyyy-MM-dd") the user explicitly marked as a one-off pass -- vacations, sickness,
+  // etc. Only meaningful for `daily`/`specific_days_of_week` habits (see isDueOnDate in
+  // streaks.ts, the sole place this is consulted); quota habits (days_per_week/days_per_month)
+  // don't support this at all, per explicit user direction -- there's no clean way to "skip" a
+  // day within a period-based quota the way there is for a genuine per-day due/not-due gate, so
+  // this is deliberately out of scope there rather than half-solved. A skipped date is treated
+  // exactly like a day that was never due in the first place -- it doesn't break a streak,
+  // doesn't add a completion, and isn't visually distinguished from an ordinary non-due day (the
+  // existing "pass-through" calendar treatment already covers it correctly).
+  skippedDates?: string[];
 }
 
 export interface TaskCompletion {

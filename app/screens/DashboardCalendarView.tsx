@@ -652,7 +652,11 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                         ? getDayStreakState(task, day, streakChainsByTask.get(task.id) ?? [], taskCompletionCounts ?? EMPTY_COMPLETION_COUNTS)
                         : null;
                       const isMissed = streakState === 'hardMiss';
-                    const isSkipped = !!momentumInfoByTask.get(task.id)?.get(dateString)?.isPassThrough;
+                      // Schedule-driven slack (non-due, or quota slack) -- not the user-initiated
+                      // skip feature (Task.skippedDates, streaks.ts). This aggregate grid doesn't
+                      // currently distinguish a real skip from an ordinary non-due day the way
+                      // TaskCalendarScreen's own isUserSkipped does; both read as pass-through here.
+                      const isPassThrough = !!momentumInfoByTask.get(task.id)?.get(dateString)?.isPassThrough;
                       const isSoftMissed = streakState === 'softMiss';
                       const connection = dayConnectionInfoByTask.get(task.id)?.get(dateString);
                       // Today, not yet (fully) completed, with the streak's own status saying today
@@ -675,7 +679,7 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                               // circle, same as skipped day with no streak") -- the colored thread
                               // below is what distinguishes "connected" from "genuinely nothing
                               // going on," not the dot itself anymore.
-                              (isSoftMissed || isSkipped) && styles.gridDotSoftMiss,
+                              (isSoftMissed || isPassThrough) && styles.gridDotSoftMiss,
                             ]}
                           >
                             {isExpiringToday ? (
@@ -706,8 +710,8 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                               it. Only pass-through days get this -- completed days are unaffected,
                               and a plain soft-miss day (no streak at stake) has no thread since
                               there's no streak to thread. */}
-                          {isSkipped && (
-                            <View style={[styles.skipLine, { backgroundColor: task.color }]} pointerEvents="none" />
+                          {isPassThrough && (
+                            <View style={[styles.passThroughLine, { backgroundColor: task.color }]} pointerEvents="none" />
                           )}
                           {connection?.showStreakBadge && (
                             <StreakCountBadge
@@ -975,7 +979,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  // Shared by both empty-day states (hard miss and soft skip) -- the base grey circle gives way
+  // Shared by both empty-day states (hard miss and pass-through) -- the base grey circle gives way
   // to a transparent background so only the mark itself (X or dash) shows through.
   gridDotEmpty: {
     backgroundColor: 'transparent',
@@ -995,7 +999,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   // marginTop is safe here (unlike this file's own earlier centering bugs elsewhere) since
   // gridCell has an explicit fixed height (GRID_CELL_SIZE), not an aspectRatio-derived one --
   // percentage positioning only misbehaved against the latter.
-  skipLine: {
+  passThroughLine: {
     position: 'absolute',
     left: 0,
     right: 0,

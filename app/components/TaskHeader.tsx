@@ -54,6 +54,8 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
   const { showToast } = useToast();
   const completeTask = useTaskStore(state => state.completeTask);
   const undoCompleteTask = useTaskStore(state => state.undoCompleteTask);
+  const skipDate = useTaskStore(state => state.skipDate);
+  const unskipDate = useTaskStore(state => state.unskipDate);
 
   const isCalendarScreen = activeTab === 'calendar';
   const isStatsScreen = activeTab === 'stats';
@@ -71,6 +73,28 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
   const handleOpenSummary = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowSummary(true);
+  };
+
+  // The popover's own skip toggle -- the highest-leverage fix for skip's own discoverability
+  // problem (per direct user discussion): the calendar's long-press gesture is easy to forget
+  // once its one-time onboarding hint is gone, but this covers the single most common real case
+  // (today, not happening -- or reconsidering that) without depending on remembering any gesture
+  // at all. One handler, not two -- canSkipToday/isSkippedToday are already mutually exclusive
+  // (see taskStatusSummary.ts), so which action this actually performs is never ambiguous. Closes
+  // the popover after acting, same as this screen's other popover actions would.
+  const handleToggleSkipToday = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowSummary(false);
+    if (statusInfo.isSkippedToday) {
+      unskipDate(task.id, new Date());
+      showToast({ message: 'Skip removed' });
+    } else {
+      skipDate(task.id, new Date());
+      showToast({
+        message: 'Today marked as skipped',
+        action: { label: 'Undo', onPress: () => unskipDate(task.id, new Date()) },
+      });
+    }
   };
 
   // Same press-and-hold-to-complete interaction as TaskCard's own task face (TaskProgressIcon
@@ -372,6 +396,35 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
                 <Text style={[styles.summaryRowText, styles.summaryBestText]}>{statusInfo.best.text}</Text>
               </View>
             )}
+
+            {/* Styled as a genuine row (icon circle + text + chevron), matching Schedule/Status/
+                Best above it, rather than a standalone pill that looked visually disconnected
+                from everything else in the popover -- the chevron is what signals "tappable
+                control" here, the same affordance every other tappable row in this app already
+                uses (e.g. Settings). canSkipToday/isSkippedToday are mutually exclusive (see
+                taskStatusSummary.ts), so this is always exactly one state or the other, never both. */}
+            {(statusInfo.canSkipToday || statusInfo.isSkippedToday) && (
+              <TouchableOpacity
+                style={styles.summarySkipAction}
+                onPress={handleToggleSkipToday}
+                accessibilityRole="button"
+                accessibilityHint={statusInfo.isSkippedToday
+                  ? "Removes today's skip, restoring it to a normal due day"
+                  : "Marks today as a one-off pass -- doesn't break your streak"}
+              >
+                <View style={[styles.summaryRowIcon, { backgroundColor: 'rgba(0,0,0,0.06)' }]}>
+                  <MaterialCommunityIcons
+                    name={statusInfo.isSkippedToday ? 'calendar-remove' : 'calendar-remove-outline'}
+                    size={16}
+                    color={colors.textSecondary}
+                  />
+                </View>
+                <Text style={styles.summarySkipActionText}>
+                  {statusInfo.isSkippedToday ? 'Remove skip' : 'Skip today'}
+                </Text>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textTertiary} />
+              </TouchableOpacity>
+            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -594,5 +647,25 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   summaryBestIcon: {
     width: 28,
     textAlign: 'center',
+  },
+  // A genuine row, matching Schedule/Status/Best's own icon-circle + text layout, plus a
+  // top border separating it as its own distinct action rather than another fact -- and a
+  // trailing chevron, the same "this is tappable" affordance every other tappable row in this
+  // app already uses (Settings, etc.), rather than a standalone pill that read as visually
+  // disconnected from the rest of the popover. Full-width, not shrink-wrapped, so the chevron
+  // can sit flush right.
+  summarySkipAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  summarySkipActionText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
   },
 });
