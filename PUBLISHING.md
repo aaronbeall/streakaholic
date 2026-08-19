@@ -53,9 +53,9 @@ own Google/Play Console login left undone — see below for exactly what those a
 
 ### Prepped — ready for you, but finishing needs your Play Console/Google login
 5. **Store listing assets**, mostly closed:
-   - **512×512 hi-res icon**: `logo/AppIcons/playstore.png`, regenerated 2026-08-19 from the
+   - **512×512 hi-res icon**: `design/AppIcons/playstore.png`, regenerated 2026-08-19 from the
      now-canonical "logo4" mark (see BRAND.md). Correctly sized, matches the current icon.
-   - **1024×500 feature graphic**: rebuilt at `logo/store-assets/feature-graphic.png` — the
+   - **1024×500 feature graphic**: rebuilt at `design/store-assets/feature-graphic.png` — the
      same banner layout as before (icon + name + tagline), now on the mark's own navy
      (`#01073B`) with the flame's mint-green (`#65FC7C`) for the tagline, using the new
      transparent mark cutout. Treat this as a solid first pass, not the final word —

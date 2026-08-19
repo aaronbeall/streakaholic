@@ -152,10 +152,11 @@
 ## MMP
 
 - [ ] Finalize Streakaholic branding and launch identity
-  - [x] Audit the existing logo/app-icon variants under `assets/images/` and `logo/`; choose one
+  - [x] Audit the existing logo/app-icon variants under `assets/images/` and `design/`; choose one
         canonical mark and wordmark (done 2026-08-19 — "logo4", see BRAND.md's "Visual identity
         status" for the full derivation record). Old `logo`/`logo2`/`logo3` source variants under
-        `logo/source/` are superseded but left as historical record, not deleted
+        `design/logo/` are superseded but left as historical record, not deleted. `logo/` itself
+        was renamed to `design/` (and `logo/source/` to `design/logo/`) 2026-08-19
   - [x] Validate the chosen mark at launcher, adaptive-mask, notification/small-icon, splash,
         favicon, share-card, feature-graphic, light-background, and dark-background sizes (app
         icon, Android adaptive-icon foreground + `#01073B` background, web favicon, splash icon

@@ -79,7 +79,7 @@ store listing, website, and this guide before release.
 
 The verbal identity above is final. **The canonical mark is chosen (2026-08-19): "logo4"** —
 a circular aurora-gradient (magenta → violet → cyan → mint) flame wrapping a checkmark ring,
-on a starfield texture. Source art lives in `logo/source/`:
+on a starfield texture. Source art lives in `design/logo/`:
 - `logo4.png` — mark on a near-white background (the original, as generated)
 - `logo4-solid-background.png` — mark on flat navy `#01073B` (used for every opaque icon export)
 - `logo4-thematic-background.png` — mark on a full starfield/nebula background (not currently
@@ -91,8 +91,8 @@ on a starfield texture. Source art lives in `logo/source/`:
 Every app icon, the Android adaptive-icon foreground/background, the web favicon, the splash
 screen, the Play/App Store hi-res icons, and the feature graphic are all derived from these
 four files (`assets/images/icon.png`, `adaptive-icon.png`, `favicon.png`, `splash-icon.png`,
-`logo-mark.png`; `logo/AppIcons/*`; `logo/store-assets/feature-graphic.png`) — regenerate from
-the `logo/source/` files above if the mark ever changes, rather than hand-editing any derived
+`logo-mark.png`; `design/AppIcons/*`; `design/store-assets/feature-graphic.png`) — regenerate from
+the `design/logo/` files above if the mark ever changes, rather than hand-editing any derived
 export directly. `#01073B` is the canonical navy brand background color (Android adaptive-icon
 `backgroundColor`, feature graphic background); `#65FC7C` (the flame's own mint-green) is the
 accent used for tagline/accent text against navy.
