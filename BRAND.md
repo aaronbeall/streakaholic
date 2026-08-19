@@ -10,7 +10,7 @@ product surfaces instead of creating close-but-different versions.
 - **Tagline:** Build streaks worth celebrating.
 - **Category:** A playful, private habit & streak tracker.
 - **One-liner:** Streakaholic is a playful, privacy-first habit tracker that keeps you
-  motivated with satisfying streaks, celebrations, and achievements—while your data
+  motivated and forming good habits with satisfying streaks, celebrations, and achievements—while your data
   stays on your device and under your control.
 - **Play Store short description:** Build habit streaks worth celebrating. Private by
   design, no account needed.
@@ -20,10 +20,11 @@ celebration; use privacy to build trust immediately afterward.
 
 ## Message pillars
 
-1. **Keep the streak alive.** Flexible schedules and clear progress make consistency
-   visible and motivating.
+1. **Keep the streak alive.** Flexible schedules and clear progress make daily
+   consistency visible and motivating—the repetition that actually builds a habit.
 2. **Celebrate every milestone.** Satisfying feedback and collectible achievements make
-   progress feel good without turning life into a complicated game.
+   progress feel good and reinforce the habit, without turning life into a complicated
+   game.
 3. **Own your data.** Habits stay on the device, require no account, and can be exported
    by the user.
 

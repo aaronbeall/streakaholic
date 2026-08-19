@@ -11,15 +11,19 @@ The promise is:
 Streakaholic is for people who know what they want to do but have trouble staying
 consistent. Completing a habit should feel rewarding: the streak advances, the app
 responds, achievements accumulate, and progress becomes visible without turning life
-into a complicated game.
+into a complicated game. That daily repetition plus a satisfying response is the actual
+mechanism that turns a one-off action into a real habit — the product isn't just tracking
+consistency, it's helping create it.
 
 ## Positioning and messaging
 
 ### Message hierarchy
 
-1. **Stay motivated by keeping streaks alive.** Make consistency visible and rewarding.
+1. **Stay motivated by keeping streaks alive.** Make consistency visible and rewarding —
+   the daily repetition that actually builds a habit.
 2. **Enjoy light gamification.** Celebrations, milestones, achievements, and a Trophy
-   Case add encouragement without points, currencies, or competitive pressure.
+   Case add encouragement and reinforce the habit, without points, currencies, or
+   competitive pressure.
 3. **Track habits on schedules that fit real life.** Daily, selected weekdays, a number
    of days per week or month, and multiple completions per day.
 4. **See progress clearly.** Calendars, charts, history, and aggregate statistics make
@@ -60,6 +64,8 @@ for the canonical one-liner, voice, and product terminology.
 - Milestones and achievements
 - Playful, not demanding
 - Encouragement without guilt
+- Building/forming a real habit, not just logging one
+- Making it stick
 
 Avoid describing Streakaholic primarily as a productivity tool. It can improve
 productivity, but its emotional benefit is motivation. Also avoid implying that users

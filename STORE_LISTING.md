@@ -19,9 +19,9 @@ an open question.
 
 ## Positioning (the guardrail for everything below)
 
-> **The playfully motivating, privacy-first streak tracker for Android:** streaks worth
-> celebrating and collectible achievements, without turning your life into a game — or
-> your habits into a subscription.
+> **The playfully motivating, privacy-first streak tracker for Android:** daily streaks
+> worth celebrating and collectible achievements that help the habit actually stick,
+> without turning your life into an RPG — or your habits into data to be mined.
 
 Message order: **streak motivation first, light gamification second, flexible tracking
 third, progress views fourth, privacy last** (as trust-building proof, not the lead
