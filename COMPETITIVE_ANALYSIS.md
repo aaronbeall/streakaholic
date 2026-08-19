@@ -80,7 +80,7 @@ an abstract phrase:
 
 | App | Flexible scheduling | Repeated/quantitative habits | Reminders | Calendar and statistics | Widgets | Real-life flexibility | Data portability/model |
 |---|---|---|---|---|---|---|---|
-| **Streakaholic** | ✅ Daily, selected weekdays, X/week, X/month | ✅ Multiple completions per day | ◐ Four escalation levels implemented; still needs on-device QA | ✅ Per-habit calendar/stats/streak history plus aggregate dashboard | 🗺 Planned Pro feature | ◐ Non-due days do not unfairly break streaks; pause is planned | ✅ JSON export/import; local-only; no account or cloud |
+| **Streakaholic** | ✅ Daily, selected weekdays, X/week, X/month | ✅ Multiple completions per day | ◐ Four escalation levels implemented; still needs on-device QA | ✅ Per-habit calendar/stats/streak history plus aggregate dashboard | 🗺 Planned Pro feature | ✅ Non-due days do not unfairly break streaks; single-day skip for illness/vacation (daily/specific-weekday only); date-range pause is still planned | ✅ JSON export/import; local-only; no account or cloud |
 | **Loop** | ✅ Daily and complex schedules such as X/week or every other day | ✅ Measurable habits and goals | ✅ Per-habit, snoozable/actionable reminders | ✅ Detailed graphs, complete history, streaks, and habit score | ✅ Android home-screen widgets | ◐ Habit score deliberately softens the effect of occasional misses | ✅ CSV/SQLite export; offline; no account; data stays on device |
 | **everyday** | ◐ Daily/weekday tracking plus manual skips rather than a broad schedule engine | — | ✅ Email and mobile push, including “don't skip twice” | ✅ Visual board, current/best streak, totals, completion rates | ◐ Browser new-tab extensions; mobile widget not confirmed in reviewed sources | ✅ Skip days, no-weekends mode, and break-habit mode | ◐ Cross-device cloud sync; export was not advertised in reviewed sources |
 | **HabitNow** | ✅ Daily, weekly, and monthly habits plus to-dos/events | ◐ Numeric and timed activities are supported; exact multi-rep behavior varies by goal type | ✅ Custom reminders and alarms | ✅ Calendar, notes, charts, and statistics | ✅ Android widgets | — | ✅ Backup/export; optional Google sign-in supports cloud backup and purchase restoration |
@@ -103,10 +103,12 @@ The most visible gaps are:
 
 1. **Widgets.** Loop, HabitNow, Streaks, and Habitica already advertise them. A widget is
    both a retention feature and a daily advertisement for the app on the user's phone.
-2. **Pause/skip/grace handling.** everyday has skips, Habitify has Off Mode, Productive
+2. **Pause/grace handling.** everyday has skips, Habitify has Off Mode, Productive
    supports pausing, Streaks has flexible rule options, and Loop makes missed days less
-   destructive through habit score. Streakaholic handles non-due days fairly but does
-   not yet have a clear illness/vacation mechanism.
+   destructive through habit score. Streakaholic handles non-due days fairly and, since
+   this research date, shipped a single-day skip (daily/specific-weekday habits only,
+   2026-08-18) covering the one-off illness/vacation case — a genuine prospective
+   date-range *pause* remains the actual gap.
 3. **Sharing.** Streaks, Habitify, Productive, Habitica, and Finch have some form of
    accountability or social reinforcement. Streakaholic does not need a social network,
    but shareable streak/achievement cards would close the marketing loop at much lower
@@ -119,8 +121,8 @@ The most visible gaps are:
 
 | App | Free access/limit | Monetization model | Public US pricing observed | Ads/subscription posture |
 |---|---|---|---|---|
-| **Streakaholic — current prelaunch** | Free core; active habits capped at 6; no paid unlock exists yet | No monetization currently | $0 | No ads, no subscription |
-| **Streakaholic — planned** | Free core remains; 6 active habits; export/import and core tracking stay free | One-time Pro unlock; optional consumable tips; possible consumable streak restoration | Pro **$2.99–$5.99** proposed; tips **$0.99/$2.99/$4.99** proposed; restoration **$0.99–$1.99** proposed | Explicitly no ads or subscription |
+| **Streakaholic — current prelaunch** | Free core; active habits capped at 6; tip jar implemented (three consumable tiers), not yet live-tested with real Play Billing; no Pro unlock exists yet | Tip jar only, no gating | Tips **$0.99/$2.99/$4.99** (Play Console pricing not yet configured) | No ads, no subscription |
+| **Streakaholic — planned** | Free core remains; 6 active habits; export/import and core tracking stay free | One-time Pro unlock; optional consumable tips (implemented); possible consumable streak restoration | Pro **$2.99–$5.99** proposed; tips **$0.99/$2.99/$4.99**; restoration **$0.99–$1.99** proposed | Explicitly no ads or subscription |
 | **Loop** | Unlimited/full app | Free and open source | $0 | Explicitly ad-free; no paid plan |
 | **everyday** | Up to 3 habits; reminders, yearly view, colors, and multi-device access | Freemium subscription or lifetime purchase | **$7.49/month**, **$29.99/year**, or **$99 lifetime** | Subscription offered; no ad model advertised |
 | **HabitNow** | Limited free tier; exact current cap is not published on its official public pages | One-time Premium upgrade | Price shown in app/Google Play checkout and varies by locale; no stable public price found | One-time purchase, not a subscription |

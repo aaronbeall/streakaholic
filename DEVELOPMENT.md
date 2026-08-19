@@ -31,10 +31,14 @@ Setup and contributing notes for Streakaholic. For what the app does, see [READM
 
 ## Stack
 
-- Expo SDK 53, expo-router (file-based routing), React 19 / React Native 0.79, TypeScript
-- React Context (`TaskContext`) + AsyncStorage for state/persistence — no external state library
+- Expo SDK 54, expo-router (file-based routing), React 19 / React Native 0.81, TypeScript
+- Zustand + `persist` middleware (AsyncStorage-backed) for state/persistence — see
+  `app/stores/`; `ToastContext` is the one deliberate holdout still using React Context
 - `react-native-reanimated` for animations, `react-native-chart-kit` for charts
 - `@expo/vector-icons` (MaterialCommunityIcons) for icons
+
+See [CLAUDE.md](CLAUDE.md) for the full architecture (state management, key `app/utils/`
+modules, animation timing rules, RN/Android gotchas) — this doc is just setup steps.
 
 ## Project Structure
 
@@ -45,10 +49,12 @@ app/
   ├── (route files)   # index, dashboard, add-task, settings, etc. — thin re-exports of screens
   ├── screens/        # Screen components
   ├── components/     # Reusable UI components
-  ├── context/        # React Context for state management
+  ├── stores/         # Zustand stores (tasks, settings, achievements, last-import)
+  ├── context/        # ToastContext — the one screen-crossing state still in React Context
   ├── hooks/          # Custom hooks (e.g. theming)
+  ├── constants/      # Shared constants (brand copy, task icons/colors, tip jar tiers)
   ├── types/          # TypeScript type definitions
-  └── utils/          # Utility functions (streaks, charts, import/export)
+  └── utils/          # Utility functions (streaks, achievements, charts, import/export)
 ```
 
 ## Contributing

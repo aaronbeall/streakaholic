@@ -17,8 +17,8 @@ networks carry cut against that experience and the privacy positioning alike.
 
 Instead: a one-time "Pro" unlock (matching how Streaks itself is sold), plus two small
 complementary IAPs that don't require gating anything. All three can share the same IAP
-plumbing — see PUBLISHING.md's tip jar section for the `react-native-iap` vs. RevenueCat
-decision, which applies to all of this, not just the tip jar.
+plumbing — see PUBLISHING.md's tip jar section for the `expo-iap` implementation, which
+applies to all of this, not just the tip jar.
 
 ## Free tier (forever, no nagging)
 
@@ -53,9 +53,9 @@ a reason to actually pay:
 3. **Extra icon/color customization** beyond the current picker — low-stakes delight, the
    kind of thing that's nice to pay for but nobody feels cheated without.
 
-Explicitly **not** behind Pro: anything that's really "the app working correctly"
-(reminders/notifications, when built, should probably be free — they're closer to core
-functionality than decoration).
+Explicitly **not** behind Pro: anything that's really "the app working correctly" —
+reminders/notifications are implemented and free, matching that principle; they're
+closer to core functionality than decoration.
 
 ### Pricing (rough starting point, not a strong opinion)
 

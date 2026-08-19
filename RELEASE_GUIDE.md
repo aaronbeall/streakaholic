@@ -188,8 +188,9 @@ shown in Play Console; Google can change testing and account eligibility require
 10. Prefer a staged rollout when Play makes it available. Monitor crashes, ANRs, reviews,
     and support reports before expanding to 100%.
 
-The store-listing assets and questionnaire guidance are documented in
-[PUBLISHING.md](PUBLISHING.md#store-listing-copy-ready-to-paste).
+The store-listing copy/assets are documented in [STORE_LISTING.md](STORE_LISTING.md);
+the Data Safety/content-rating questionnaire cheat sheet is in
+[PUBLISHING.md](PUBLISHING.md#data-safety--content-rating-cheat-sheet).
 
 ## 5B. Release a new version
 
