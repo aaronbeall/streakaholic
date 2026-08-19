@@ -103,10 +103,18 @@ exists. Currently used by a derived asset below:
   opaque — needed for compositing onto a *new* background, since the interior fill would
   otherwise show through as a mismatched patch. Feeds `notification-icon.png` and
   `logo-mark-solid.png` (ShareCards' brand footer).
-- `logo4-aurora-solid-white.png` — the **current app-icon source**: white line art on a full-bleed
-  aurora gradient + starfield background, filling the entire square canvas edge-to-edge (no
-  negative space around the mark). Also the source for `favicon.png`, so the browser-tab icon
-  matches the actual app icon. Supplied directly, not built by this repo's own tooling.
+- `logo4-aurora-solid-white.png` — the **current app-icon source**: `logo4-solid-white-only.png`'s
+  line art, centered and scaled to ~66% of canvas height, composited onto `aurora-background.png`
+  (a supplied gradient/starfield plate with no mark baked in). Also the source for `favicon.png`,
+  so the browser-tab icon matches the actual app icon. Regenerated **2026-08-19** after the prior
+  edge-to-edge version (mark nearly filling the full 1254px canvas, off-center) clipped badly on
+  real Android launchers — the mark's flame tips and ring bottom extended well past Android's
+  adaptive-icon safe zone (a centered ~66dp-diameter circle within the 108dp foreground canvas;
+  anything outside it is fair game for any launcher's mask, up to the most aggressive case of a
+  circle tangent to all four edges). The ~66%-height/centered composition was verified against
+  that worst-case full-bleed circle mask (`-compose CopyOpacity` simulation) with zero clipping.
+  Regenerate the same way from `aurora-background.png` + `logo4-solid-white-only.png` if either
+  changes, rather than hand-editing this file.
 
 **App icon redesigned 2026-08-19, replacing the circular "coin + escaping flame" composition**
 for `icon.png`, `adaptive-icon.png`, and the Play/App Store hi-res icons: on-device, the flame

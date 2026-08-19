@@ -52,8 +52,9 @@ trust-building proof — matches the message-order rule above.
 
 ## Full description (4000 char max)
 
-> Build streaks worth celebrating. Streakaholic is a playful, privacy-first habit
-> tracker that makes consistency feel rewarding without the guilt trips.
+> Build streaks worth celebrating. Streakaholic turns everyday habits into motivating
+> streaks, satisfying celebrations, meaningful milestones, and a Trophy Case that fills
+> as you make progress—all while your data stays on your device and under your control.
 >
 > **Why Streakaholic**
 > - Flexible schedules — track habits daily, on chosen days, or a set number of days per
@@ -82,22 +83,12 @@ trust-building proof — matches the message-order rule above.
 > Whether you're building a workout habit, a reading habit, or just trying to drink more
 > water, Streakaholic keeps you honest without keeping your data.
 
-~1,550 characters. Changed from the version in PUBLISHING.md's history: added the skip
-feature (shipped 2026-08-18) and the achievements/Trophy Case bullet (Trophy Case is
-flagged in COMPETITIVE_ANALYSIS.md as "more differentiating than generic charts or
-reminders" and wasn't called out by name before).
-
-**Alternate opening**, from an earlier MARKETING.md draft — punchier and feature-forward,
-folds the privacy line in rather than giving it its own closing section. Worth considering
-in place of the current opening paragraph above (not both):
-
-> Build streaks worth celebrating. Streakaholic turns everyday habits into motivating
-> streaks, satisfying celebrations, meaningful milestones, and a Trophy Case that fills
-> as you make progress—all while your data stays on your device and under your control.
-
-**Open question:** this is one solid draft, not an A/B-tested pair. Worth a second pass
-once real screenshots exist — MARKETING.md's Phase 4 notes screenshot/copy experiments
-are worth running once store traffic is high enough to learn from, not before.
+~1,825 characters. Opening paragraph is the punchier, feature-forward draft from an
+earlier MARKETING.md iteration (chosen 2026-08-19 over a more generic privacy-first
+opening) — it folds the privacy promise into the hook itself rather than saving it for
+its own closing section, and the "Your data stays yours" section below still earns its
+place by elaborating the specifics (no account, no cloud, export/import) rather than
+just repeating the opening's tease.
 
 ## Category & content rating
 
