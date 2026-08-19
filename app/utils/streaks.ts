@@ -12,6 +12,17 @@ export interface StreakScheduleInfo {
   skippedDates?: string[];
 }
 
+// The minimal shape isScheduledOnDate/isDueOnDate actually read -- StreakScheduleInfo satisfies
+// this structurally (it's a strict superset), and so does periodStats.ts's own narrower
+// PeriodQuotaSchedule, letting that file share this one due-day predicate (and so correctly
+// exclude a skipped day from its own period totals) without widening to carry timesPerDay, a
+// field neither function touches.
+export interface DueDaySchedule {
+  frequency: FrequencyType;
+  daysOfWeek: number[];
+  skippedDates?: string[];
+}
+
 const emptyStats: TaskStats = {
   currentStreak: 0,
   lastStreak: 0,
@@ -85,7 +96,7 @@ const mostRecentRunIncludingClose = (flags: boolean[], weights: number[]): numbe
 // skipped -- e.g. TaskCalendarScreen/taskStore deciding whether skip is even a meaningful action
 // to offer for a given date at all (skipping an already-non-due day is redundant, per explicit
 // user direction) -- doesn't have to duplicate the specific_days_of_week logic itself.
-export const isScheduledOnDate = (task: StreakScheduleInfo, date: Date): boolean => {
+export const isScheduledOnDate = (task: DueDaySchedule, date: Date): boolean => {
   if (task.frequency === 'specific_days_of_week') {
     // Treat "no days selected" as always-due rather than never-due, so a misconfigured
     // task doesn't silently look like it has no schedule at all.
@@ -95,7 +106,7 @@ export const isScheduledOnDate = (task: StreakScheduleInfo, date: Date): boolean
   return true;
 };
 
-export const isDueOnDate = (task: StreakScheduleInfo, date: Date): boolean => {
+export const isDueOnDate = (task: DueDaySchedule, date: Date): boolean => {
   // A skip makes a day behave exactly like it was never due, regardless of what the schedule
   // otherwise says -- checked first, and only for the two frequency types skip actually supports
   // (see Task.skippedDates' own comment for why quota types are excluded). Every other consumer

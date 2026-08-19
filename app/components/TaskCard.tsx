@@ -450,7 +450,11 @@ const CardStats = React.memo(({ task }: { task: Task }) => {
 
   const getMonthlyStats = () => {
     const today = new Date();
-    const thirtyDaysAgo = addDays(today, -30);
+    // -29, not -30 -- inclusive of today, this is a genuine 30-day window. Previously harmless
+    // (getExpectedPeriodTotal's old daily case just returned the passed-in 30 regardless of the
+    // actual range), but now that it walks the real range to exclude skipped days, an off-by-one
+    // range would show "Past 30 days: X of 31".
+    const thirtyDaysAgo = addDays(today, -29);
     const completions = task.completions?.filter(completion => {
       const date = parseISO(completion.date);
       return date >= thirtyDaysAgo && date <= today && completion.timesCompleted >= requiredTimes;

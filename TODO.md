@@ -54,6 +54,16 @@
         and disqualifies the current chain plus later achievements whose qualifying window includes
         it from “Unbroken” treatment without rewriting awards earned before the save — see
         [COMMITMENT_MODE.md](COMMITMENT_MODE.md)
+  - [ ] "Perfect streak" concept: a streak chain that never had a skip in its span, distinct from an
+        ordinary streak that used one or more skips to survive. Raised 2026-08-18, deliberately
+        deferred (not scoped yet) -- three directions considered, from smallest to largest: (1) just
+        a "longest streak without a skip" stat on Stats/Dashboard, no new UI chrome; (2) a `hasSkip`
+        flag on `StreakChain`/`TaskStreakChain` (`reports.ts`) surfaced as a small "flawless"
+        tag/badge on the Streaks screen list and/or the calendar's streak-count badge; (3) a full new
+        "Flawless Streak" achievement tier family (mirrors the existing streak-length tiers, but only
+        fires for a chain of that length with zero skips) -- needs both live detection (does the
+        currently-open chain contain a skip) and retroactive-scan support. Revisit and pick a
+        direction before building anything.
 - [ ] Pause Standard habits for a prospective date range (no due units are created and the range is
       excluded from completion percentages); active Commitment Mode habits cannot use a free pause
       without permanently ending Commitment Mode — see [COMMITMENT_MODE.md](COMMITMENT_MODE.md)
