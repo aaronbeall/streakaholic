@@ -57,6 +57,7 @@ export const SettingsScreen: React.FC = () => {
     showTaskName, setShowTaskName,
     showTaskCounter, setShowTaskCounter,
     achievementCelebrationsEnabled, setAchievementCelebrationsEnabled,
+    soundEffectsEnabled, setSoundEffectsEnabled,
     onboardingHintsSeen,
     resetOnboardingHints,
     previewTipPrompt,
@@ -72,6 +73,8 @@ export const SettingsScreen: React.FC = () => {
       setShowTaskCounter: state.setShowTaskCounter,
       achievementCelebrationsEnabled: state.achievementCelebrationsEnabled,
       setAchievementCelebrationsEnabled: state.setAchievementCelebrationsEnabled,
+      soundEffectsEnabled: state.soundEffectsEnabled,
+      setSoundEffectsEnabled: state.setSoundEffectsEnabled,
       onboardingHintsSeen: state.onboardingHintsSeen,
       resetOnboardingHints: state.resetOnboardingHints,
       previewTipPrompt: state.previewTipPrompt,
@@ -353,6 +356,19 @@ export const SettingsScreen: React.FC = () => {
               thumbColor="#fff"
               activeThumbColor="#fff"
               accessibilityLabel="Show completion count"
+            />
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <MaterialCommunityIcons name={soundEffectsEnabled ? 'volume-high' : 'volume-off'} size={22} color={colors.textSecondary} />
+            <Text style={styles.rowLabel}>Sound effects</Text>
+            <WebSwitch
+              value={soundEffectsEnabled}
+              onValueChange={setSoundEffectsEnabled}
+              trackColor={{ false: colors.border, true: '#007AFF' }}
+              thumbColor="#fff"
+              activeThumbColor="#fff"
+              accessibilityLabel="Sound effects"
             />
           </View>
         </View>

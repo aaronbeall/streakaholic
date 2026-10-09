@@ -21,7 +21,7 @@ import { TrophyEmblem } from '../components/AchievementCard';
 import { Confetti } from '../components/Confetti';
 import { AchievementShareCard } from '../components/ShareCards';
 import { SharePreviewModal } from '../components/SharePreviewModal';
-import { TROPHY_BADGE_INTRO_DURATION, TROPHY_BADGE_STACK_SIZE, TrophyBadge } from '../components/TrophyBadge';
+import { IMPACT_DELAY, TROPHY_BADGE_INTRO_DURATION, TROPHY_BADGE_STACK_SIZE, TrophyBadge } from '../components/TrophyBadge';
 import { useToast } from '../context/ToastContext';
 import { useAchievementsStore } from '../stores/achievementsStore';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -29,6 +29,7 @@ import { MaterialCommunityIconName } from '../types';
 import { formatAchievementCount, getAchievementCountUpDuration } from '../utils/achievementCountUp';
 import { ACHIEVEMENT_META, Achievement, AchievementKind, getRibbonText } from '../utils/achievements';
 import { getPendingAchievementPresentation, PendingAchievementPresentation as PendingAchievementPresentationModel } from '../utils/achievementCelebrations';
+import { prepareCelebrationImpact } from '../utils/sounds';
 import {
   ACHIEVEMENT_REVEAL_TIMING,
   getAchievementRevealProgress,
@@ -548,8 +549,20 @@ const CelebrationContent: React.FC<CelebrationContentProps> = ({
       duration: schedule.end,
       easing: Easing.linear,
     });
-    return () => cancelAnimation(timeline);
-  }, [achievement.id, schedule.end, timeline]);
+    // The one non-visual beat in this sequence, so it's the one exception to "no timers" above --
+    // audio playback has no UI-thread equivalent to hook into. The two celebration-impact
+    // variants (alternating, see sounds.ts) each have their own internal build-into-hit timing,
+    // so `prepareCelebrationImpact` computes a per-variant delay that lands that hit at
+    // TrophyBadge's own IMPACT_DELAY touchdown moment, rather than a single fixed offset that
+    // would only suit one of the two.
+    const { delayMs: impactDelayMs, play: playCelebrationImpact } =
+      prepareCelebrationImpact(schedule.emblemStart + IMPACT_DELAY);
+    const impactTimer = setTimeout(playCelebrationImpact, impactDelayMs);
+    return () => {
+      cancelAnimation(timeline);
+      clearTimeout(impactTimer);
+    };
+  }, [achievement.id, schedule.end, schedule.emblemStart, timeline]);
 
   return (
     <View style={styles.host}>

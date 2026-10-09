@@ -11,6 +11,7 @@ import Reanimated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ACHIEVEMENT_META, Achievement } from '../utils/achievements';
+import { playSoundEffect } from '../utils/sounds';
 
 // A muted kind's live unlock (see mutedKinds' own comment in achievementsStore.ts) still deserves
 // its own achievement-flavored notice -- icon + kind color, a real notification-style card --
@@ -44,6 +45,7 @@ export const AchievementAlert: React.FC<{
 
   useEffect(() => {
     reveal.value = withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) });
+    playSoundEffect('achievementChime');
     const timer = setTimeout(onDismiss, AUTO_DISMISS_DURATION);
     return () => clearTimeout(timer);
     // Deliberately mount-only -- this card belongs to this one achievement instance (the parent

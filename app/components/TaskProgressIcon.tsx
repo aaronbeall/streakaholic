@@ -13,6 +13,7 @@ import Reanimated, {
 } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Task } from '../types';
+import { playSoundEffect } from '../utils/sounds';
 import { getCompletionCount } from '../utils/streaks';
 
 const AnimatedPath = Reanimated.createAnimatedComponent(Path);
@@ -198,6 +199,9 @@ export const TaskProgressIcon = React.memo(({
 
   useEffect(() => {
     if (isCompleting) {
+      // Same trigger as the pop's own scale animation just below, so the sound and the visual
+      // start on the exact same frame.
+      playSoundEffect('completionPop');
       // Fade out icon and show checkmark immediately -- it stays up for the entire pop.
       iconOpacity.value = withTiming(0, { duration: 120 });
       checkmarkOpacity.value = withTiming(1, { duration: 120 });

@@ -220,7 +220,6 @@ one-time pricing remove reasons not to trust the app.
 
 - Additional premium icon/color customization
 - Daily summary notification
-- Sounds for completion and congratulations, with user controls
 - Limited habit groups or home organization
 - Optional Drive/Dropbox backup that preserves the privacy story
 

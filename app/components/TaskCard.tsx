@@ -21,6 +21,7 @@ import { useFireCelebration } from '../hooks/useFireCelebration';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useSettingsStore } from '../stores/settingsStore';
 import { Task } from '../types';
+import { playSoundEffect } from '../utils/sounds';
 import { MissedDayMark } from './MissedDayMark';
 import { PassThroughDayMark } from './PassThroughDayMark';
 import { ParticleSystem } from './ParticleSystem';
@@ -595,6 +596,7 @@ export const TaskCard = React.memo(React.forwardRef<View, TaskCardProps>(({
     setIsFlipped(nextIsFlipped);
     onFlip?.(task.id, nextIsFlipped ? nextSides[1] : nextSides[0]);
 
+    playSoundEffect('cardFlip');
     flipAnim.value = withTiming(isFlipped ? 0 : 1, {
       duration: 800,
       easing: Easing.bezier(0.25, 0.1, 0.25, 1),

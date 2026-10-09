@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Easing, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { POP_PEAK_SCALE } from '../components/TaskProgressIcon';
 import { Task } from '../types';
+import { playSoundEffect } from '../utils/sounds';
 import { getStreakBadgeStyle } from '../utils/streaks';
 
 // Extracted from TaskCard.tsx's CardTask (2026-08-10) so any other place that shows a task's
@@ -35,6 +36,7 @@ export const useFireCelebration = (task: Task) => {
       );
       setCelebrationKey(k => k + 1);
       setShowParticles(true);
+      playSoundEffect('streakSizzle');
     }
   }, [task.stats?.currentStreak, streakBadgeStyle?.icon]);
 

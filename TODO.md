@@ -122,9 +122,38 @@
 - [x] Min streak history width to fit icon + 2 digits
 - [x] Streamgraph
 - [ ] Landscape mode
-- [ ] Sounds
-  - [ ] Completion and streak
-  - [ ] Congratulations
+- [x] Sounds (five moments, six audio files in `assets/sounds/` -- the celebration has two
+      alternating variants -- played via `app/utils/sounds.ts`'s `createAudioPlayer`-backed
+      `playSoundEffect`/`prepareCelebrationImpact`, gated by a single "Sound effects" toggle in
+      Settings' Habit cards section (`settingsStore.soundEffectsEnabled`), independent of the
+      existing achievement-celebration toggle):
+  - [x] `completion-pop.wav` -- user-supplied cinematic audio (not a redistributable library
+        asset), trimmed to its actual ~0.45s of audible content (the source file carried ~1.6s of
+        trailing silence). Plays on every press-and-hold completion (`TaskProgressIcon.tsx`).
+  - [x] `streak-sizzle.wav` -- user-supplied cinematic audio (not a redistributable library
+        asset), 3s of real content throughout (a whoosh settling into a crackle), unlike
+        `completion-pop.wav` which needed trimming. Plays on the same trigger as the fire-badge
+        particle burst (`useFireCelebration.ts`).
+  - [x] `achievement-chime.wav` -- user-supplied cinematic audio (not a redistributable library
+        asset). Plays on the compact alert's mount (`AchievementAlert.tsx`).
+  - [x] `celebration-impact.wav` / `celebration-impact-2.wav` -- two user-supplied cinematic
+        riser-into-hit cues (not redistributable library assets), alternating on each unlock
+        (2026-08-19, "for now, let's have it alternate between the two") rather than always
+        playing the same one. Plays in the full celebration (`AchievementCelebration.tsx`).
+        Each variant has its own measured `hitOffsetMs` in `sounds.ts`'s
+        `CELEBRATION_IMPACT_VARIANTS` (530ms / 1056ms -- the two clips have unrelated internal
+        timing), and `prepareCelebrationImpact` uses whichever one is up next to compute the
+        setTimeout delay that lands *that* variant's own hit on `TrophyBadge`'s `IMPACT_DELAY`
+        touchdown moment. The second variant's build-up is longer than the time actually
+        available before touchdown, so its hit lands a little after the badge rather than exactly
+        on it -- re-tune (or add more variants) by ear.
+  - [x] `card-flip-swoosh.wav` -- synthesized locally (filtered-noise swell). Revised once
+        (2026-08-20, "much softer, gentler") after the first pass read as too bright/hissy: v2
+        drops the bandpass sweep down to a muffled 500-1400Hz range (was 1400-5000Hz), runs it
+        through a second lowpass for a rounder/less grainy texture, and lands at a much quieter
+        ~0.28 peak (was 0.55) -- meant to be a barely-there accent under the flip, not its own
+        event. Plays on every card flip (`TaskCard.tsx`'s `flipCard`), same trigger as
+        `flipAnim`'s own `withTiming` call.
 - [x] Add a day status summary/explainer on task details screen (tapping `TaskHeader`'s frequency/streak badges row opens a dismissable popover with a plain-English recap -- schedule, today's own status, and how it compares to the task's best streak -- built via `app/utils/taskStatusSummary.ts`'s branching `buildTaskStatusSummary`; see CLAUDE.md)
 - [ ] Friendly analytics layer (preserve the existing depth while making it easier to interpret)
   - [ ] Add secondary **On target** streaks without replacing the normalized completion-day streak

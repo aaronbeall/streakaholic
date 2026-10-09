@@ -48,7 +48,8 @@
           "color": "#A110D4"
         }
       ],
-      "expo-iap"
+      "expo-iap",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true

@@ -287,7 +287,9 @@ const DROP_START_ROTATION = 28; // degrees
 // curve first reaches its resting value, i.e. the very first touchdown, before the rebounds --
 // Penner's bounceOut spends the first 1/2.75 of its duration on a smooth, bounce-free rise, so
 // that's the moment the badge actually "hits."
-const IMPACT_DELAY = Math.round(DROP_DURATION / 2.75);
+// Exported so AchievementCelebration can time the "impact" sound effect to this exact moment
+// instead of duplicating the bounce-curve math that derives it.
+export const IMPACT_DELAY = Math.round(DROP_DURATION / 2.75);
 // The initial shockwave disc is the same size as the badge and painted behind it, so starting the
 // expansion at mathematical contact would keep its first frames invisible. Trigger slightly ahead
 // on the *same* intro clock so its edge emerges at contact without introducing a second timer.
