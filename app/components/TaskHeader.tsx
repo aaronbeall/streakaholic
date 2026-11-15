@@ -15,7 +15,7 @@ import { formatFrequencyLabel } from '../utils/formatFrequency';
 import { canSkipOn } from '../utils/ironman';
 import { isTaskCompleted } from '../utils/streaks';
 import { getTaskStatusInfo } from '../utils/taskStatusSummary';
-import { IRONMAN_GOLD, IronmanBadge } from './IronmanBadge';
+import { IronmanBadge } from './IronmanBadge';
 import { ParticleSystem } from './ParticleSystem';
 import { TaskProgressIcon } from './TaskProgressIcon';
 
@@ -196,6 +196,7 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
               </TouchableOpacity>
             )}
             <Pressable
+              style={task.ironman ? styles.ironmanIconSpacing : undefined}
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
               onLongPress={handleLongPress}
@@ -223,6 +224,14 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
                 color="#fff"
                 onColor={task.color}
               />
+              {/* Ironman nameplate: hung on the bottom of the icon ring, centered, like a medal
+                  ribbon -- kept out of the badges row below so the frequency and streak badges
+                  keep their own spacing. */}
+              {task.ironman && (
+                <View style={styles.ironmanPlate} pointerEvents="none">
+                  <IronmanBadge size={12} />
+                </View>
+              )}
             </Pressable>
             {onNextTask && (
               <TouchableOpacity
@@ -249,10 +258,9 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
                 {frequencyLabel}
               </Text>
             </View>
-            {task.ironman && <IronmanBadge size={13} />}
             {streakBadgeStyle && (
               <Reanimated.View style={[styles.streakBadgeWrap, badgeAnimatedStyle]}>
-                <View style={[styles.streakBadge, { backgroundColor: streakBadgeStyle.color }, task.ironman && styles.ironmanRim]}>
+                <View style={[styles.streakBadge, { backgroundColor: streakBadgeStyle.color }]}>
                   <MaterialCommunityIcons name={streakBadgeStyle.icon} size={22} color="#fff" />
                   <Text style={styles.streakText}>{streakBadgeStyle.value}</Text>
                 </View>
@@ -467,6 +475,17 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     gap: 16,
   },
+  // Room for the nameplate hanging below the ring, so it doesn't crowd the badges row.
+  ironmanIconSpacing: {
+    marginBottom: 8,
+  },
+  ironmanPlate: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: -11,
+    alignItems: 'center',
+  },
   iconRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -508,10 +527,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  ironmanRim: {
-    borderWidth: 2,
-    borderColor: IRONMAN_GOLD,
   },
   streakBadge: {
     flexDirection: 'row',

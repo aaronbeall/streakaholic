@@ -5,7 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { AccessibilityActionEvent, LayoutChangeEvent, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
-import { IRONMAN_GOLD, IRONMAN_STEEL, IronmanBadge } from '../components/IronmanBadge';
+import { IronmanBadge, useIronmanPalette } from '../components/IronmanBadge';
 import { MissedDayMark } from '../components/MissedDayMark';
 import { PartialDayPie } from '../components/PartialDayPie';
 import { StreakCountBadge } from '../components/StreakCountBadge';
@@ -80,6 +80,8 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const ironmanPalette = useIronmanPalette();
+  const ironmanBannerTone = { backgroundColor: ironmanPalette.surface, borderColor: ironmanPalette.surfaceBorder };
   // Only in month view -- the year view's dots aren't tappable. The root coordinator handles
   // dismissed state and competition with every other registered hint.
   const tapDayHint = useOnboardingHintTarget('task-calendar-tap-day', viewMode === 'month');
@@ -425,13 +427,13 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
 
         {isIronman(task) && (
           isIronmanBackfillOpen(task) ? (
-            <View style={styles.ironmanBanner}>
+            <View style={[styles.ironmanBanner, ironmanBannerTone]}>
               <IronmanBadge variant="emblem" size={16} />
-              <Text style={styles.ironmanBannerText}>
+              <Text style={[styles.ironmanBannerText, { color: ironmanPalette.surfaceBody }]}>
                 Add any past days now. They lock when you tap Lock in, or at midnight.
               </Text>
               <TouchableOpacity
-                style={styles.ironmanLockButton}
+                style={[styles.ironmanLockButton, { backgroundColor: ironmanPalette.accent }]}
                 onPress={() => {
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                   lockIronmanHistory(taskId);
@@ -440,13 +442,13 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                 accessibilityRole="button"
                 accessibilityHint="Locks every past day of this habit for good"
               >
-                <Text style={styles.ironmanLockButtonText}>Lock in</Text>
+                <Text style={[styles.ironmanLockButtonText, { color: ironmanPalette.onAccent }]}>Lock in</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.ironmanBanner}>
+            <View style={[styles.ironmanBanner, ironmanBannerTone]}>
               <IronmanBadge variant="emblem" size={16} />
-              <Text style={styles.ironmanBannerText}>Ironman: past days are locked.</Text>
+              <Text style={[styles.ironmanBannerText, { color: ironmanPalette.surfaceBody }]}>Ironman: past days are locked.</Text>
             </View>
           )
         )}
@@ -759,7 +761,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
               <View style={styles.dayPopoverActions}>
                 {!dayPopoverInfo.canEdit && (
                   <View style={styles.dayPopoverLockedRow}>
-                    <MaterialCommunityIcons name="lock" size={14} color={IRONMAN_GOLD} />
+                    <MaterialCommunityIcons name="lock" size={14} color={ironmanPalette.accent} />
                     <Text style={styles.dayPopoverLockedText}>Locked by Ironman</Text>
                   </View>
                 )}
@@ -838,26 +840,21 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 12,
-    backgroundColor: IRONMAN_STEEL,
     borderWidth: 1,
-    borderColor: IRONMAN_GOLD,
   },
   ironmanBannerText: {
     flex: 1,
     fontSize: 13,
     lineHeight: 18,
-    color: '#E6E9EE',
   },
   ironmanLockButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: IRONMAN_GOLD,
   },
   ironmanLockButtonText: {
     fontSize: 13,
     fontWeight: '800',
-    color: IRONMAN_STEEL,
   },
   dayPopoverLockedRow: {
     flexDirection: 'row',

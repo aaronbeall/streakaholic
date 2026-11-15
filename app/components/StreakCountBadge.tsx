@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { IRONMAN_GOLD, IRONMAN_ICON, IRONMAN_STEEL } from './IronmanBadge';
+import { IronmanIcon, useIronmanPalette } from './IronmanBadge';
 
 interface StreakCountBadgeProps {
   value: number;
@@ -29,19 +29,22 @@ export const StreakCountBadge: React.FC<StreakCountBadgeProps> = ({ value, iconS
   const paddingHorizontal = Math.round(iconSize * 0.35);
   const paddingVertical = Math.max(1, Math.round(iconSize * 0.15));
   const gap = Math.max(1, Math.round(iconSize * 0.15));
+  const ironmanPalette = useIronmanPalette();
 
   return (
     <View
       style={[
         styles.badge,
         { backgroundColor: STREAK_RED, paddingHorizontal, paddingVertical, gap },
-        ironman && styles.ironmanBadge,
+        ironman && { backgroundColor: ironmanPalette.fillTo, borderWidth: 1, borderColor: ironmanPalette.border },
         style,
       ]}
       pointerEvents="none"
     >
-      <MaterialCommunityIcons name={ironman ? IRONMAN_ICON : 'fire'} size={iconSize} color={ironman ? IRONMAN_GOLD : '#fff'} />
-      <Text style={[styles.text, { fontSize }, ironman && styles.ironmanText]} numberOfLines={1}>{value}</Text>
+      {ironman
+        ? <IronmanIcon size={iconSize + 1} shieldColor={ironmanPalette.shield} flameColor={ironmanPalette.flame} />
+        : <MaterialCommunityIcons name="fire" size={iconSize} color="#fff" />}
+      <Text style={[styles.text, { fontSize }, ironman && [styles.ironmanText, { color: ironmanPalette.text }]]} numberOfLines={1}>{value}</Text>
     </View>
   );
 };
@@ -61,13 +64,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
-  ironmanBadge: {
-    backgroundColor: IRONMAN_STEEL,
-    borderWidth: 1,
-    borderColor: IRONMAN_GOLD,
-  },
   ironmanText: {
-    color: IRONMAN_GOLD,
     fontWeight: '800',
   },
 });

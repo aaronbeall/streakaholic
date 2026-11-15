@@ -5,7 +5,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { BRAND_TAGLINE } from '../constants/brand';
 import { TrophyEmblem } from './AchievementCard';
-import { IRONMAN_GOLD, IRONMAN_ICON, IronmanBadge } from './IronmanBadge';
+import { IRONMAN_GOLD, IronmanBadge, IronmanIcon } from './IronmanBadge';
 import { MaterialCommunityIconName } from '../types';
 import { Achievement, ACHIEVEMENT_META, getRibbonText } from '../utils/achievements';
 
@@ -154,7 +154,7 @@ const StatRow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 const HabitIconBadge: React.FC<{ icon: MaterialCommunityIconName; color: string; ironman?: boolean }> = ({ icon, color, ironman }) => (
   <View style={[styles.habitIcon, { backgroundColor: color }, ironman && styles.habitIconIronman]}>
     <MaterialCommunityIcons name={icon} size={26} color="#fff" />
-    {ironman && <IronmanBadge variant="emblem" size={11} style={styles.habitIconIronmanEmblem} />}
+    {ironman && <IronmanBadge variant="emblem" size={12} tone="dark" style={styles.habitIconIronmanEmblem} />}
   </View>
 );
 
@@ -226,7 +226,7 @@ export const HabitStatsShareCard: React.FC<{
     <Text style={styles.statsTitle} numberOfLines={2}>{includeName ? name : ''}</Text>
     <View style={styles.heroMetric}>
       <View style={styles.heroMetricValueRow}>
-        <MaterialCommunityIcons name={ironman ? IRONMAN_ICON : 'fire'} size={30} color={ironman ? IRONMAN_GOLD : color} />
+        {ironman ? <IronmanIcon size={34} /> : <MaterialCommunityIcons name="fire" size={30} color={color} />}
         <Text style={[styles.heroMetricValue, { color }]}>{currentStreak}</Text>
       </View>
       <Text style={[styles.heroMetricLabel, ironman && styles.heroMetricLabelIronman]}>{ironman ? 'Ironman streak' : 'current streak'}</Text>
@@ -471,13 +471,15 @@ const MomentumRing: React.FC<{
   fraction: number;
   color: string;
   icon: MaterialCommunityIconName;
+  // Replaces the glyph when set (the Ironman card's drawn shield-and-flame icon).
+  iconNode?: React.ReactNode;
   // ReactNode, not just number -- lets a caller pass a de-emphasized "/total" suffix nested
   // inside (e.g. DashboardMomentumShareCard's "X/Y" ratio, same statValueDim-style technique
   // StatCell's own value prop already established) alongside a caller that just wants a plain
   // count (HabitMomentumShareCard's currentStreak).
   centerValue: React.ReactNode;
   centerLabel: string;
-}> = ({ fraction, color, icon, centerValue, centerLabel }) => (
+}> = ({ fraction, color, icon, iconNode, centerValue, centerLabel }) => (
   <View style={styles.ringStage}>
     <Svg width={RING_SIZE} height={RING_SIZE}>
       <Circle
@@ -503,7 +505,7 @@ const MomentumRing: React.FC<{
       />
     </Svg>
     <View style={styles.ringCenter}>
-      <MaterialCommunityIcons name={icon} size={18} color={color} />
+      {iconNode ?? <MaterialCommunityIcons name={icon} size={18} color={color} />}
       <Text style={styles.ringCenterValue}>{centerValue}</Text>
       <Text style={styles.ringCenterLabel}>{centerLabel}</Text>
     </View>
@@ -662,7 +664,7 @@ export const HabitMomentumShareCard: React.FC<{
     <HabitIconBadge icon={icon} color={color} ironman={ironman} />
     <HabitEyebrow text="MY MOMENTUM" ironman={ironman} />
     <Text style={styles.statsTitle} numberOfLines={2}>{includeName ? name : ''}</Text>
-    <MomentumRing fraction={completionRate} color={color} icon={ironman ? IRONMAN_ICON : 'fire'} centerValue={currentStreak} centerLabel={ironman ? 'Ironman' : 'day streak'} />
+    <MomentumRing fraction={completionRate} color={color} icon="fire" iconNode={ironman ? <IronmanIcon size={20} /> : undefined} centerValue={currentStreak} centerLabel={ironman ? 'Ironman' : 'day streak'} />
     <Text style={styles.ringCaption}>{Math.round(completionRate * 100)}% completion rate</Text>
     <StatRow>
       <StatCell value={String(bestStreak)} label="Best streak" icon="trophy" iconColor={TROPHY_GOLD} />

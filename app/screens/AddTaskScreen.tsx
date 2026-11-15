@@ -21,7 +21,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { ColorPicker } from '../components/ColorPicker';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { IconPicker } from '../components/IconPicker';
-import { IRONMAN_GOLD, IRONMAN_STEEL, IronmanBadge } from '../components/IronmanBadge';
+import { IronmanBadge, useIronmanPalette } from '../components/IronmanBadge';
 import { DAY_ABBREVIATIONS, DEFAULT_COLORS, DEFAULT_ICONS } from '../constants/task';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
@@ -88,6 +88,7 @@ export const AddTaskScreen: React.FC = () => {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const ironmanPalette = useIronmanPalette();
 
   const editingTask = useMemo(() => tasks.find(t => t.id === taskId), [tasks, taskId]);
   const isEditing = !!editingTask;
@@ -841,25 +842,25 @@ export const AddTaskScreen: React.FC = () => {
           once set. A standard habit being edited shows nothing -- it can't become Ironman later,
           since its history was never locked. */}
       {(!isEditing || editingTask?.ironman) && (
-        <View style={[styles.ironmanCard, ironman && styles.ironmanCardOn]}>
+        <View style={[styles.ironmanCard, ironman && { backgroundColor: ironmanPalette.surface, borderColor: ironmanPalette.surfaceBorder }]}>
           <View style={styles.ironmanHeaderRow}>
             <IronmanBadge size={16} />
             {isEditing ? (
-              <MaterialCommunityIcons name="lock" size={18} color={IRONMAN_GOLD} accessibilityLabel="Locked" />
+              <MaterialCommunityIcons name="lock" size={18} color={ironmanPalette.accent} accessibilityLabel="Locked" />
             ) : (
               <Switch
                 value={ironman}
                 onValueChange={handleToggleIronman}
-                trackColor={{ false: colors.border, true: IRONMAN_GOLD }}
+                trackColor={{ false: colors.border, true: ironmanPalette.accent }}
                 thumbColor={ironman ? '#fff' : undefined}
                 accessibilityLabel="Ironman mode"
               />
             )}
           </View>
-          <Text style={[styles.ironmanTitle, ironman && styles.ironmanTitleOn]}>
+          <Text style={[styles.ironmanTitle, ironman && { color: ironmanPalette.surfaceTitle }]}>
             {isEditing ? 'This is an Ironman habit' : 'Make it an Ironman habit'}
           </Text>
-          <Text style={[styles.ironmanBody, ironman && styles.ironmanBodyOn]}>
+          <Text style={[styles.ironmanBody, ironman && { color: ironmanPalette.surfaceBody }]}>
             {isEditing
               ? 'Past days are locked, so every streak here is the real thing. Ironman stays on for good.'
               : "Past days lock for good, so every streak is the real thing and wears the Ironman badge. You can add past days once, today. After that, only today counts. Ironman can't be turned off."}
@@ -999,10 +1000,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.border,
   },
-  ironmanCardOn: {
-    backgroundColor: IRONMAN_STEEL,
-    borderColor: IRONMAN_GOLD,
-  },
   ironmanHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1014,16 +1011,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
-  ironmanTitleOn: {
-    color: '#fff',
-  },
   ironmanBody: {
     fontSize: 14,
     lineHeight: 20,
     color: colors.textSecondary,
-  },
-  ironmanBodyOn: {
-    color: '#C9CED6',
   },
   errorText: {
     color: '#FF3B30',

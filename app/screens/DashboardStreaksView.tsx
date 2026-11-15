@@ -5,7 +5,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../components/EmptyState';
-import { IRONMAN_GOLD } from '../components/IronmanBadge';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { Task } from '../types';
 import { getRecentStreaks, TaskStreakChain } from '../utils/reports';
@@ -50,8 +49,7 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
 
   // getRecentStreaks already sorts newest-first; "best" mode just re-sorts a copy by length.
   const allStreaks = useMemo(() => getRecentStreaks(tasks, ALL_STREAKS_LIMIT), [tasks]);
-  // Ironman habits' streak bars get a gold rim -- see IronmanBadge.
-  const ironmanTaskIds = useMemo(() => new Set(tasks.filter(t => t.ironman).map(t => t.id)), [tasks]);
+
   const sortedStreaks = useMemo(() => (
     sortMode === 'best' ? [...allStreaks].sort((a, b) => b.length - a.length) : allStreaks
   ), [allStreaks, sortMode]);
@@ -198,7 +196,6 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
             style={[
               styles.streakBar,
               { width: getStreakBarWidth(item.length), backgroundColor: item.taskColor },
-              ironmanTaskIds.has(item.taskId) && styles.streakBarIronman,
             ]}
           >
             <MaterialCommunityIcons name={item.taskIcon} size={12} color="#fff" />
@@ -212,10 +209,6 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
 };
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  streakBarIronman: {
-    borderWidth: 2,
-    borderColor: IRONMAN_GOLD,
-  },
   content: {
     flex: 1,
   },
