@@ -5,6 +5,7 @@ import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import tinycolor from 'tinycolor2';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
+import { IronmanBadge } from './IronmanBadge';
 import { MaterialCommunityIconName } from '../types';
 import {
   Achievement,
@@ -12,6 +13,7 @@ import {
   AchievementCardStatus,
   AchievementEarner,
   getRibbonText,
+  isIronmanAchievement,
 } from '../utils/achievements';
 
 // Shared "dressed up" achievement card + its emblem, extracted (2026-08-13) from TrophiesScreen so
@@ -327,6 +329,9 @@ export const AchievementBadgeCard: React.FC<AchievementBadgeCardProps> = React.m
               <MaterialCommunityIcons name="lock" size={12} color="#fff" />
             </View>
           )}
+          {(unlocked ? isIronmanAchievement(latest!) : !!meta.requiresIronman) && (
+            <IronmanBadge variant="emblem" size={11} style={styles.ironmanCorner} />
+          )}
           {unlocked && timesEarned > 1 && (
             <View style={styles.countBadge}>
               <Text style={styles.countBadgeText}>{timesEarned}×</Text>
@@ -445,6 +450,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   // text guarantees the same reliable contrast over every emblem color theme, the same "always
   // solid/dark regardless of context" approach ToastBanner/OnboardingHint's own bubble already use
   // elsewhere in this app for exactly this reason.
+  ironmanCorner: {
+    position: 'absolute',
+    top: -2,
+    left: -6,
+  },
   countBadge: {
     position: 'absolute',
     top: -2,

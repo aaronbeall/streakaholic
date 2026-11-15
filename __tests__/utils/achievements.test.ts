@@ -12,6 +12,7 @@ import {
   detectTaskCreatedAchievements,
   detectTipAchievements,
   getAchievementCardStatus,
+  isIronmanAchievement,
   getAllAchievementCardStatuses,
   getFirstEarnedAchievements,
   getGroupedAchievementCardStatuses,
@@ -133,9 +134,57 @@ describe('detectCompletionAchievements', () => {
           'century-club-100', 'century-club-500', 'century-club-1000', 'century-club-10000',
           'habit-collector', 'early-bird', 'night-owl', 'weekend-warrior', 'weekday-hero',
           'weekly-overachiever', 'monthly-overachiever', 'unstoppable', 'streak-addict',
-          'tip-coffee', 'tip-generous', 'tip-legend',
+          'tip-coffee', 'tip-generous', 'tip-legend', 'ironman-unbroken',
         ].sort()
       );
+    });
+  });
+
+  describe('Ironman-only kinds', () => {
+    const dayString = (offset: number) => format(new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset), 'yyyy-MM-dd');
+    const completionsFor = (offsets: number[]): TaskCompletion[] =>
+      offsets.map(n => ({ id: `c${n}`, taskId: 't1', date: dayString(n), completedAt: new Date().toISOString(), timesCompleted: 1 }));
+    const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
+    it('fires Forged at 7 days for an Ironman habit and snapshots the Ironman flag', () => {
+      const prev = makeTask({ ironman: true }, { currentStreak: 6 });
+      const next = makeTask({ ironman: true }, { currentStreak: 7 });
+      const forged = detectCompletionAchievements(prev, next, [next], today, new Set()).find(e => e.kind === 'ironman-forged');
+      expect(forged?.ironman).toBe(true);
+      expect(forged?.value).toBe(7);
+    });
+
+    it('never fires Ironman-only kinds for a standard habit, and leaves its trophies unflagged', () => {
+      const prev = makeTask({}, { currentStreak: 29 });
+      const next = makeTask({}, { currentStreak: 30 });
+      const earned = detectCompletionAchievements(prev, next, [next], today, new Set());
+      expect(kindsOf(earned)).not.toContain('ironman-iron-will');
+      expect(earned.every(e => e.ironman === undefined)).toBe(true);
+    });
+
+    it('fires Iron Will at 30 days', () => {
+      const prev = makeTask({ ironman: true }, { currentStreak: 29 });
+      const next = makeTask({ ironman: true }, { currentStreak: 30 });
+      expect(kindsOf(detectCompletionAchievements(prev, next, [next], today, new Set()))).toContain('ironman-iron-will');
+    });
+
+    it('fires Unbroken when the first-ever streak reaches 100 days', () => {
+      const prev = makeTask({ ironman: true, completions: completionsFor(range(1, 99)) }, { currentStreak: 99 });
+      const next = makeTask({ ironman: true, completions: completionsFor(range(0, 99)) }, { currentStreak: 100 });
+      expect(kindsOf(detectCompletionAchievements(prev, next, [next], today, new Set()))).toContain('ironman-unbroken');
+    });
+
+    it('does not fire Unbroken when an earlier streak was broken', () => {
+      const earlier = range(110, 115);
+      const prev = makeTask({ ironman: true, completions: completionsFor([...range(1, 99), ...earlier]) }, { currentStreak: 99 });
+      const next = makeTask({ ironman: true, completions: completionsFor([...range(0, 99), ...earlier]) }, { currentStreak: 100 });
+      expect(kindsOf(detectCompletionAchievements(prev, next, [next], today, new Set()))).not.toContain('ironman-unbroken');
+    });
+
+    it('treats Ironman-only kinds as Ironman trophies even without the snapshot flag', () => {
+      expect(isIronmanAchievement({ kind: 'ironman-forged' })).toBe(true);
+      expect(isIronmanAchievement({ kind: 'streak-10', ironman: true })).toBe(true);
+      expect(isIronmanAchievement({ kind: 'streak-10' })).toBe(false);
     });
   });
 

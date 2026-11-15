@@ -1,6 +1,8 @@
 import { addDays, differenceInCalendarDays, eachDayOfInterval, endOfMonth, format, isSameDay, parseISO, startOfMonth, startOfWeek, subDays } from 'date-fns';
 import { MaterialCommunityIconName, Task, TaskCompletion } from '../types';
 import { TipTierId } from '../constants/tipJar';
+import { isIronman } from './ironman';
+import { getTaskStreakChains } from './reports';
 import { calculateTaskStats, isDueOnDate, isTaskCompleted } from './streaks';
 import { MAX_ACTIVE_TASKS } from './taskLimits';
 
@@ -20,7 +22,8 @@ export type AchievementKind =
   | 'comeback'
   | 'habit-collector'
   | 'early-bird' | 'night-owl'
-  | 'tip-coffee' | 'tip-generous' | 'tip-legend';
+  | 'tip-coffee' | 'tip-generous' | 'tip-legend'
+  | 'ironman-forged' | 'ironman-iron-will' | 'ironman-unbroken';
 
 export interface Achievement {
   id: string;
@@ -32,6 +35,9 @@ export interface Achievement {
   taskName?: string;
   taskIcon?: MaterialCommunityIconName;
   taskColor?: string;
+  // Snapshotted at earn time like the fields above: true when the earning habit was an Ironman
+  // habit, so the trophy keeps its Ironman treatment even if the habit is later deleted.
+  ironman?: boolean;
   // The value driving the achievement's own description (a streak length, a completion count) --
   // not used for dedup itself, that's dedupScope's job.
   value?: number;
@@ -81,11 +87,15 @@ export type RetroactiveEarnedAchievement = EarnedAchievement & Pick<Achievement,
 // one case per kind. A new kind that fits one of these needs no new downstream code at all; only
 // a genuinely novel progress shape would need a new variant added here (still just one shared
 // handler, not one per kind).
+export type FixedThresholdMetric = 'currentStreak' | 'totalCompletions' | 'firstStreak';
+
 export type ProgressStrategy =
   // Progress = the closest not-yet-earned task's own `metric` stat, capped at `target`. Covers
   // first-completion and every streak-N/milestone-N tier -- the only difference between them is
   // which stat they read and what number they're aiming for.
-  | { type: 'fixed-threshold'; metric: 'currentStreak' | 'totalCompletions'; target: number }
+  // `firstStreak` is the current streak only while it's the habit's first-ever run (no
+  // qualifying completion before it started), else 0 -- "never broken since day one."
+  | { type: 'fixed-threshold'; metric: FixedThresholdMetric; target: number }
   // Progress = how close some task's current streak is to *tying* its own historical best (a
   // ratio, not a fixed target -- every task has a different record to beat).
   | { type: 'ratio-to-own-best' }
@@ -183,6 +193,9 @@ interface AchievementMeta {
   triggerSuffix?: (value: number) => string;
   triggerStandalone?: (value: number | undefined) => string;
   progressStrategy: ProgressStrategy;
+  // Only an Ironman habit can earn this kind -- detection and Trophy Case progress both skip
+  // standard habits. Data, not a branch on kind, like every other field here.
+  requiresIronman?: boolean;
   // Optional emblem value for a locked preview when progress units differ from the earned
   // achievement's ribbon units (Perfect Week tracks due check-ins but still awards seven days).
   lockedPreviewValue?: number;
@@ -569,6 +582,55 @@ export const ACHIEVEMENT_META: Record<AchievementKind, AchievementMeta> = {
     progressStrategy: { type: 'fixed-threshold', metric: 'currentStreak', target: 1000 },
     trigger: 'completion',
     color: { theme: 'Cosmic Fire', base: '#AA00FF', glow: '#E040FB', accent: '#00E5FF' }, // streak-1000
+  },
+  // Ironman-only kinds (2026-11-15, per explicit user direction). Deliberately not copies of the
+  // streak-N ladder (those already fire, with Ironman styling, for Ironman habits) -- each is a
+  // distinct milestone only a locked-history habit can earn. Shared gold/gunmetal identity
+  // matching IronmanBadge's palette.
+  'ironman-forged': {
+    icon: 'shield-half-full',
+    title: 'Forged!',
+    describe: a => `"${taskName(a)}" hit a 7-day Ironman streak`,
+    repeatable: true,
+    scope: 'task',
+    flavorText: 'No take-backs, no excuses. Just a week of showing up.',
+    numberBlock: { eyebrow: 'Ironman', unit: 'DAY STREAK' },
+    ribbon: { kind: 'count', unit: 'DAYS' },
+    triggerSuffix: v => ` reached a ${v.toLocaleString()}-day Ironman streak.`,
+    progressStrategy: { type: 'fixed-threshold', metric: 'currentStreak', target: 7 },
+    requiresIronman: true,
+    trigger: 'completion',
+    color: { theme: 'Forged Iron', base: '#2B2F36', glow: '#F5B300', accent: '#FFD54A' },
+  },
+  'ironman-iron-will': {
+    icon: 'shield-star',
+    title: 'Iron Will!',
+    describe: a => `"${taskName(a)}" hit a 30-day Ironman streak`,
+    repeatable: true,
+    scope: 'task',
+    flavorText: 'A month with no edits and no skips. That is the real thing.',
+    numberBlock: { eyebrow: 'Ironman', unit: 'DAY STREAK' },
+    ribbon: { kind: 'count', unit: 'DAYS' },
+    triggerSuffix: v => ` reached a ${v.toLocaleString()}-day Ironman streak.`,
+    progressStrategy: { type: 'fixed-threshold', metric: 'currentStreak', target: 30 },
+    requiresIronman: true,
+    trigger: 'completion',
+    color: { theme: 'Iron Will', base: '#B07A00', glow: '#FFC107', accent: '#FFF3C4' },
+  },
+  'ironman-unbroken': {
+    icon: 'shield-crown',
+    title: 'Unbroken!',
+    describe: a => `"${taskName(a)}" reached 100 days without ever breaking`,
+    repeatable: false,
+    scope: 'task',
+    flavorText: 'Day one to day one hundred, not a single miss.',
+    numberBlock: { eyebrow: 'Ironman', unit: 'DAYS UNBROKEN' },
+    ribbon: { kind: 'fixed', text: 'UNBROKEN' },
+    triggerSuffix: v => ` reached ${v.toLocaleString()} days without ever breaking its streak.`,
+    progressStrategy: { type: 'fixed-threshold', metric: 'firstStreak', target: 100 },
+    requiresIronman: true,
+    trigger: 'completion',
+    color: { theme: 'Unbroken', base: '#14171C', glow: '#F5B300', accent: '#F5B300' },
   },
   'new-best-streak': {
     // Plain `trophy`, not `trophy-award` -- matching the exact icon (and gold, `#FFD700`) every
@@ -1079,6 +1141,7 @@ const ACHIEVEMENT_ORDER_INDEX: Record<AchievementKind, number> = {
   'habit-collector': 28,
   'early-bird': 29, 'night-owl': 30,
   'tip-coffee': 31, 'tip-generous': 32, 'tip-legend': 33,
+  'ironman-forged': 7.1, 'ironman-iron-will': 7.2, 'ironman-unbroken': 7.3,
 };
 
 export const ACHIEVEMENT_KIND_ORDER: AchievementKind[] = (Object.keys(ACHIEVEMENT_META) as AchievementKind[])
@@ -1126,6 +1189,10 @@ export const getFirstEarnedAchievements = (achievements: Achievement[]): Achieve
 // "every due task today" condition, can't meaningfully be scoped down to just one task. Shared by
 // every UI-layer "filter/preview by task" surface (TrophiesScreen's own task filter,
 // AchievementsPreviewCard) so they can't drift on what counts as task-scoped.
+// Whether a trophy gets the Ironman treatment (gold frame, emblem, Ironman share wording).
+export const isIronmanAchievement = (achievement: Pick<Achievement, 'kind' | 'ironman'>): boolean =>
+  achievement.ironman === true || ACHIEVEMENT_META[achievement.kind].requiresIronman === true;
+
 export const isTaskScopedKind = (kind: AchievementKind): boolean => ACHIEVEMENT_META[kind].scope === 'task';
 
 // Precomputed once, not re-filtered on every call -- the task-scoped subset of ACHIEVEMENT_KIND_ORDER,
@@ -1135,25 +1202,36 @@ export const isTaskScopedKind = (kind: AchievementKind): boolean => ACHIEVEMENT_
 // performance problem worth avoiding rather than just filtering the *result*).
 export const TASK_SCOPED_KIND_ORDER: AchievementKind[] = ACHIEVEMENT_KIND_ORDER.filter(isTaskScopedKind);
 
+// Reads a fixed-threshold metric off a task. `firstStreak` needs the habit's streak history, so
+// it's only walked when the plain current streak could already reach `target` -- below that, the
+// current streak is an exact stand-in (it can't cross the threshold either way).
+const readFixedThresholdMetric = (task: Task, stats: Task['stats'], metric: FixedThresholdMetric, target: number, asOfDate: Date): number => {
+  if (!stats) return 0;
+  if (metric !== 'firstStreak') return stats[metric];
+  if (stats.currentStreak < target) return stats.currentStreak;
+  return getTaskStreakChains(task, asOfDate).length === 1 ? stats.currentStreak : 0;
+};
+
 const taskMeta = (task: Task) => ({
   taskId: task.id,
   taskName: task.name,
   taskIcon: task.icon,
   taskColor: task.color,
+  ...(isIronman(task) ? { ironman: true } : {}),
 });
 
 // Every fixed-threshold kind (first-completion, streak-N, milestone-N), derived directly from
 // ACHIEVEMENT_META rather than a separately maintained tier list -- a new fixed-threshold kind
 // (even a new tier of an existing pattern, like a hypothetical streak-500) is detected
 // automatically the moment it's added to ACHIEVEMENT_META above, with zero new code here.
-const FIXED_THRESHOLD_ENTRIES: { kind: AchievementKind; metric: 'currentStreak' | 'totalCompletions'; target: number }[] =
+const FIXED_THRESHOLD_ENTRIES: { kind: AchievementKind; metric: FixedThresholdMetric; target: number; requiresIronman: boolean }[] =
   ACHIEVEMENT_KIND_ORDER
     .map(kind => ({ kind, strategy: ACHIEVEMENT_META[kind].progressStrategy }))
     .filter(
       (entry): entry is { kind: AchievementKind; strategy: Extract<ProgressStrategy, { type: 'fixed-threshold' }> } =>
         entry.strategy.type === 'fixed-threshold'
     )
-    .map(({ kind, strategy }) => ({ kind, metric: strategy.metric, target: strategy.target }));
+    .map(({ kind, strategy }) => ({ kind, metric: strategy.metric, target: strategy.target, requiresIronman: !!ACHIEVEMENT_META[kind].requiresIronman }));
 
 // Every total-completions-sum kind (the three century-club-N tiers), derived the same way as
 // FIXED_THRESHOLD_ENTRIES above -- adding a fourth tier needs one new ACHIEVEMENT_META entry and
@@ -1482,9 +1560,13 @@ export const detectCompletionAchievements = (
   // dedup key and whether task identity gets attached -- this is what lets first-completion
   // (global, reading totalCompletions) and streak-2 (per-task, reading currentStreak) share this
   // same loop despite reading entirely different metrics and firing on different crossings.
-  for (const { kind, metric, target } of FIXED_THRESHOLD_ENTRIES) {
-    const prevValue = prevStats?.[metric] ?? 0;
-    const nextValue = nextStats[metric];
+  const nextIsIronman = isIronman(nextTask);
+  for (const { kind, metric, target, requiresIronman } of FIXED_THRESHOLD_ENTRIES) {
+    if (requiresIronman && !nextIsIronman) continue;
+    // Cheap pre-check before readFixedThresholdMetric's possible history walk.
+    if (nextStats.currentStreak < target && metric !== 'totalCompletions') continue;
+    const prevValue = readFixedThresholdMetric(prevTask, prevStats, metric, target, date);
+    const nextValue = readFixedThresholdMetric(nextTask, nextStats, metric, target, date);
     if (prevValue >= target || nextValue < target) continue;
     const isGlobal = ACHIEVEMENT_META[kind].scope === 'global';
     const dedupScope = isGlobal ? 'global' : dedupScopeFor(kind, nextTask.id);
@@ -2091,7 +2173,8 @@ export const getAchievementCardStatus = (
       let best: { task: Task; value: number } | undefined;
       for (const task of activeTasks) {
         if (earnedTaskIds.has(task.id)) continue;
-        const value = Math.min(task.stats?.[metric] ?? 0, target);
+        if (ACHIEVEMENT_META[kind].requiresIronman && !isIronman(task)) continue;
+        const value = Math.min(readFixedThresholdMetric(task, task.stats, metric, target, today), target);
         if (!best || value > best.value) best = { task, value };
       }
       return {
