@@ -7,8 +7,9 @@ Status: **Product concept / design draft. v1 shipped as "Ironman mode" (2026-11)
 > - The name is **Ironman**.
 > - It is chosen at creation only and **can never be turned off**, unlike the "can later be
 >   turned off" rule below.
-> - Past days lock. There's a one-time backfill window from creation until the user taps
->   **Lock in** or the creation day ends. Skips are allowed only inside that window.
+> - Past days lock from creation on. There is no backfill (an earlier one-time backfill window
+>   was removed so an Ironman streak only ever holds days checked off on the day itself), and
+>   no skips.
 > - Ironman streaks get gold/steel badging on habit tiles, the habit header, calendar streak
 >   badges, the Streaks list, and every habit and achievement share card.
 > - No paid rescue yet, and nothing in the UI hints at one. The internal direction for later:

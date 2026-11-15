@@ -182,9 +182,9 @@
 
 ## MMP
 
-- [x] Ironman mode v1 (creation-only, permanent, past days locked after a one-time backfill,
+- [x] Ironman mode v1 (creation-only, permanent, past days locked from creation, no backfill or skips,
       badging everywhere streaks show + share cards) -- see CLAUDE.md / COMMITMENT_MODE.md
-  - [ ] On-device check of the Add habit card, calendar Lock in banner, and share cards
+  - [ ] On-device check of the Add habit card, calendar locked banner, and share cards
   - [ ] Decide whether schedule edits (frequency/days) should be restricted for Ironman habits,
         since they can reinterpret locked history
   - [ ] Paid revives (internal plan, no UI yet) -- see COMMITMENT_MODE.md's Ironman note

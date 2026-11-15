@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { PersistStorage, persist } from 'zustand/middleware';
 import { Task, TaskCompletion } from '../types';
 import { mergeTaskLists } from '../utils/importExport';
-import { canEditCompletionOn, canSkipOn, isIronmanBackfillOpen, preserveIronmanFields } from '../utils/ironman';
+import { canEditCompletionOn, canSkipOn, preserveIronmanFields } from '../utils/ironman';
 import { cancelTaskNotifications, rescheduleAllTaskNotifications, scheduleTaskNotifications } from '../utils/notifications';
 import { calculateTaskStats, getCachedCompletionCountsByDate, isScheduledOnDate } from '../utils/streaks';
 import { useAchievementsStore } from './achievementsStore';
@@ -111,9 +111,6 @@ interface TaskStore {
   // Reverses skipDate -- also the calendar's own long-press-to-toggle "undo" path, not just the
   // toast's Undo action.
   unskipDate: (taskId: string, date: Date) => void;
-  // Closes an Ironman habit's one-time backfill window early -- see app/utils/ironman.ts. A no-op
-  // for a standard habit or one whose window is already closed.
-  lockIronmanHistory: (taskId: string) => void;
   archiveTask: (taskId: string) => void;
   restoreTask: (taskId: string) => void;
   // Receives the complete active-task id order. Archived tasks retain their slots, so reordering
@@ -440,16 +437,6 @@ export const useTaskStore = create<TaskStore>()(
           }),
         });
         if (updatedTask) rescheduleFor(updatedTask);
-      },
-
-      lockIronmanHistory: (taskId) => {
-        set({
-          tasks: get().tasks.map(task =>
-            task.id === taskId && isIronmanBackfillOpen(task)
-              ? { ...task, ironmanLockedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
-              : task
-          ),
-        });
       },
 
       archiveTask: (taskId) => {

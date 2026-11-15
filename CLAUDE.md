@@ -229,9 +229,9 @@ scan) — both stated design decisions, not gaps.
 This is an opt-in, per-habit commitment, offered at creation as a promoted card in `AddTaskScreen`.
 `Task.ironman` is set once and never changes: `taskStore.updateTask` runs every edit through
 `preserveIronmanFields`, so an edit can't turn it on or off. Import merge (`mergeIronmanFields`)
-also keeps it one-way. Past days are locked. The one exception is a backfill window that lasts
-from creation until `ironmanLockedAt` is set (the calendar's **Lock in** button) or the creation
-day ends. Skips are allowed only inside that window. The rules are pure functions
+also keeps it one-way. Past days are locked from creation on, with no backfill (removed by
+explicit decision, so an Ironman streak only ever holds days checked off on the day itself), and
+skips are never allowed. The rules are pure functions
 (`canEditCompletionOn`/`canSkipOn`), checked twice. The UI checks them so it can explain a
 blocked tap with a toast, and every `taskStore` completion and skip mutator checks them again as a
 backstop. Badging (`IronmanBadge.tsx`) uses a custom-drawn SVG shield with a negative-space flame cut out of it,

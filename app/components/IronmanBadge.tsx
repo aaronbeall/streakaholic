@@ -24,7 +24,7 @@ export interface IronmanPalette {
   surfaceBorder: string;
   surfaceTitle: string;
   surfaceBody: string;
-  // Solid accent for small controls on those surfaces (switch track, lock glyph, Lock in button).
+  // Solid accent for small controls on those surfaces (switch track, lock glyph).
   accent: string;
   onAccent: string;
 }

@@ -15,7 +15,7 @@ import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useTaskStore } from '../stores/taskStore';
 import { MaterialCommunityIconName, Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
-import { canEditCompletionOn, canSkipOn, isIronman, isIronmanBackfillOpen, IRONMAN_LOCKED_DAY_MESSAGE, IRONMAN_NO_SKIP_MESSAGE } from '../utils/ironman';
+import { canEditCompletionOn, canSkipOn, isIronman, IRONMAN_LOCKED_DAY_MESSAGE, IRONMAN_NO_SKIP_MESSAGE } from '../utils/ironman';
 import { buildDayConnectionInfo, getCachedTaskStreakChains, getDayStreakState } from '../utils/reports';
 import { getCachedCompletionCountsByDate, isScheduledOnDate } from '../utils/streaks';
 
@@ -59,9 +59,8 @@ type CalendarItem = CalendarDay | EmptyDay;
 // TaskDetailScreen) rather than a full navigation that re-transitions the header too.
 export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = ({ task, initialMonth }) => {
   const taskId = task.id;
-  const { completeTask, uncompleteTask, undoCompleteTask, restoreCompletion, skipDate, unskipDate, lockIronmanHistory } = useTaskStore(
+  const { completeTask, uncompleteTask, undoCompleteTask, restoreCompletion, skipDate, unskipDate } = useTaskStore(
     useShallow(state => ({
-      lockIronmanHistory: state.lockIronmanHistory,
       completeTask: state.completeTask,
       uncompleteTask: state.uncompleteTask,
       undoCompleteTask: state.undoCompleteTask,
@@ -426,31 +425,10 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
         </View>
 
         {isIronman(task) && (
-          isIronmanBackfillOpen(task) ? (
-            <View style={[styles.ironmanBanner, ironmanBannerTone]}>
-              <IronmanBadge variant="emblem" size={16} />
-              <Text style={[styles.ironmanBannerText, { color: ironmanPalette.surfaceBody }]}>
-                Add any past days now. They lock when you tap Lock in, or at midnight.
-              </Text>
-              <TouchableOpacity
-                style={[styles.ironmanLockButton, { backgroundColor: ironmanPalette.accent }]}
-                onPress={() => {
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  lockIronmanHistory(taskId);
-                  showToast({ message: 'Locked in. From here on, only today counts.' });
-                }}
-                accessibilityRole="button"
-                accessibilityHint="Locks every past day of this habit for good"
-              >
-                <Text style={[styles.ironmanLockButtonText, { color: ironmanPalette.onAccent }]}>Lock in</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={[styles.ironmanBanner, ironmanBannerTone]}>
-              <IronmanBadge variant="emblem" size={16} />
-              <Text style={[styles.ironmanBannerText, { color: ironmanPalette.surfaceBody }]}>Ironman: past days are locked.</Text>
-            </View>
-          )
+          <View style={[styles.ironmanBanner, ironmanBannerTone]}>
+            <IronmanBadge variant="emblem" size={16} />
+            <Text style={[styles.ironmanBannerText, { color: ironmanPalette.surfaceBody }]}>Ironman: past days are locked.</Text>
+          </View>
         )}
 
         {viewMode === 'year' ? (
@@ -846,15 +824,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flex: 1,
     fontSize: 13,
     lineHeight: 18,
-  },
-  ironmanLockButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  ironmanLockButtonText: {
-    fontSize: 13,
-    fontWeight: '800',
   },
   dayPopoverLockedRow: {
     flexDirection: 'row',

@@ -86,7 +86,7 @@ export const mergeTaskLists = (current: Task[], incoming: Task[]): Task[] => {
       [...(older.completions ?? []), ...(newer.completions ?? [])].map(c => [c.id, c])
     );
 
-    // Ironman is one-way: a merge can't quietly drop it or reopen a closed backfill window.
+    // Ironman is one-way: a merge can't quietly drop it.
     merged.set(incomingTask.id, {
       ...newer,
       ...mergeIronmanFields(existingTask, incomingTask),

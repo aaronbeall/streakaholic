@@ -342,25 +342,9 @@ export const AddTaskScreen: React.FC = () => {
       bypassLeaveGuardRef.current = true;
       router.back();
       if (achievementEligibilityChanged) offerAchievementScan();
-      if (!editingTask && ironman) offerIronmanBackfill(taskData.name);
     } catch {
       showToast({ message: `Couldn't ${isEditing ? 'update' : 'create'} this habit. Please try again.` });
     }
-  };
-
-  // The one-time backfill happens on the habit's own calendar (any past day is tappable until the
-  // user locks it in or today ends), so point straight at it rather than leaving it to discovery.
-  const offerIronmanBackfill = (habitName: string) => {
-    const created = useTaskStore.getState().tasks.find(t => t.name === habitName && t.ironman);
-    showToast({
-      message: 'Ironman is on. Add any past days today, then they lock for good.',
-      action: created
-        ? {
-            label: 'Add past days',
-            onPress: () => router.push({ pathname: '/task-detail', params: { taskId: created.id, tab: 'calendar' } }),
-          }
-        : undefined,
-    });
   };
 
   const handleToggleIronman = (value: boolean) => {
@@ -863,7 +847,7 @@ export const AddTaskScreen: React.FC = () => {
           <Text style={[styles.ironmanBody, ironman && { color: ironmanPalette.surfaceBody }]}>
             {isEditing
               ? 'Past days are locked, so every streak here is the real thing. Ironman stays on for good.'
-              : "Past days lock for good, so every streak is the real thing and wears the Ironman badge. You can add past days once, today. After that, only today counts. Ironman can't be turned off."}
+              : "Starts from zero, and only today ever counts: no past days, no skips. Every streak is the real thing and wears the Ironman badge. Ironman can't be turned off."}
           </Text>
         </View>
       )}
