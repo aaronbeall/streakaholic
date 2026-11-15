@@ -42,7 +42,7 @@ export const StreakCountBadge: React.FC<StreakCountBadgeProps> = ({ value, iconS
       pointerEvents="none"
     >
       {ironman
-        ? <IronmanIcon size={iconSize + 1} shieldColor={ironmanPalette.shield} flameColor={ironmanPalette.flame} />
+        ? <IronmanIcon size={iconSize + 1} color={ironmanPalette.shield} />
         : <MaterialCommunityIcons name="fire" size={iconSize} color="#fff" />}
       <Text style={[styles.text, { fontSize }, ironman && [styles.ironmanText, { color: ironmanPalette.text }]]} numberOfLines={1}>{value}</Text>
     </View>

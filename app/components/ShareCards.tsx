@@ -471,7 +471,7 @@ const MomentumRing: React.FC<{
   fraction: number;
   color: string;
   icon: MaterialCommunityIconName;
-  // Replaces the glyph when set (the Ironman card's drawn shield-and-flame icon).
+  // Replaces the glyph when set (the Ironman card's drawn shield icon).
   iconNode?: React.ReactNode;
   // ReactNode, not just number -- lets a caller pass a de-emphasized "/total" suffix nested
   // inside (e.g. DashboardMomentumShareCard's "X/Y" ratio, same statValueDim-style technique

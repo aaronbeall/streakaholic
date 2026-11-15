@@ -234,7 +234,7 @@ from creation until `ironmanLockedAt` is set (the calendar's **Lock in** button)
 day ends. Skips are allowed only inside that window. The rules are pure functions
 (`canEditCompletionOn`/`canSkipOn`), checked twice. The UI checks them so it can explain a
 blocked tap with a toast, and every `taskStore` completion and skip mutator checks them again as a
-backstop. Badging (`IronmanBadge.tsx`) uses a custom-drawn SVG shield with a flame inside it,
+backstop. Badging (`IronmanBadge.tsx`) uses a custom-drawn SVG shield with a negative-space flame cut out of it,
 because no MaterialCommunityIcons glyph combines the two. It has its own two-tone palette, separate
 from the app theme: polished gold in light mode and gold-rimmed gunmetal in dark mode. Share cards
 always use dark. The badge appears as an emblem on the habit tile, a nameplate under the

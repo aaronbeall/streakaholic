@@ -9,7 +9,6 @@ import { useThemeColors } from '../hooks/useThemeColors';
 // dark ones (and always on the share cards, which render on a dark frame).
 export const IRONMAN_GOLD = '#F5B300';
 export const IRONMAN_STEEL = '#1F232B';
-export const IRONMAN_FLAME = '#FF5A36';
 
 export type IronmanTone = 'light' | 'dark';
 
@@ -20,7 +19,6 @@ export interface IronmanPalette {
   border: string;
   text: string;
   shield: string;
-  flame: string;
   // Larger surfaces (the Add habit card when on, the calendar banner).
   surface: string;
   surfaceBorder: string;
@@ -38,7 +36,6 @@ const PALETTES: Record<IronmanTone, IronmanPalette> = {
     border: '#D08A00',
     text: '#4A2E00',
     shield: '#2B2F36',
-    flame: IRONMAN_FLAME,
     surface: '#FFF7E0',
     surfaceBorder: '#F2B200',
     surfaceTitle: '#3A2600',
@@ -52,7 +49,6 @@ const PALETTES: Record<IronmanTone, IronmanPalette> = {
     border: IRONMAN_GOLD,
     text: IRONMAN_GOLD,
     shield: IRONMAN_GOLD,
-    flame: IRONMAN_FLAME,
     surface: '#1C2027',
     surfaceBorder: IRONMAN_GOLD,
     surfaceTitle: '#FFFFFF',
@@ -71,24 +67,19 @@ export const useIronmanPalette = (tone?: IronmanTone): IronmanPalette => {
   return PALETTES[tone ?? (isDark ? 'dark' : 'light')];
 };
 
-// A shield with a flame inside it -- no MaterialCommunityIcons glyph combines the two, so it's
-// drawn here (24x24 viewBox, same footprint as an icon glyph).
+// A shield with the flame cut out of it as negative space, plus a solid inner tongue -- one
+// color, so it reads as a stamped mark rather than an emoji. No MaterialCommunityIcons glyph
+// combines the two, so it's drawn here (24x24 viewBox, same footprint as an icon glyph).
 const SHIELD_PATH = 'M12 1.6 3.6 4.8v6.4c0 5.3 3.6 10.1 8.4 11.2 4.8-1.1 8.4-5.9 8.4-11.2V4.8z';
-const FLAME_PATH =
-  'M12.2 5.6c.5 2.1 2.9 3.4 2.9 6.3 0 .7-.15 1.3-.45 1.8.95-.35 1.6-1.2 1.75-2.2 1.05 1.1 1.45 2.4 1.45 3.5 0 3.05-2.5 5.1-5.6 5.1s-5.55-2-5.55-4.85c0-2.45 1.5-3.9 2.65-5.2.2 1.05.85 1.75 1.65 2.05-.45-2.4.35-4.75 1.2-6.5z';
-const FLAME_CORE_PATH =
-  'M12.1 13c.25 1.1 1.55 1.75 1.55 3.25 0 1.05-.75 1.95-1.85 1.95s-1.9-.8-1.9-1.85c0-1 .6-1.6 1.1-2.15.1.45.35.75.7.85-.15-.75.1-1.5.4-2.05z';
+const FLAME_CUTOUT_PATH =
+  'M12 5.2C12.6 7.6 16.2 9.4 16.2 13.6C16.2 16.6 14.3 18.8 12 18.8C9.7 18.8 7.8 16.8 7.8 14.2C7.8 12.2 8.9 10.9 9.9 9.9C10 11.2 10.6 12 11.4 12.3C10.9 9.6 11.2 7.2 12 5.2Z';
+const FLAME_TONGUE_PATH =
+  'M12.1 12.6C12.4 13.7 13.9 14.4 13.9 16C13.9 17.1 13.1 17.9 12 17.9C10.9 17.9 10.1 17.1 10.1 16.1C10.1 15.2 10.6 14.5 11.1 14C11.2 14.6 11.5 14.9 11.9 15.1C11.7 14.2 11.8 13.3 12.1 12.6Z';
 
-export const IronmanIcon: React.FC<{ size?: number; shieldColor?: string; flameColor?: string; coreColor?: string }> = ({
-  size = 16,
-  shieldColor = IRONMAN_GOLD,
-  flameColor = IRONMAN_FLAME,
-  coreColor = '#FFD54A',
-}) => (
+export const IronmanIcon: React.FC<{ size?: number; color?: string }> = ({ size = 16, color = IRONMAN_GOLD }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24">
-    <Path d={SHIELD_PATH} fill={shieldColor} />
-    <Path d={FLAME_PATH} fill={flameColor} />
-    <Path d={FLAME_CORE_PATH} fill={coreColor} />
+    <Path d={`${SHIELD_PATH} ${FLAME_CUTOUT_PATH}`} fill={color} fillRule="evenodd" />
+    <Path d={FLAME_TONGUE_PATH} fill={color} />
   </Svg>
 );
 
@@ -137,7 +128,7 @@ export const IronmanBadge: React.FC<IronmanBadgeProps> = ({ variant = 'pill', si
           {/* Wrapped so it stacks above the absolutely-positioned gradient on web too (CSS paints
               positioned elements over static siblings; native just follows sibling order). */}
           <View style={styles.layer}>
-            <IronmanIcon size={size} shieldColor={palette.shield} flameColor={palette.flame} />
+            <IronmanIcon size={Math.round(size * 1.35)} color={palette.shield} />
           </View>
         </View>
       </View>
@@ -165,7 +156,7 @@ export const IronmanBadge: React.FC<IronmanBadgeProps> = ({ variant = 'pill', si
       >
         <GradientFill id={gradientId} palette={palette} radius={height / 2} />
         <View style={styles.layer}>
-          <IronmanIcon size={Math.round(size * 1.15)} shieldColor={palette.shield} flameColor={palette.flame} />
+          <IronmanIcon size={Math.round(size * 1.15)} color={palette.shield} />
         </View>
         <Text style={[styles.pillText, { fontSize, letterSpacing: fontSize * 0.1, color: palette.text }]} numberOfLines={1}>
           {label.toUpperCase()}
