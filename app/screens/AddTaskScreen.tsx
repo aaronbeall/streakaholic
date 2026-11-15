@@ -9,13 +9,13 @@ import {
   Alert,
   Platform,
   ScrollView,
-  Switch,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { WebSwitch } from '../components/WebSwitch';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { ColorPicker } from '../components/ColorPicker';
@@ -832,11 +832,12 @@ export const AddTaskScreen: React.FC = () => {
             {isEditing ? (
               <MaterialCommunityIcons name="lock" size={18} color={ironmanPalette.accent} accessibilityLabel="Locked" />
             ) : (
-              <Switch
+              <WebSwitch
                 value={ironman}
                 onValueChange={handleToggleIronman}
                 trackColor={{ false: colors.border, true: ironmanPalette.accent }}
-                thumbColor={ironman ? '#fff' : undefined}
+                thumbColor="#fff"
+                activeThumbColor="#fff"
                 accessibilityLabel="Ironman mode"
               />
             )}
