@@ -29,11 +29,11 @@ there's no Play Store link to send visitors to. The primary CTA is a `mailto:` t
 `support@metamodernmonkey.com` asking to join early testing. **Swap this for a real Play
 Store badge/link once the app is public** — search `#get-access` in `index.html`.
 
-No real app screenshots exist yet either (`../screenshots/` is empty, per
-`STORE_LISTING.md`), so the hero uses the illustration-grade `logo4-thematic.png` mark
-instead of a device mockup. Once real screenshots exist, a features/screenshot section
-would likely strengthen the page more than anything else here — see `STORE_LISTING.md`'s
-own 6-shot list for what to capture first.
+The page is a short sequence of the real app: a looping completion video
+(`assets/complete.mp4`) and stills in `assets/screens/`. Those frames were captured from
+the web build with `demo-data/streakaholic-demo-data.json` loaded, in dark mode, at a
+phone-sized viewport. Regenerate them from a fresh `npm run demo-data` when the UI
+changes — don't draw mock screens on top of the product.
 
 ## Content source of truth
 
