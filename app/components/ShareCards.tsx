@@ -662,7 +662,7 @@ export const HabitMomentumShareCard: React.FC<{
     <HabitIconBadge icon={icon} color={color} ironman={ironman} />
     <HabitEyebrow text="MY MOMENTUM" ironman={ironman} />
     <Text style={styles.statsTitle} numberOfLines={2}>{includeName ? name : ''}</Text>
-    <MomentumRing fraction={completionRate} color={color} icon={ironman ? IRONMAN_ICON : 'fire'} centerValue={currentStreak} centerLabel={ironman ? 'Ironman streak' : 'day streak'} />
+    <MomentumRing fraction={completionRate} color={color} icon={ironman ? IRONMAN_ICON : 'fire'} centerValue={currentStreak} centerLabel={ironman ? 'Ironman' : 'day streak'} />
     <Text style={styles.ringCaption}>{Math.round(completionRate * 100)}% completion rate</Text>
     <StatRow>
       <StatCell value={String(bestStreak)} label="Best streak" icon="trophy" iconColor={TROPHY_GOLD} />

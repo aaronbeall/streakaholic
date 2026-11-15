@@ -75,7 +75,6 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     borderRadius: 999,
     backgroundColor: IRONMAN_STEEL,
     borderColor: IRONMAN_GOLD,
