@@ -1,6 +1,22 @@
 # Commitment Mode and Streak Saves
 
-Status: **Product concept / design draft — not implemented**
+Status: **Product concept / design draft. v1 shipped as "Ironman mode" (2026-11), see below.**
+
+> **Ironman mode v1 (what actually shipped, 2026-11-15).** Aaron's direction supersedes parts of
+> this draft where they conflict:
+> - The name is **Ironman**.
+> - It is chosen at creation only and **can never be turned off**, unlike the "can later be
+>   turned off" rule below.
+> - Past days lock. There's a one-time backfill window from creation until the user taps
+>   **Lock in** or the creation day ends. Skips are allowed only inside that window.
+> - Ironman streaks get gold/steel badging on habit tiles, the habit header, calendar streak
+>   badges, the Streaks list, and every habit and achievement share card.
+> - No paid rescue yet, and nothing in the UI hints at one. The internal direction for later:
+>   revives that do **not** mark or punish the streak, but get more expensive each time, grounded
+>   in commitment-device research. That replaces this draft's "fixed price, visible save" rule.
+>
+> Implementation: `app/utils/ironman.ts` (rules, unit-tested), `taskStore` guards,
+> `app/components/IronmanBadge.tsx`.
 
 This document defines a stricter, explicitly opt-in way to use Streakaholic. The original
 idea was called **Ironman Mode**: when creating a habit, the user can choose to make its

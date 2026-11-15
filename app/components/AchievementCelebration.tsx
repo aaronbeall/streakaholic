@@ -25,6 +25,7 @@ import { IMPACT_DELAY, TROPHY_BADGE_INTRO_DURATION, TROPHY_BADGE_STACK_SIZE, Tro
 import { useToast } from '../context/ToastContext';
 import { useAchievementsStore } from '../stores/achievementsStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useTaskStore } from '../stores/taskStore';
 import { MaterialCommunityIconName } from '../types';
 import { formatAchievementCount, getAchievementCountUpDuration } from '../utils/achievementCountUp';
 import { ACHIEVEMENT_META, Achievement, AchievementKind, getRibbonText } from '../utils/achievements';
@@ -828,6 +829,11 @@ const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () =>
   const viewedIndices = useRef(new Set([0]));
   const hasNavigated = useRef(false);
   const achievement = achievements[Math.min(pageIndex, achievements.length - 1)];
+  // Live lookup (not snapshotted on the achievement) -- Ironman is permanent once set, so the
+  // habit's current flag is also what it was when this was earned.
+  const isAchievementTaskIronman = useTaskStore(state =>
+    !!achievement.taskId && state.tasks.some(t => t.id === achievement.taskId && t.ironman === true)
+  );
   const isLockedPreview = achievement.dedupScope === 'locked-preview';
   const isLockedPreviewBatch = achievements[0].dedupScope === 'locked-preview';
   const firstAchievementMeta = ACHIEVEMENT_META[achievements[0].kind];
@@ -1038,6 +1044,7 @@ const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () =>
         <AchievementShareCard
           achievement={achievement}
           includeTaskName={includeTaskNameInShare}
+          ironman={isAchievementTaskIronman}
         />
       </SharePreviewModal>
     </Reanimated.View>

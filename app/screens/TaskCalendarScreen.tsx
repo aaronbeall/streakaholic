@@ -5,6 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { AccessibilityActionEvent, LayoutChangeEvent, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
+import { IRONMAN_GOLD, IRONMAN_STEEL, IronmanBadge } from '../components/IronmanBadge';
 import { MissedDayMark } from '../components/MissedDayMark';
 import { PartialDayPie } from '../components/PartialDayPie';
 import { StreakCountBadge } from '../components/StreakCountBadge';
@@ -14,6 +15,7 @@ import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useTaskStore } from '../stores/taskStore';
 import { MaterialCommunityIconName, Task } from '../types';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
+import { canEditCompletionOn, canSkipOn, isIronman, isIronmanBackfillOpen, IRONMAN_LOCKED_DAY_MESSAGE, IRONMAN_NO_SKIP_MESSAGE } from '../utils/ironman';
 import { buildDayConnectionInfo, getCachedTaskStreakChains, getDayStreakState } from '../utils/reports';
 import { getCachedCompletionCountsByDate, isScheduledOnDate } from '../utils/streaks';
 
@@ -57,8 +59,9 @@ type CalendarItem = CalendarDay | EmptyDay;
 // TaskDetailScreen) rather than a full navigation that re-transitions the header too.
 export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = ({ task, initialMonth }) => {
   const taskId = task.id;
-  const { completeTask, uncompleteTask, undoCompleteTask, restoreCompletion, skipDate, unskipDate } = useTaskStore(
+  const { completeTask, uncompleteTask, undoCompleteTask, restoreCompletion, skipDate, unskipDate, lockIronmanHistory } = useTaskStore(
     useShallow(state => ({
+      lockIronmanHistory: state.lockIronmanHistory,
       completeTask: state.completeTask,
       uncompleteTask: state.uncompleteTask,
       undoCompleteTask: state.undoCompleteTask,
@@ -205,6 +208,12 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
       return; // Don't allow completing future dates
     }
 
+    if (!canEditCompletionOn(task, dateString)) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      showToast({ message: IRONMAN_LOCKED_DAY_MESSAGE });
+      return;
+    }
+
     // Tapping a day is the gesture this hint teaches -- dismiss it the same way Home's hints
     // dismiss themselves when the user performs the taught gesture directly.
     tapDayHint.complete();
@@ -268,6 +277,11 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
     if (task.frequency !== 'daily' && task.frequency !== 'specific_days_of_week') return;
 
     const dateString = format(date, 'yyyy-MM-dd');
+    if (!canSkipOn(task, dateString)) {
+      setDayPopoverDate(null);
+      showToast({ message: IRONMAN_NO_SKIP_MESSAGE });
+      return;
+    }
     const isCompleted = (completionCounts.get(dateString) ?? 0) >= requiredTimes;
     if (isCompleted) return;
 
@@ -308,7 +322,9 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
     const isPassThrough = streakState === 'connected';
     const isUserSkipped = (task.frequency === 'daily' || task.frequency === 'specific_days_of_week')
       && (task.skippedDates?.includes(dateString) ?? false);
+    const canEdit = canEditCompletionOn(task, dateString);
     const canSkip = !isCompleted
+      && canSkipOn(task, dateString)
       && (task.frequency === 'daily' || task.frequency === 'specific_days_of_week')
       && (isUserSkipped || isScheduledOnDate(task, date));
 
@@ -341,7 +357,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
       statusText = 'Nothing logged';
     }
 
-    return { date, completionCount, isCompleted, isUserSkipped, canSkip, statusIcon, statusColor, statusText };
+    return { date, completionCount, isCompleted, isUserSkipped, canEdit, canSkip, statusIcon, statusColor, statusText };
   }, [dayPopoverDate, completionCounts, requiredTimes, today, task, streakChains, colors]);
 
   const handlePrev = () => {
@@ -406,6 +422,34 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
             <Text style={[styles.viewModeButtonText, viewMode === 'year' && styles.viewModeButtonTextActive]}>Year</Text>
           </TouchableOpacity>
         </View>
+
+        {isIronman(task) && (
+          isIronmanBackfillOpen(task) ? (
+            <View style={styles.ironmanBanner}>
+              <IronmanBadge variant="emblem" size={16} />
+              <Text style={styles.ironmanBannerText}>
+                Add any past days now. They lock when you tap Lock in, or at midnight.
+              </Text>
+              <TouchableOpacity
+                style={styles.ironmanLockButton}
+                onPress={() => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  lockIronmanHistory(taskId);
+                  showToast({ message: 'Locked in. From here on, only today counts.' });
+                }}
+                accessibilityRole="button"
+                accessibilityHint="Locks every past day of this habit for good"
+              >
+                <Text style={styles.ironmanLockButtonText}>Lock in</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.ironmanBanner}>
+              <IronmanBadge variant="emblem" size={16} />
+              <Text style={styles.ironmanBannerText}>Ironman: past days are locked.</Text>
+            </View>
+          )
+        )}
 
         {viewMode === 'year' ? (
           <ScrollView style={styles.yearScroll} showsVerticalScrollIndicator={false}>
@@ -628,6 +672,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                         <StreakCountBadge
                           value={connection.badgeValue!}
                           iconSize={11}
+                          ironman={isIronman(task)}
                           style={styles.streakBadgePosition}
                         />
                       )}
@@ -712,6 +757,13 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
               </View>
 
               <View style={styles.dayPopoverActions}>
+                {!dayPopoverInfo.canEdit && (
+                  <View style={styles.dayPopoverLockedRow}>
+                    <MaterialCommunityIcons name="lock" size={14} color={IRONMAN_GOLD} />
+                    <Text style={styles.dayPopoverLockedText}>Locked by Ironman</Text>
+                  </View>
+                )}
+                {dayPopoverInfo.canEdit && (
                 <TouchableOpacity
                   style={styles.dayPopoverAction}
                   onPress={() => {
@@ -736,6 +788,7 @@ export const TaskCalendarView: React.FC<{ task: Task; initialMonth?: Date }> = (
                   </Text>
                   <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textTertiary} />
                 </TouchableOpacity>
+                )}
 
                 {dayPopoverInfo.canSkip && (
                   <TouchableOpacity
@@ -776,6 +829,46 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  ironmanBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: IRONMAN_STEEL,
+    borderWidth: 1,
+    borderColor: IRONMAN_GOLD,
+  },
+  ironmanBannerText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#E6E9EE',
+  },
+  ironmanLockButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: IRONMAN_GOLD,
+  },
+  ironmanLockButtonText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: IRONMAN_STEEL,
+  },
+  dayPopoverLockedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+  },
+  dayPopoverLockedText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
   navigation: {
     flexDirection: 'row',

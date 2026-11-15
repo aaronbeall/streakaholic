@@ -1,4 +1,5 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -11,8 +12,10 @@ import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
 import { formatFrequencyLabel } from '../utils/formatFrequency';
+import { canSkipOn } from '../utils/ironman';
 import { isTaskCompleted } from '../utils/streaks';
 import { getTaskStatusInfo } from '../utils/taskStatusSummary';
+import { IRONMAN_GOLD, IronmanBadge } from './IronmanBadge';
 import { ParticleSystem } from './ParticleSystem';
 import { TaskProgressIcon } from './TaskProgressIcon';
 
@@ -246,9 +249,10 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
                 {frequencyLabel}
               </Text>
             </View>
+            {task.ironman && <IronmanBadge size={13} />}
             {streakBadgeStyle && (
               <Reanimated.View style={[styles.streakBadgeWrap, badgeAnimatedStyle]}>
-                <View style={[styles.streakBadge, { backgroundColor: streakBadgeStyle.color }]}>
+                <View style={[styles.streakBadge, { backgroundColor: streakBadgeStyle.color }, task.ironman && styles.ironmanRim]}>
                   <MaterialCommunityIcons name={streakBadgeStyle.icon} size={22} color="#fff" />
                   <Text style={styles.streakText}>{streakBadgeStyle.value}</Text>
                 </View>
@@ -403,7 +407,7 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
                 control" here, the same affordance every other tappable row in this app already
                 uses (e.g. Settings). canSkipToday/isSkippedToday are mutually exclusive (see
                 taskStatusSummary.ts), so this is always exactly one state or the other, never both. */}
-            {(statusInfo.canSkipToday || statusInfo.isSkippedToday) && (
+            {(statusInfo.canSkipToday || (statusInfo.isSkippedToday && canSkipOn(task, format(new Date(), 'yyyy-MM-dd')))) && (
               <TouchableOpacity
                 style={styles.summarySkipAction}
                 onPress={handleToggleSkipToday}
@@ -504,6 +508,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  ironmanRim: {
+    borderWidth: 2,
+    borderColor: IRONMAN_GOLD,
   },
   streakBadge: {
     flexDirection: 'row',

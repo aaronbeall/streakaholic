@@ -375,6 +375,7 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
           <HabitActivityShareCard
             name={task.name}
             includeName={includeNameInShare}
+            ironman={task.ironman === true}
             icon={task.icon}
             color={task.color}
             labels={weeklyActivity.labels}
@@ -386,6 +387,7 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
           <HabitTrophyShareCard
             name={task.name}
             includeName={includeNameInShare}
+            ironman={task.ironman === true}
             icon={task.icon}
             color={task.color}
             recentAchievements={recentTaskAchievements}
@@ -395,6 +397,7 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
           <HabitMomentumShareCard
             name={task.name}
             includeName={includeNameInShare}
+            ironman={task.ironman === true}
             icon={task.icon}
             color={task.color}
             currentStreak={currentStreak}
@@ -406,6 +409,7 @@ export const TaskStatsView: React.FC<{ task: Task }> = ({ task }) => {
           <HabitStatsShareCard
             name={task.name}
             includeName={includeNameInShare}
+            ironman={task.ironman === true}
             icon={task.icon}
             color={task.color}
             currentStreak={currentStreak}

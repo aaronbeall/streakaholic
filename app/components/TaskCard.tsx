@@ -26,6 +26,7 @@ import { MissedDayMark } from './MissedDayMark';
 import { PassThroughDayMark } from './PassThroughDayMark';
 import { ParticleSystem } from './ParticleSystem';
 import { PartialDayPie } from './PartialDayPie';
+import { IRONMAN_GOLD, IronmanBadge } from './IronmanBadge';
 import { TaskProgressIcon } from './TaskProgressIcon';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { getExpectedPeriodTotal } from '../utils/periodStats';
@@ -147,8 +148,11 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
     : Math.min(String(streakBadgeStyle?.value ?? 0).length, MAX_ESTIMATED_BADGE_DIGITS);
   const badgeSpawnArea = BADGE_SPAWN_AREAS_BY_DIGITS[badgeDigitCount];
 
+  const ironmanRim = task.ironman ? styles.ironmanRim : null;
+
   return (
     <View style={styles.contentContainer}>
+      {task.ironman && <IronmanBadge variant="emblem" size={12} style={styles.ironmanEmblem} />}
       <View style={{ marginBottom: iconMarginBottom }}>
         <TaskProgressIcon
           task={task}
@@ -178,12 +182,12 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
             // Same bubble shape/color/pop-in treatment as the real streak badge (badgeAnimatedStyle
             // above still applies) -- just a plain checkmark, no count, so a single completed day
             // still reveals and celebrates like any other completion without claiming a "streak".
-            <View style={[styles.streakBubble, { backgroundColor: streakBadgeStyle.color }]}>
+            <View style={[styles.streakBubble, { backgroundColor: streakBadgeStyle.color }, ironmanRim]}>
               <MaterialCommunityIcons name="check" size={14} color="#fff" />
             </View>
           ) : (
             <>
-              <View style={[styles.streakBubble, { backgroundColor: streakBadgeStyle.color }]}>
+              <View style={[styles.streakBubble, { backgroundColor: streakBadgeStyle.color }, ironmanRim]}>
                 <MaterialCommunityIcons name={streakBadgeStyle.icon} size={14} color="#fff" />
                 <Text style={styles.streakText}>{streakBadgeStyle.value}</Text>
               </View>
@@ -784,6 +788,17 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+  },
+  // Ironman habits: a gold rim on the streak bubble (status color still shows through) plus a
+  // shield emblem in the opposite corner -- see IronmanBadge.
+  ironmanRim: {
+    borderWidth: 1.5,
+    borderColor: IRONMAN_GOLD,
+  },
+  ironmanEmblem: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
   },
   streakText: {
     fontSize: 12,

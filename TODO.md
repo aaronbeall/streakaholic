@@ -182,6 +182,13 @@
 
 ## MMP
 
+- [x] Ironman mode v1 (creation-only, permanent, past days locked after a one-time backfill,
+      badging everywhere streaks show + share cards) -- see CLAUDE.md / COMMITMENT_MODE.md
+  - [ ] On-device check of the Add habit card, calendar Lock in banner, and share cards
+  - [ ] Decide whether schedule edits (frequency/days) should be restricted for Ironman habits,
+        since they can reinterpret locked history
+  - [ ] Paid revives (internal plan, no UI yet) -- see COMMITMENT_MODE.md's Ironman note
+
 - [ ] Finalize Streakaholic branding and launch identity
   - [x] Audit the existing logo/app-icon variants and choose one canonical mark and wordmark
         (done 2026-08-19 — "logo4" — see BRAND.md's "Visual identity status" for the full

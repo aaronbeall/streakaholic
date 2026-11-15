@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
   ScrollView,
+  Switch,
   StyleSheet,
   Text,
   TextInput,
@@ -20,6 +21,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { ColorPicker } from '../components/ColorPicker';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { IconPicker } from '../components/IconPicker';
+import { IRONMAN_GOLD, IRONMAN_STEEL, IronmanBadge } from '../components/IronmanBadge';
 import { DAY_ABBREVIATIONS, DEFAULT_COLORS, DEFAULT_ICONS } from '../constants/task';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
@@ -126,6 +128,9 @@ export const AddTaskScreen: React.FC = () => {
   const [nagIntervalMinutes, setNagIntervalMinutes] = useState(
     editingTask?.notifications?.nagIntervalMinutes ?? DEFAULT_NAG_INTERVAL_MINUTES
   );
+  // Ironman is creation-only and permanent (see app/utils/ironman.ts) -- when editing this just
+  // mirrors the saved value for display; the store ignores any change to it on update.
+  const [ironman, setIronman] = useState(editingTask?.ironman ?? false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [notificationPermissionDenied, setNotificationPermissionDenied] = useState(false);
 
@@ -163,6 +168,7 @@ export const AddTaskScreen: React.FC = () => {
     notificationLevel: editingTask?.notifications?.level ?? (isEditing ? 0 : 1),
     notificationTime: editingTask?.notifications?.time ?? DEFAULT_NOTIFICATION_TIME,
     nagIntervalMinutes: editingTask?.notifications?.nagIntervalMinutes ?? DEFAULT_NAG_INTERVAL_MINUTES,
+    ironman: editingTask?.ironman ?? false,
   }).current;
 
   const daysOfWeekEqual = (a: number[], b: number[]) => a.length === b.length && a.every((d, i) => d === b[i]);
@@ -180,7 +186,8 @@ export const AddTaskScreen: React.FC = () => {
     timesPerDay !== initialFormValues.timesPerDay ||
     notificationLevel !== initialFormValues.notificationLevel ||
     notificationTime !== initialFormValues.notificationTime ||
-    nagIntervalMinutes !== initialFormValues.nagIntervalMinutes;
+    nagIntervalMinutes !== initialFormValues.nagIntervalMinutes ||
+    ironman !== initialFormValues.ironman;
 
   // These are the task settings that can reinterpret existing completion history and therefore
   // change achievement eligibility. Cosmetic edits and reminder settings do not affect the
@@ -321,6 +328,8 @@ export const AddTaskScreen: React.FC = () => {
       daysPerMonth,
       timesPerDay,
       notifications: { level: notificationLevel, time: notificationTime, nagIntervalMinutes },
+      // Only ever set on creation; omitted entirely for a standard habit.
+      ...(!editingTask && ironman ? { ironman: true } : {}),
     };
 
     try {
@@ -332,9 +341,31 @@ export const AddTaskScreen: React.FC = () => {
       bypassLeaveGuardRef.current = true;
       router.back();
       if (achievementEligibilityChanged) offerAchievementScan();
+      if (!editingTask && ironman) offerIronmanBackfill(taskData.name);
     } catch {
       showToast({ message: `Couldn't ${isEditing ? 'update' : 'create'} this habit. Please try again.` });
     }
+  };
+
+  // The one-time backfill happens on the habit's own calendar (any past day is tappable until the
+  // user locks it in or today ends), so point straight at it rather than leaving it to discovery.
+  const offerIronmanBackfill = (habitName: string) => {
+    const created = useTaskStore.getState().tasks.find(t => t.name === habitName && t.ironman);
+    showToast({
+      message: 'Ironman is on. Add any past days today, then they lock for good.',
+      action: created
+        ? {
+            label: 'Add past days',
+            onPress: () => router.push({ pathname: '/task-detail', params: { taskId: created.id, tab: 'calendar' } }),
+          }
+        : undefined,
+    });
+  };
+
+  const handleToggleIronman = (value: boolean) => {
+    if (isEditing) return;
+    Haptics.impactAsync(value ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
+    setIronman(value);
   };
 
   // Requesting permission only when the user actually opts into a level > 0 (contextual, not at
@@ -806,6 +837,36 @@ export const AddTaskScreen: React.FC = () => {
         />
       )}
 
+      {/* Ironman: promoted on creation (always visible, not a collapsible section), read-only
+          once set. A standard habit being edited shows nothing -- it can't become Ironman later,
+          since its history was never locked. */}
+      {(!isEditing || editingTask?.ironman) && (
+        <View style={[styles.ironmanCard, ironman && styles.ironmanCardOn]}>
+          <View style={styles.ironmanHeaderRow}>
+            <IronmanBadge size={16} />
+            {isEditing ? (
+              <MaterialCommunityIcons name="lock" size={18} color={IRONMAN_GOLD} accessibilityLabel="Locked" />
+            ) : (
+              <Switch
+                value={ironman}
+                onValueChange={handleToggleIronman}
+                trackColor={{ false: colors.border, true: IRONMAN_GOLD }}
+                thumbColor={ironman ? '#fff' : undefined}
+                accessibilityLabel="Ironman mode"
+              />
+            )}
+          </View>
+          <Text style={[styles.ironmanTitle, ironman && styles.ironmanTitleOn]}>
+            {isEditing ? 'This is an Ironman habit' : 'Make it an Ironman habit'}
+          </Text>
+          <Text style={[styles.ironmanBody, ironman && styles.ironmanBodyOn]}>
+            {isEditing
+              ? 'Past days are locked, so every streak here is the real thing. Ironman stays on for good.'
+              : "Past days lock for good, so every streak is the real thing and wears the Ironman badge. You can add past days once, today. After that, only today counts. Ironman can't be turned off."}
+          </Text>
+        </View>
+      )}
+
       {atTaskLimit && (
         <Text style={styles.taskLimitText}>{ACTIVE_TASK_LIMIT_MESSAGE}</Text>
       )}
@@ -928,6 +989,41 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   inputError: {
     borderColor: '#FF3B30',
+  },
+  ironmanCard: {
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 16,
+    gap: 6,
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  ironmanCardOn: {
+    backgroundColor: IRONMAN_STEEL,
+    borderColor: IRONMAN_GOLD,
+  },
+  ironmanHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  ironmanTitle: {
+    marginTop: 4,
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  ironmanTitleOn: {
+    color: '#fff',
+  },
+  ironmanBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textSecondary,
+  },
+  ironmanBodyOn: {
+    color: '#C9CED6',
   },
   errorText: {
     color: '#FF3B30',

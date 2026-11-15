@@ -224,6 +224,22 @@ Settings' "Unsnooze All Celebrations."
 **No revocation on Undo, no automatic historical backfill** (only via the explicit retroactive
 scan) — both stated design decisions, not gaps.
 
+## Ironman mode (`app/utils/ironman.ts`)
+
+This is an opt-in, per-habit commitment, offered at creation as a promoted card in `AddTaskScreen`.
+`Task.ironman` is set once and never changes: `taskStore.updateTask` runs every edit through
+`preserveIronmanFields`, so an edit can't turn it on or off. Import merge (`mergeIronmanFields`)
+also keeps it one-way. Past days are locked. The one exception is a backfill window that lasts
+from creation until `ironmanLockedAt` is set (the calendar's **Lock in** button) or the creation
+day ends. Skips are allowed only inside that window. The rules are pure functions
+(`canEditCompletionOn`/`canSkipOn`), checked twice. The UI checks them so it can explain a
+blocked tap with a toast, and every `taskStore` completion and skip mutator checks them again as a
+backstop. Badging uses a fixed steel/gold palette (`IronmanBadge.tsx`, not themed): an emblem on
+the habit tile, a pill and gold rim in the `TaskHeader`, a steel/gold variant of
+`StreakCountBadge`, gold rims in the Streaks list, and Ironman wording on every habit and
+achievement share card. Paid revives are planned but deliberately absent from the UI. See
+COMMITMENT_MODE.md.
+
 ## Notifications (`app/utils/notifications.ts`)
 
 Per-task escalating reminders (Level 0–4: none/dismissable/repeated/persistent/alarm-style).
