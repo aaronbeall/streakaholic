@@ -1202,13 +1202,14 @@ export const isTaskScopedKind = (kind: AchievementKind): boolean => ACHIEVEMENT_
 // performance problem worth avoiding rather than just filtering the *result*).
 export const TASK_SCOPED_KIND_ORDER: AchievementKind[] = ACHIEVEMENT_KIND_ORDER.filter(isTaskScopedKind);
 
-// Reads a fixed-threshold metric off a task. `firstStreak` needs the habit's streak history, so
-// it's only walked when the plain current streak could already reach `target` -- below that, the
-// current streak is an exact stand-in (it can't cross the threshold either way).
-const readFixedThresholdMetric = (task: Task, stats: Task['stats'], metric: FixedThresholdMetric, target: number, asOfDate: Date): number => {
+// Reads a fixed-threshold metric off a task. `firstStreak` needs the habit's streak history.
+// Detection passes a `target` so that walk only happens when the current streak could actually
+// reach it -- below that, the current streak can't cross the threshold either way, so it's a safe
+// stand-in for a crossing check (but not for displayed progress, which omits `target`).
+const readFixedThresholdMetric = (task: Task, stats: Task['stats'], metric: FixedThresholdMetric, asOfDate: Date, target?: number): number => {
   if (!stats) return 0;
   if (metric !== 'firstStreak') return stats[metric];
-  if (stats.currentStreak < target) return stats.currentStreak;
+  if (stats.currentStreak === 0 || (target !== undefined && stats.currentStreak < target)) return stats.currentStreak;
   return getTaskStreakChains(task, asOfDate).length === 1 ? stats.currentStreak : 0;
 };
 
@@ -1565,8 +1566,8 @@ export const detectCompletionAchievements = (
     if (requiresIronman && !nextIsIronman) continue;
     // Cheap pre-check before readFixedThresholdMetric's possible history walk.
     if (nextStats.currentStreak < target && metric !== 'totalCompletions') continue;
-    const prevValue = readFixedThresholdMetric(prevTask, prevStats, metric, target, date);
-    const nextValue = readFixedThresholdMetric(nextTask, nextStats, metric, target, date);
+    const prevValue = readFixedThresholdMetric(prevTask, prevStats, metric, date, target);
+    const nextValue = readFixedThresholdMetric(nextTask, nextStats, metric, date, target);
     if (prevValue >= target || nextValue < target) continue;
     const isGlobal = ACHIEVEMENT_META[kind].scope === 'global';
     const dedupScope = isGlobal ? 'global' : dedupScopeFor(kind, nextTask.id);
@@ -2174,7 +2175,7 @@ export const getAchievementCardStatus = (
       for (const task of activeTasks) {
         if (earnedTaskIds.has(task.id)) continue;
         if (ACHIEVEMENT_META[kind].requiresIronman && !isIronman(task)) continue;
-        const value = Math.min(readFixedThresholdMetric(task, task.stats, metric, target, today), target);
+        const value = Math.min(readFixedThresholdMetric(task, task.stats, metric, today), target);
         if (!best || value > best.value) best = { task, value };
       }
       return {

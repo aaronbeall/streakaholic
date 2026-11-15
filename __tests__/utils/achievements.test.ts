@@ -181,6 +181,13 @@ describe('detectCompletionAchievements', () => {
       expect(kindsOf(detectCompletionAchievements(prev, next, [next], today, new Set()))).not.toContain('ironman-unbroken');
     });
 
+    it('shows no Unbroken progress for a habit whose streak already broke once', () => {
+      const task = makeTask({ ironman: true, completions: completionsFor([...range(0, 33), ...range(40, 45)]) }, { currentStreak: 34 });
+      expect(getAchievementCardStatus('ironman-unbroken', [], [task], today).progress?.current).toBe(0);
+      const fresh = makeTask({ ironman: true, completions: completionsFor(range(0, 33)) }, { currentStreak: 34 });
+      expect(getAchievementCardStatus('ironman-unbroken', [], [fresh], today).progress?.current).toBe(34);
+    });
+
     it('treats Ironman-only kinds as Ironman trophies even without the snapshot flag', () => {
       expect(isIronmanAchievement({ kind: 'ironman-forged' })).toBe(true);
       expect(isIronmanAchievement({ kind: 'streak-10', ironman: true })).toBe(true);

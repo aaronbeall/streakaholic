@@ -239,7 +239,11 @@ because no MaterialCommunityIcons glyph combines the two. It has its own two-ton
 from the app theme: polished gold in light mode and gold-rimmed gunmetal in dark mode. Share cards
 always use dark. The badge appears as an emblem on the habit tile, a nameplate under the
 `TaskHeader` icon ring, an Ironman variant of `StreakCountBadge`, and Ironman wording on every
-habit and achievement share card. Paid revives are planned but deliberately absent from the UI. See
+habit and achievement share card. Achievements: three Ironman-only kinds (Forged 7, Iron Will 30,
+Unbroken = first-ever streak reaching 100, via the `firstStreak` fixed-threshold metric) gated by
+the `requiresIronman` meta flag; every trophy snapshots `ironman` at earn time (like `taskName`),
+read through `isIronmanAchievement`; Trophy Case has an Ironman filter chip and corner emblems.
+Paid revives are planned but deliberately absent from the UI. See
 COMMITMENT_MODE.md.
 
 ## Notifications (`app/utils/notifications.ts`)
