@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Streakaholic — Build streaks worth celebrating</title>
+  <meta name="description" content="Streakaholic is a playful, private habit tracker for Android. Build streaks, get reminders that fit your style, unlock achievements, and keep every habit on your own phone. No account needed.">
+  <meta name="theme-color" content="#FBFAFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0B0B12" media="(prefers-color-scheme: dark)">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://streakaholic.app/">
+  <meta property="og:title" content="Streakaholic — Build streaks worth celebrating">
+  <meta property="og:description" content="A playful, private habit tracker for Android. Streaks, celebrations, achievements, and Ironman mode. No account needed.">
+  <meta property="og:image" content="https://streakaholic.app/assets/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="canonical" href="https://streakaholic.app/">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="./">
+        <img src="assets/favicon-192.png" alt="" width="32" height="32">
+        <span>Streakaholic</span>
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <a href="#streaks">Streaks</a>
+        <a href="#reminders">Reminders</a>
+        <a href="#achievements">Achievements</a>
+        <a href="#ironman">Ironman</a>
+        <a href="#privacy">Privacy</a>
+      </nav>
+      <a class="btn btn-primary btn-small" href="#get-access">Get early access</a>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <!-- ===== Hero ===== -->
+    <section class="hero">
+      <div class="wrap hero-inner">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Coming soon to Android</p>
+          <h1>Build streaks<br><span class="gradient-text">worth celebrating.</span></h1>
+          <p class="lede">
+            Streakaholic is a playful, private habit tracker. Check off a habit, watch the
+            streak grow, and get a proper celebration when you hit a milestone.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#get-access">Get early access</a>
+            <a class="btn btn-ghost" href="#streaks">See what's inside</a>
+          </div>
+          <p class="fineprint">No account. No ads. Your habits stay on your phone.</p>
+        </div>
+        <div class="hero-art">
+          <figure style="margin:0">
+            <div class="phone">
+              <video class="demo-video" autoplay muted loop playsinline preload="metadata"
+                     poster="assets/video/demo-light-poster.webp"
+                     data-light="assets/video/demo-light.mp4" data-dark="assets/video/demo-dark.mp4"
+                     data-light-poster="assets/video/demo-light-poster.webp" data-dark-poster="assets/video/demo-dark-poster.webp"
+                     aria-label="Screen recording: checking off Drink water, then Read before bed, which reaches a 10-day streak and plays a celebration.">
+                <source src="assets/video/demo-light.mp4" type="video/mp4">
+              </video>
+            </div>
+            <figcaption class="video-caption">Hold to check off a habit. Hit 10 days and it celebrates with you.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <ul class="strip">
+        <li>🔥 Daily streaks</li>
+        <li>🔔 Reminders your way</li>
+        <li>🏆 Achievements</li>
+        <li>🛡️ Ironman mode</li>
+        <li>📤 Share cards</li>
+        <li>🔒 Private by design</li>
+      </ul>
+    </div>
+
+    <!-- ===== Streaks ===== -->
+    <section class="section" id="streaks">
+      <div class="wrap">
+        <div class="feature">
+          <div class="feature-media">
+            <div class="phone">
+              <picture>
+                <source srcset="assets/screens/home-dark.webp" media="(prefers-color-scheme: dark)">
+                <img src="assets/screens/home-light.webp" alt="Home screen with six habit cards, each showing its streak count" width="640" height="1385" loading="lazy">
+              </picture>
+            </div>
+            <div class="phone">
+              <picture>
+                <source srcset="assets/screens/detail-streaks-dark.webp" media="(prefers-color-scheme: dark)">
+                <img src="assets/screens/detail-streaks-light.webp" alt="Streak history for Morning workout, with a best streak of 132 days" width="640" height="1385" loading="lazy">
+              </picture>
+            </div>
+          </div>
+          <div class="feature-copy">
+            <p class="kicker kicker-fire">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.66 11.2c-.23-.3-.51-.56-.77-.82-.67-.6-1.43-1.03-2.07-1.66C13.33 7.26 13 4.85 13.95 3c-.95.23-1.78.75-2.49 1.32-2.59 2.08-3.61 5.75-2.39 8.9.04.1.08.2.08.33 0 .22-.15.42-.35.5-.23.1-.47.04-.66-.12a.58.58 0 0 1-.14-.17c-1.13-1.43-1.31-3.48-.55-5.12C5.78 10 4.87 12.3 5 14.47c.06.5.12 1 .29 1.5.14.6.41 1.2.71 1.73 1.08 1.73 2.95 2.97 4.96 3.22 2.14.27 4.43-.12 6.07-1.6 1.83-1.66 2.47-4.32 1.53-6.6l-.13-.26c-.21-.46-.77-1.26-.77-1.26Z"/></svg>
+              Streaks
+            </p>
+            <h2>Keep the streak alive</h2>
+            <p>
+              Give each habit the schedule that fits your life, then press and hold to check it
+              off. The ring fills, the count goes up, and your momentum is right there on the
+              home screen.
+            </p>
+            <ul class="checks">
+              <li><strong>Flexible schedules.</strong> Daily, chosen days, or a weekly or monthly goal.</li>
+              <li><strong>Fair counting.</strong> A day that isn't due never breaks your streak.</li>
+              <li><strong>More than once a day.</strong> Set a daily target, like four glasses of water.</li>
+              <li><strong>Your full history.</strong> Every streak you've had, plus your best one.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Reminders -->
+        <div class="feature flip" id="reminders">
+          <div class="feature-media">
+            <div class="reminder-stack" aria-hidden="true">
+              <div class="levels">
+                <div class="level"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 22.73 18.11 20H3v-1l2-2v-6c0-1.11.25-2.2.72-3.17L1.11 3.27 2.39 2l19.73 19.72-1.28 1.01ZM19 15.8V11c0-3.1-2.03-5.83-5-6.71V4a2 2 0 0 0-4 0v.29c-.61.18-1.17.45-1.68.79L19 15.8ZM10 21a2 2 0 0 0 4 0h-4Z"/></svg></span>Off</div>
+                <div class="level on"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 19v1H3v-1l2-2v-6c0-3.1 2.03-5.83 5-6.71V4a2 2 0 0 1 4 0v.29c2.97.88 5 3.61 5 6.71v6l2 2Zm-7 2a2 2 0 0 1-4 0h4Z"/></svg></span>Once</div>
+                <div class="level"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 19v1H3v-1l2-2v-6c0-3.1 2.03-5.83 5-6.71V4a2 2 0 0 1 4 0v.29c2.97.88 5 3.61 5 6.71v6l2 2Zm-7 2a2 2 0 0 1-4 0h4ZM19.75 3.19l-1.42 1.42A8.96 8.96 0 0 1 21 11h2a10.96 10.96 0 0 0-3.25-7.81ZM1 11h2c0-2.5 1.02-4.74 2.67-6.39L4.25 3.19A10.96 10.96 0 0 0 1 11Z"/></svg></span>Repeat</div>
+                <div class="level"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 19v1H3v-1l2-2v-6c0-3.1 2.03-5.83 5-6.71V4a2 2 0 0 1 4 0v.29c2.97.88 5 3.61 5 6.71v6l2 2Zm-7 2a2 2 0 0 1-4 0h4Zm-3-14v6h2V7h-2Zm0 8v2h2v-2h-2Z"/></svg></span>Until done</div>
+                <div class="level"><span class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 14h12v6H6v-6Zm6-10a6 6 0 0 1 6 6v3H6v-3a6 6 0 0 1 6-6Zm-1-3h2v2h-2V1ZM3.64 3.22l1.42-1.41 1.41 1.41-1.41 1.42-1.42-1.42Zm13.89 0 1.41-1.41 1.42 1.41-1.42 1.42-1.41-1.42Z"/></svg></span>Alarm</div>
+              </div>
+              <div class="notif">
+                <span class="notif-icon" style="background:#9B59D0"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1Zm0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5v11.5Z"/></svg></span>
+                <div><b>Read before bed</b><small>Your 9-day streak is waiting for today's pages.</small></div>
+                <time>9:00 PM</time>
+              </div>
+              <div class="notif">
+                <span class="notif-icon" style="background:#26A69A"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.77 11.25 4.6S9.42 6.68 7.6 9.25c-1.79 2.53-3.6 5.4-3.6 7.75a8 8 0 0 0 16 0c0-2.35-1.81-5.22-3.6-7.75C14.58 6.68 12.75 4.6 12.75 4.6L12 3.77Z"/></svg></span>
+                <div><b>Drink water</b><small>2 of 4 done. Two more to go.</small></div>
+                <time>2:00 PM</time>
+              </div>
+              <div class="notif">
+                <span class="notif-icon" style="background:#FF5A5F"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.57 14.86 22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29l-1.43-1.43Z"/></svg></span>
+                <div><b>Morning workout</b><small>Keep the 34-day streak going.</small></div>
+                <time>7:00 AM</time>
+              </div>
+            </div>
+          </div>
+          <div class="feature-copy">
+            <p class="kicker kicker-blue">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 19v1H3v-1l2-2v-6c0-3.1 2.03-5.83 5-6.71V4a2 2 0 0 1 4 0v.29c2.97.88 5 3.61 5 6.71v6l2 2Zm-7 2a2 2 0 0 1-4 0h4Z"/></svg>
+              Reminders
+            </p>
+            <h2>Nudges that match your style</h2>
+            <p>
+              Pick how persistent each habit's reminder should be, from one gentle ping to a
+              reminder that stays put until the habit is done.
+            </p>
+            <ul class="checks">
+              <li><strong>Five levels.</strong> Off, once, repeat, until done, or alarm.</li>
+              <li><strong>Your time.</strong> Set a reminder time for each habit.</li>
+              <li><strong>Only when it's due.</strong> Already done today? No reminder.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Achievements ===== -->
+    <section class="section section-alt" id="achievements">
+      <div class="wrap">
+        <div class="feature">
+          <div class="feature-media">
+            <div class="phone">
+              <picture>
+                <source srcset="assets/screens/celebrate-dark.webp" media="(prefers-color-scheme: dark)">
+                <img src="assets/screens/celebrate-light.webp" alt="Celebration screen for a 10-day streak milestone on Read before bed" width="640" height="1385" loading="lazy">
+              </picture>
+            </div>
+            <div class="phone">
+              <picture>
+                <source srcset="assets/screens/trophies-dark.webp" media="(prefers-color-scheme: dark)">
+                <img src="assets/screens/trophies-light.webp" alt="Trophy Case showing unlocked badges such as Habit Collector, One Year Strong and Night Owl" width="640" height="1385" loading="lazy">
+              </picture>
+            </div>
+          </div>
+          <div class="feature-copy">
+            <p class="kicker kicker-amber">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18 2c-.9 0-2 1-2 2H8c0-1-1.1-2-2-2H2v9c0 1 1 2 2 2h2.2c.4 2 1.7 3.7 4.8 4v2.08C8 19.54 8 22 8 22h8s0-2.46-3-2.92V17c3.1-.3 4.4-2 4.8-4H20c1 0 2-1 2-2V2h-4ZM6 11H4V4h2v7Zm14 0h-2V4h2v7Z"/></svg>
+              Achievements
+            </p>
+            <h2>Celebrate every milestone</h2>
+            <p>
+              Streak milestones, perfect weeks, comebacks, early mornings and late nights.
+              Each one unlocks with a full-screen celebration and a spot in your Trophy Case.
+            </p>
+            <ul class="checks">
+              <li><strong>Dozens to collect.</strong> Streak milestones from 2 days all the way to 1,000.</li>
+              <li><strong>A Trophy Case.</strong> See what you've earned and how close the next one is.</li>
+              <li><strong>Comebacks count.</strong> Restarting after a break earns its own badge.</li>
+              <li><strong>Your call.</strong> Snooze any celebration you've seen enough of.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Ironman ===== -->
+    <section class="section ironman" id="ironman">
+      <div class="wrap">
+        <div class="feature flip">
+          <div class="feature-media">
+            <div class="phone">
+              <img src="assets/screens/ironman-calendar.webp" alt="An Ironman habit's calendar. A banner reads: Ironman, past days are locked." width="640" height="1385" loading="lazy">
+            </div>
+            <div class="phone">
+              <img src="assets/screens/ironman-new-habit.webp" alt="New habit form with the Make it an Ironman habit switch turned on" width="640" height="1385" loading="lazy">
+            </div>
+          </div>
+          <div class="feature-copy">
+            <p class="kicker">
+              <span class="ironman-badge">
+                <svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4Zm0 6c.6 2.1 3 3.3 3 6.2a3 3 0 0 1-6 0c0-1.2.6-2 1.2-2.6 0 1 .5 1.7 1.2 1.9C11 10.6 11.3 8.6 12 7Z"/></svg>
+                IRONMAN
+              </span>
+            </p>
+            <h2>For the habits you won't let slide</h2>
+            <p>
+              Turn on Ironman when you create a habit and it plays by stricter rules. Only
+              today's check-in counts, so every streak it builds is the real thing.
+            </p>
+            <ul class="checks">
+              <li><strong>Past days lock.</strong> No filling in yesterday after the fact.</li>
+              <li><strong>No skips.</strong> Every due day needs a real check-in.</li>
+              <li><strong>On for good.</strong> Once a habit is Ironman, it stays Ironman.</li>
+              <li><strong>Worn with pride.</strong> The badge shows on the habit, its calendar and your share cards.</li>
+            </ul>
+            <ul class="medals" aria-label="Ironman achievements">
+              <li><b>Forged</b><span>7 days, Ironman</span></li>
+              <li><b>Iron Will</b><span>30 days, Ironman</span></li>
+              <li><b>Unbroken</b><span>100 days, unbroken</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Sharing + stats ===== -->
+    <section class="section" id="sharing">
+      <div class="wrap">
+        <div class="feature">
+          <div class="feature-media">
+            <div class="phone">
+              <picture>
+                <source srcset="assets/screens/share-dark.webp" media="(prefers-color-scheme: dark)">
+                <img src="assets/screens/share-light.webp" alt="Share preview showing a progress card for Morning workout with a 34-day Ironman streak" width="640" height="1385" loading="lazy">
+              </picture>
+            </div>
+          </div>
+          <div class="feature-copy">
+            <p class="kicker kicker-violet">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11A2.99 2.99 0 0 0 21 5a3 3 0 0 0-6 0c0 .24.04.47.09.7L8.04 9.81A2.99 2.99 0 0 0 3 12a3 3 0 0 0 5.04 2.19l7.12 4.16c-.05.21-.08.43-.08.65A2.92 2.92 0 1 0 18 16.08Z"/></svg>
+              Sharing
+            </p>
+            <h2>Show off the streak</h2>
+            <p>
+              Turn a habit's progress into a clean card and send it to a friend, a group chat or
+              your story. Cards are made on your phone and only go where you send them.
+            </p>
+            <ul class="checks">
+              <li><strong>Four styles.</strong> Stats, activity, trophies and momentum.</li>
+              <li><strong>Keep it vague.</strong> Leave the habit name off if you'd rather.</li>
+              <li><strong>Ironman shows.</strong> An Ironman streak gets its badge on the card.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="feature flip" id="stats">
+          <div class="feature-media">
+            <div class="phone">
+              <picture>
+                <source srcset="assets/screens/dashboard-dark.webp" media="(prefers-color-scheme: dark)">
+                <img src="assets/screens/dashboard-light.webp" alt="Dashboard showing 741 total completions, 4 of 6 active streaks and recently unlocked achievements" width="640" height="1385" loading="lazy">
+              </picture>
+            </div>
+            <div class="phone">
+              <picture>
+                <source srcset="assets/screens/calendar-dark.webp" media="(prefers-color-scheme: dark)">
+                <img src="assets/screens/calendar-light.webp" alt="A habit's month calendar with completed days linked into a streak" width="640" height="1385" loading="lazy">
+              </picture>
+            </div>
+          </div>
+          <div class="feature-copy">
+            <p class="kicker kicker-cyan">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 3v18h18v-2H5V3H3Zm4 14h2v-6H7v6Zm4 0h2V7h-2v10Zm4 0h2v-4h-2v4Z"/></svg>
+              Stats
+            </p>
+            <h2>See how far you've come</h2>
+            <p>
+              The dashboard brings every habit together: total completions, active streaks,
+              your best day of the week and progress over time. Each habit has its own
+              calendar too, with streaks linked day to day.
+            </p>
+            <ul class="checks">
+              <li><strong>Calendar views.</strong> Month and year, with every streak connected.</li>
+              <li><strong>Charts that matter.</strong> Completion rate, weekly average and best day.</li>
+              <li><strong>Catch up honestly.</strong> Tap a past day to fix a missed check-in (not on Ironman habits).</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Privacy ===== -->
+    <section class="section section-alt" id="privacy">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Your habits stay on your phone</h2>
+          <p>Streakaholic works without an account and never sends your habits anywhere. What you track is yours.</p>
+        </div>
+        <ul class="privacy-grid">
+          <li>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm0 10c4.42 0 8 1.79 8 4v2H4v-2c0-2.21 3.58-4 8-4Z"/></svg>
+            <b>No account</b>
+            <span>No sign-up, no email, no password. Open it and start.</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17 1H7a2 2 0 0 0-2 2v18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2Zm0 18H7V5h10v14Z"/></svg>
+            <b>On your device</b>
+            <span>Habits, streaks and trophies live only in the app on your phone.</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 5.27 3.28 4 20 20.72 18.73 22l-3.08-3.08c-1.15.38-2.37.58-3.65.58-5 0-9.27-3.11-11-7.5.69-1.76 1.79-3.31 3.19-4.54L2 5.27ZM12 9a3 3 0 0 1 3 3c0 .35-.06.69-.17 1L11 9.17c.31-.11.65-.17 1-.17Zm0-4.5c5 0 9.27 3.11 11 7.5a11.79 11.79 0 0 1-4 5.19l-1.42-1.43A9.86 9.86 0 0 0 20.82 12 9.82 9.82 0 0 0 12 6.5c-1.09 0-2.16.18-3.16.5L7.3 5.47c1.44-.62 3.03-.97 4.7-.97Z"/></svg>
+            <b>No ads or tracking</b>
+            <span>No ad networks, no analytics, nothing watching what you do.</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 20h14v-2H5v2ZM19 9h-4V3H9v6H5l7 7 7-7Z"/></svg>
+            <b>Export anytime</b>
+            <span>Save a backup file whenever you like and bring it to a new phone.</span>
+          </li>
+        </ul>
+        <p class="center-link"><a href="privacy/">Read the privacy policy</a></p>
+      </div>
+    </section>
+
+    <!-- ===== CTA ===== -->
+    <section class="cta-section" id="get-access">
+      <div class="wrap">
+        <div class="cta">
+          <h2>Start a streak worth celebrating</h2>
+          <p>Streakaholic is coming soon to Google Play. Want in early? Send us a note and we'll add you to the test group.</p>
+          <a class="btn btn-large" href="mailto:support@metamodernmonkey.com?subject=Streakaholic%20early%20access&amp;body=Hi%2C%20I%27d%20like%20to%20try%20Streakaholic%20on%20Android.%20The%20Google%20account%20email%20I%20use%20for%20Google%20Play%20is%3A%20">
+            Get early access
+          </a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <a class="brand" href="./">
+        <img src="assets/favicon-192.png" alt="" width="32" height="32">
+        <span>Streakaholic</span>
+      </a>
+      <ul class="footer-links">
+        <li><a href="support/">Support</a></li>
+        <li><a href="privacy/">Privacy policy</a></li>
+        <li><a href="terms/">Terms of service</a></li>
+        <li><a href="delete-data/">Delete your data</a></li>
+      </ul>
+      <p class="footer-fineprint">© <span class="year">2026</span> Meta Modern Monkey. Android and Google Play are trademarks of Google LLC.</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
