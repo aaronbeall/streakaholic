@@ -15,11 +15,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { WebSwitch } from '../components/WebSwitch';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { ColorPicker } from '../components/ColorPicker';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 import { IconPicker } from '../components/IconPicker';
+import { IronmanBadge, useIronmanPalette } from '../components/IronmanBadge';
 import { DAY_ABBREVIATIONS, DEFAULT_COLORS, DEFAULT_ICONS } from '../constants/task';
 import { useToast } from '../context/ToastContext';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
@@ -86,6 +88,7 @@ export const AddTaskScreen: React.FC = () => {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const ironmanPalette = useIronmanPalette();
 
   const editingTask = useMemo(() => tasks.find(t => t.id === taskId), [tasks, taskId]);
   const isEditing = !!editingTask;
@@ -126,6 +129,9 @@ export const AddTaskScreen: React.FC = () => {
   const [nagIntervalMinutes, setNagIntervalMinutes] = useState(
     editingTask?.notifications?.nagIntervalMinutes ?? DEFAULT_NAG_INTERVAL_MINUTES
   );
+  // Ironman is creation-only and permanent (see app/utils/ironman.ts) -- when editing this just
+  // mirrors the saved value for display; the store ignores any change to it on update.
+  const [ironman, setIronman] = useState(editingTask?.ironman ?? false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [notificationPermissionDenied, setNotificationPermissionDenied] = useState(false);
 
@@ -163,6 +169,7 @@ export const AddTaskScreen: React.FC = () => {
     notificationLevel: editingTask?.notifications?.level ?? (isEditing ? 0 : 1),
     notificationTime: editingTask?.notifications?.time ?? DEFAULT_NOTIFICATION_TIME,
     nagIntervalMinutes: editingTask?.notifications?.nagIntervalMinutes ?? DEFAULT_NAG_INTERVAL_MINUTES,
+    ironman: editingTask?.ironman ?? false,
   }).current;
 
   const daysOfWeekEqual = (a: number[], b: number[]) => a.length === b.length && a.every((d, i) => d === b[i]);
@@ -180,7 +187,8 @@ export const AddTaskScreen: React.FC = () => {
     timesPerDay !== initialFormValues.timesPerDay ||
     notificationLevel !== initialFormValues.notificationLevel ||
     notificationTime !== initialFormValues.notificationTime ||
-    nagIntervalMinutes !== initialFormValues.nagIntervalMinutes;
+    nagIntervalMinutes !== initialFormValues.nagIntervalMinutes ||
+    ironman !== initialFormValues.ironman;
 
   // These are the task settings that can reinterpret existing completion history and therefore
   // change achievement eligibility. Cosmetic edits and reminder settings do not affect the
@@ -321,6 +329,8 @@ export const AddTaskScreen: React.FC = () => {
       daysPerMonth,
       timesPerDay,
       notifications: { level: notificationLevel, time: notificationTime, nagIntervalMinutes },
+      // Only ever set on creation; omitted entirely for a standard habit.
+      ...(!editingTask && ironman ? { ironman: true } : {}),
     };
 
     try {
@@ -335,6 +345,12 @@ export const AddTaskScreen: React.FC = () => {
     } catch {
       showToast({ message: `Couldn't ${isEditing ? 'update' : 'create'} this habit. Please try again.` });
     }
+  };
+
+  const handleToggleIronman = (value: boolean) => {
+    if (isEditing) return;
+    Haptics.impactAsync(value ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
+    setIronman(value);
   };
 
   // Requesting permission only when the user actually opts into a level > 0 (contextual, not at
@@ -806,6 +822,37 @@ export const AddTaskScreen: React.FC = () => {
         />
       )}
 
+      {/* Ironman: promoted on creation (always visible, not a collapsible section), read-only
+          once set. A standard habit being edited shows nothing -- it can't become Ironman later,
+          since its history was never locked. */}
+      {(!isEditing || editingTask?.ironman) && (
+        <View style={[styles.ironmanCard, ironman && { backgroundColor: ironmanPalette.surface, borderColor: ironmanPalette.surfaceBorder }]}>
+          <View style={styles.ironmanHeaderRow}>
+            <IronmanBadge size={16} />
+            {isEditing ? (
+              <MaterialCommunityIcons name="lock" size={18} color={ironmanPalette.accent} accessibilityLabel="Locked" />
+            ) : (
+              <WebSwitch
+                value={ironman}
+                onValueChange={handleToggleIronman}
+                trackColor={{ false: colors.border, true: ironmanPalette.accent }}
+                thumbColor="#fff"
+                activeThumbColor="#fff"
+                accessibilityLabel="Ironman mode"
+              />
+            )}
+          </View>
+          <Text style={[styles.ironmanTitle, ironman && { color: ironmanPalette.surfaceTitle }]}>
+            {isEditing ? 'This is an Ironman habit' : 'Make it an Ironman habit'}
+          </Text>
+          <Text style={[styles.ironmanBody, ironman && { color: ironmanPalette.surfaceBody }]}>
+            {isEditing
+              ? 'Past days are locked, so every streak here is the real thing. Ironman stays on for good.'
+              : "Starts from zero, and only today ever counts: no past days, no skips. Every streak is the real thing and wears the Ironman badge. Ironman can't be turned off."}
+          </Text>
+        </View>
+      )}
+
       {atTaskLimit && (
         <Text style={styles.taskLimitText}>{ACTIVE_TASK_LIMIT_MESSAGE}</Text>
       )}
@@ -928,6 +975,31 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   inputError: {
     borderColor: '#FF3B30',
+  },
+  ironmanCard: {
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 16,
+    gap: 6,
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  ironmanHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  ironmanTitle: {
+    marginTop: 4,
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  ironmanBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textSecondary,
   },
   errorText: {
     color: '#FF3B30',

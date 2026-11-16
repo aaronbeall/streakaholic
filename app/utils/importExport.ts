@@ -1,4 +1,5 @@
 import { Task, TasksExport } from '../types';
+import { mergeIronmanFields } from './ironman';
 
 export const TASKS_EXPORT_SCHEMA_VERSION = 1;
 
@@ -85,7 +86,12 @@ export const mergeTaskLists = (current: Task[], incoming: Task[]): Task[] => {
       [...(older.completions ?? []), ...(newer.completions ?? [])].map(c => [c.id, c])
     );
 
-    merged.set(incomingTask.id, { ...newer, completions: Array.from(completionsById.values()) });
+    // Ironman is one-way: a merge can't quietly drop it.
+    merged.set(incomingTask.id, {
+      ...newer,
+      ...mergeIronmanFields(existingTask, incomingTask),
+      completions: Array.from(completionsById.values()),
+    });
   }
 
   return Array.from(merged.values());

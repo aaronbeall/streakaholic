@@ -49,6 +49,7 @@ export const DashboardStreaksView: React.FC<{ tasks: Task[] }> = ({ tasks }) => 
 
   // getRecentStreaks already sorts newest-first; "best" mode just re-sorts a copy by length.
   const allStreaks = useMemo(() => getRecentStreaks(tasks, ALL_STREAKS_LIMIT), [tasks]);
+
   const sortedStreaks = useMemo(() => (
     sortMode === 'best' ? [...allStreaks].sort((a, b) => b.length - a.length) : allStreaks
   ), [allStreaks, sortMode]);

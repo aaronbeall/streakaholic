@@ -1,11 +1,14 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { IronmanIcon, useIronmanPalette } from './IronmanBadge';
 
 interface StreakCountBadgeProps {
   value: number;
   iconSize?: number;
   style?: ViewStyle;
+  // An Ironman habit's streak: steel plate, gold rim, shield instead of fire -- see IronmanBadge.
+  ironman?: boolean;
 }
 
 // The same red TaskCard's own home-tile badge uses for an active ("up_to_date"/fire) streak --
@@ -21,19 +24,27 @@ const STREAK_RED = '#FF6B6B';
 // text, the same subtle drop shadow) rather than the plain circular badge this started as -- just
 // without that indicator's celebration pop/particle animation, since this badge is a static
 // historical-length label, not a live "you just hit a new streak" moment.
-export const StreakCountBadge: React.FC<StreakCountBadgeProps> = ({ value, iconSize = 11, style }) => {
+export const StreakCountBadge: React.FC<StreakCountBadgeProps> = ({ value, iconSize = 11, style, ironman = false }) => {
   const fontSize = Math.round(iconSize * 0.85);
   const paddingHorizontal = Math.round(iconSize * 0.35);
   const paddingVertical = Math.max(1, Math.round(iconSize * 0.15));
   const gap = Math.max(1, Math.round(iconSize * 0.15));
+  const ironmanPalette = useIronmanPalette();
 
   return (
     <View
-      style={[styles.badge, { backgroundColor: STREAK_RED, paddingHorizontal, paddingVertical, gap }, style]}
+      style={[
+        styles.badge,
+        { backgroundColor: STREAK_RED, paddingHorizontal, paddingVertical, gap },
+        ironman && { backgroundColor: ironmanPalette.fillTo, borderWidth: 1, borderColor: ironmanPalette.border },
+        style,
+      ]}
       pointerEvents="none"
     >
-      <MaterialCommunityIcons name="fire" size={iconSize} color="#fff" />
-      <Text style={[styles.text, { fontSize }]} numberOfLines={1}>{value}</Text>
+      {ironman
+        ? <IronmanIcon size={iconSize + 1} color={ironmanPalette.shield} />
+        : <MaterialCommunityIcons name="fire" size={iconSize} color="#fff" />}
+      <Text style={[styles.text, { fontSize }, ironman && [styles.ironmanText, { color: ironmanPalette.text }]]} numberOfLines={1}>{value}</Text>
     </View>
   );
 };
@@ -52,5 +63,8 @@ const styles = StyleSheet.create({
   text: {
     color: '#fff',
     fontWeight: '600',
+  },
+  ironmanText: {
+    fontWeight: '800',
   },
 });

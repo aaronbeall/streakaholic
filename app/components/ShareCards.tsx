@@ -5,6 +5,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { BRAND_TAGLINE } from '../constants/brand';
 import { TrophyEmblem } from './AchievementCard';
+import { IRONMAN_GOLD, IronmanBadge, IronmanIcon } from './IronmanBadge';
 import { MaterialCommunityIconName } from '../types';
 import { Achievement, ACHIEVEMENT_META, getRibbonText } from '../utils/achievements';
 
@@ -26,8 +27,11 @@ const ShareDateStamp: React.FC = () => (
   <Text style={styles.shareDateText}>{format(new Date(), 'EEEE, MMMM d')}</Text>
 );
 
-const ShareCardFrame: React.FC<{ accentColor: string; children: React.ReactNode }> = ({ accentColor, children }) => (
-  <View style={styles.frame}>
+// `ironman` gives the whole card a gold rim -- the Ironman treatment is layered onto each card
+// without taking any extra vertical space (these cards have a fixed size budget), via this rim,
+// the icon badge's gold ring + shield, and Ironman-specific eyebrow/hero wording.
+const ShareCardFrame: React.FC<{ accentColor: string; ironman?: boolean; children: React.ReactNode }> = ({ accentColor, ironman, children }) => (
+  <View style={[styles.frame, ironman && styles.frameIronman]}>
     <View style={[styles.glowOne, { backgroundColor: accentColor }]} />
     <View style={[styles.glowTwo, { borderColor: accentColor }]} />
     <ShareDateStamp />
@@ -48,15 +52,16 @@ const ShareCardFrame: React.FC<{ accentColor: string; children: React.ReactNode 
 export const AchievementShareCard: React.FC<{
   achievement: Achievement;
   includeTaskName: boolean;
-}> = ({ achievement, includeTaskName }) => {
+  ironman?: boolean;
+}> = ({ achievement, includeTaskName, ironman }) => {
   const meta = ACHIEVEMENT_META[achievement.kind];
   const description = achievement.taskName && meta.triggerSuffix
     ? `This habit${meta.triggerSuffix(achievement.value ?? 0)}`
     : meta.describe(achievement);
 
   return (
-    <ShareCardFrame accentColor={meta.color.glow}>
-      <Text style={styles.eyebrow}>ACHIEVEMENT UNLOCKED</Text>
+    <ShareCardFrame accentColor={meta.color.glow} ironman={ironman}>
+      <Text style={[styles.eyebrow, ironman && styles.eyebrowIronman]}>{ironman ? 'IRONMAN ACHIEVEMENT' : 'ACHIEVEMENT UNLOCKED'}</Text>
       <View style={styles.shareEmblemStage}>
         {/* Static echoes of TrophyBadge's animated aura. The emblem in the middle is the exact
             non-animated component used by the Trophy Case and stats showcases; these rings and
@@ -146,10 +151,15 @@ const StatRow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 // The top-of-card icon badge every per-habit share card leads with (originally only
 // HabitStatsShareCard's own inline markup) -- extracted so every habit variant shares one visual
 // identity anchor rather than each re-declaring the same circle.
-const HabitIconBadge: React.FC<{ icon: MaterialCommunityIconName; color: string }> = ({ icon, color }) => (
-  <View style={[styles.habitIcon, { backgroundColor: color }]}>
+const HabitIconBadge: React.FC<{ icon: MaterialCommunityIconName; color: string; ironman?: boolean }> = ({ icon, color, ironman }) => (
+  <View style={[styles.habitIcon, { backgroundColor: color }, ironman && styles.habitIconIronman]}>
     <MaterialCommunityIcons name={icon} size={26} color="#fff" />
+    {ironman && <IronmanBadge variant="emblem" size={12} tone="dark" style={styles.habitIconIronmanEmblem} />}
   </View>
+);
+
+const HabitEyebrow: React.FC<{ text: string; ironman?: boolean }> = ({ text, ironman }) => (
+  <Text style={[styles.eyebrow, ironman && styles.eyebrowIronman]}>{ironman ? `IRONMAN · ${text}` : text}</Text>
 );
 
 export interface HabitLegendItem {
@@ -208,17 +218,18 @@ export const HabitStatsShareCard: React.FC<{
   // full date as the headline value of a stat cell.
   since: string;
   daysTracked: number;
-}> = ({ name, includeName, icon, color, currentStreak, bestStreak, totalCompletions, completionRate, since, daysTracked }) => (
-  <ShareCardFrame accentColor={color}>
-    <HabitIconBadge icon={icon} color={color} />
-    <Text style={styles.eyebrow}>MY HABIT PROGRESS</Text>
+  ironman?: boolean;
+}> = ({ name, includeName, icon, color, currentStreak, bestStreak, totalCompletions, completionRate, since, daysTracked, ironman }) => (
+  <ShareCardFrame accentColor={color} ironman={ironman}>
+    <HabitIconBadge icon={icon} color={color} ironman={ironman} />
+    <HabitEyebrow text="MY HABIT PROGRESS" ironman={ironman} />
     <Text style={styles.statsTitle} numberOfLines={2}>{includeName ? name : ''}</Text>
     <View style={styles.heroMetric}>
       <View style={styles.heroMetricValueRow}>
-        <MaterialCommunityIcons name="fire" size={30} color={color} />
+        {ironman ? <IronmanIcon size={34} /> : <MaterialCommunityIcons name="fire" size={30} color={color} />}
         <Text style={[styles.heroMetricValue, { color }]}>{currentStreak}</Text>
       </View>
-      <Text style={styles.heroMetricLabel}>current streak</Text>
+      <Text style={[styles.heroMetricLabel, ironman && styles.heroMetricLabelIronman]}>{ironman ? 'Ironman streak' : 'current streak'}</Text>
     </View>
     <StatRow>
       <StatCell value={String(bestStreak)} label="Best streak" icon="trophy" iconColor={TROPHY_GOLD} />
@@ -460,13 +471,15 @@ const MomentumRing: React.FC<{
   fraction: number;
   color: string;
   icon: MaterialCommunityIconName;
+  // Replaces the glyph when set (the Ironman card's drawn shield icon).
+  iconNode?: React.ReactNode;
   // ReactNode, not just number -- lets a caller pass a de-emphasized "/total" suffix nested
   // inside (e.g. DashboardMomentumShareCard's "X/Y" ratio, same statValueDim-style technique
   // StatCell's own value prop already established) alongside a caller that just wants a plain
   // count (HabitMomentumShareCard's currentStreak).
   centerValue: React.ReactNode;
   centerLabel: string;
-}> = ({ fraction, color, icon, centerValue, centerLabel }) => (
+}> = ({ fraction, color, icon, iconNode, centerValue, centerLabel }) => (
   <View style={styles.ringStage}>
     <Svg width={RING_SIZE} height={RING_SIZE}>
       <Circle
@@ -492,7 +505,7 @@ const MomentumRing: React.FC<{
       />
     </Svg>
     <View style={styles.ringCenter}>
-      <MaterialCommunityIcons name={icon} size={18} color={color} />
+      {iconNode ?? <MaterialCommunityIcons name={icon} size={18} color={color} />}
       <Text style={styles.ringCenterValue}>{centerValue}</Text>
       <Text style={styles.ringCenterLabel}>{centerLabel}</Text>
     </View>
@@ -595,10 +608,11 @@ export const HabitActivityShareCard: React.FC<{
   data: number[];
   totalThisWeek: number;
   bestWeek: number;
-}> = ({ name, includeName, icon, color, labels, data, totalThisWeek, bestWeek }) => (
-  <ShareCardFrame accentColor={color}>
-    <HabitIconBadge icon={icon} color={color} />
-    <Text style={styles.eyebrow}>MY WEEKLY ACTIVITY</Text>
+  ironman?: boolean;
+}> = ({ name, includeName, icon, color, labels, data, totalThisWeek, bestWeek, ironman }) => (
+  <ShareCardFrame accentColor={color} ironman={ironman}>
+    <HabitIconBadge icon={icon} color={color} ironman={ironman} />
+    <HabitEyebrow text="MY WEEKLY ACTIVITY" ironman={ironman} />
     <Text style={styles.statsTitle} numberOfLines={2}>{includeName ? name : ''}</Text>
     <ActivityBarChart labels={labels} data={data} accentColor={color} />
     <StatRow>
@@ -615,10 +629,11 @@ export const HabitTrophyShareCard: React.FC<{
   color: string;
   recentAchievements: Achievement[];
   totalUnlocked: number;
-}> = ({ name, includeName, icon, color, recentAchievements, totalUnlocked }) => (
-  <ShareCardFrame accentColor={color}>
-    <HabitIconBadge icon={icon} color={color} />
-    <Text style={styles.eyebrow}>MY TROPHY CASE</Text>
+  ironman?: boolean;
+}> = ({ name, includeName, icon, color, recentAchievements, totalUnlocked, ironman }) => (
+  <ShareCardFrame accentColor={color} ironman={ironman}>
+    <HabitIconBadge icon={icon} color={color} ironman={ironman} />
+    <HabitEyebrow text="MY TROPHY CASE" ironman={ironman} />
     <Text style={styles.statsTitle} numberOfLines={2}>{includeName ? name : ''}</Text>
     <Text style={styles.trophyCountText}>
       {totalUnlocked > 0 ? `${totalUnlocked} trophies earned` : 'No trophies yet'}
@@ -643,12 +658,13 @@ export const HabitMomentumShareCard: React.FC<{
   // its caption) -- "how often," not "what fraction of days," so the stat row adds real
   // information instead of just restating the caption above it in a different format.
   avgPerWeek: number;
-}> = ({ name, includeName, icon, color, currentStreak, bestStreak, completionRate, avgPerWeek }) => (
-  <ShareCardFrame accentColor={color}>
-    <HabitIconBadge icon={icon} color={color} />
-    <Text style={styles.eyebrow}>MY MOMENTUM</Text>
+  ironman?: boolean;
+}> = ({ name, includeName, icon, color, currentStreak, bestStreak, completionRate, avgPerWeek, ironman }) => (
+  <ShareCardFrame accentColor={color} ironman={ironman}>
+    <HabitIconBadge icon={icon} color={color} ironman={ironman} />
+    <HabitEyebrow text="MY MOMENTUM" ironman={ironman} />
     <Text style={styles.statsTitle} numberOfLines={2}>{includeName ? name : ''}</Text>
-    <MomentumRing fraction={completionRate} color={color} icon="fire" centerValue={currentStreak} centerLabel="day streak" />
+    <MomentumRing fraction={completionRate} color={color} icon="fire" iconNode={ironman ? <IronmanIcon size={20} /> : undefined} centerValue={currentStreak} centerLabel={ironman ? 'Ironman' : 'day streak'} />
     <Text style={styles.ringCaption}>{Math.round(completionRate * 100)}% completion rate</Text>
     <StatRow>
       <StatCell value={String(bestStreak)} label="Best streak" icon="trophy" iconColor={TROPHY_GOLD} />
@@ -704,6 +720,25 @@ const styles = StyleSheet.create({
     // flex-start keeps every card's heading sitting right below the date at a fixed distance, and
     // lets any real leftover slack collect safely at the bottom (above the brand row) instead.
     justifyContent: 'flex-start',
+  },
+  frameIronman: {
+    borderWidth: 2,
+    borderColor: IRONMAN_GOLD,
+  },
+  eyebrowIronman: {
+    color: IRONMAN_GOLD,
+  },
+  habitIconIronman: {
+    borderWidth: 2,
+    borderColor: IRONMAN_GOLD,
+  },
+  habitIconIronmanEmblem: {
+    position: 'absolute',
+    right: -8,
+    bottom: -6,
+  },
+  heroMetricLabelIronman: {
+    color: IRONMAN_GOLD,
   },
   eyebrow: {
     color: '#AEB6C8',

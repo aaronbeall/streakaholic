@@ -26,6 +26,7 @@ import { MissedDayMark } from './MissedDayMark';
 import { PassThroughDayMark } from './PassThroughDayMark';
 import { ParticleSystem } from './ParticleSystem';
 import { PartialDayPie } from './PartialDayPie';
+import { IronmanBadge } from './IronmanBadge';
 import { TaskProgressIcon } from './TaskProgressIcon';
 import { getTrailingBlankCount } from '../utils/calendarGrid';
 import { getExpectedPeriodTotal } from '../utils/periodStats';
@@ -149,6 +150,7 @@ const CardTask = React.memo(({ task, size, progress, isPressed, isCompleting, on
 
   return (
     <View style={styles.contentContainer}>
+      {task.ironman && <IronmanBadge variant="emblem" size={14} style={styles.ironmanEmblem} />}
       <View style={{ marginBottom: iconMarginBottom }}>
         <TaskProgressIcon
           task={task}
@@ -784,6 +786,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+  },
+  // Ironman habits: a medal emblem in the corner opposite the streak bubble -- see IronmanBadge.
+  ironmanEmblem: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
   },
   streakText: {
     fontSize: 12,

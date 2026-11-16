@@ -1,6 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import { MaterialCommunityIconName, Task } from '../types';
 import { formatFrequencySentence } from './formatFrequency';
+import { canSkipOn, isIronman } from './ironman';
 import { getCompletionCount, isDueOnDate } from './streaks';
 
 // Three deliberately separate elements (2026-08-14, per explicit user direction after an earlier
@@ -204,7 +205,7 @@ export const getTaskStatusInfo = (task: Task, today: Date = new Date()): TaskSta
   const isCompletedToday = getCompletionCount(task, today) >= timesPerDay;
 
   return {
-    scheduleSentence: `${formatFrequencySentence(task)} Started ${createdAtLabel}.`,
+    scheduleSentence: `${formatFrequencySentence(task)} Started ${createdAtLabel}.${isIronman(task) ? ' Ironman habit, so past days are locked.' : ''}`,
     status: buildStatusBadge(task, today),
     frequencyExplainer: buildFrequencyExplainer(task),
     // No streak count here -- Status above already states it (e.g. "keeping your 5-day streak
@@ -213,7 +214,8 @@ export const getTaskStatusInfo = (task: Task, today: Date = new Date()): TaskSta
       ? { icon: 'trophy', color: BEST_COLOR, text: 'This is your best streak yet!' }
       : null,
     canSkipToday: (task.frequency === 'daily' || task.frequency === 'specific_days_of_week')
-      && isDueOnDate(task, today) && !isCompletedToday,
+      && isDueOnDate(task, today) && !isCompletedToday
+      && canSkipOn(task, format(today, 'yyyy-MM-dd'), today),
     isSkippedToday: (task.frequency === 'daily' || task.frequency === 'specific_days_of_week')
       && (task.skippedDates?.includes(format(today, 'yyyy-MM-dd')) ?? false),
   };
