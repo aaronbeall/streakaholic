@@ -364,10 +364,10 @@ p { margin: 0; }
   max-width: 30rem;
   margin: 1.9rem auto 0;
 }
-.signup-fallback { display: flex; justify-content: center; }
-/* Once the EmailOctopus embed is pasted in, hide the fallback. */
-.signup:has(script, form) .signup-fallback { display: none; }
-.signup [data-form] { margin: 0 auto; }
+.signup { display: flex; flex-direction: column; align-items: center; }
+.signup > div { width: 100%; }
+/* If EmailOctopus renders the form inline, the pop-up toggle button isn't needed. */
+.signup:has(form) [data-eo-form-toggle-id] { display: none; }
 
 .form-note {
   grid-column: 1 / -1;
@@ -464,7 +464,7 @@ p { margin: 0; }
   .feature-grid { grid-template-columns: 1fr; max-width: 24rem; }
   .phone, .phone-hero { border-radius: 32px; }
   .phone img, .phone video { border-radius: 24px; }
-  .signup-fallback .btn { width: 100%; }
+  .signup .btn { width: 100%; }
 }
 
 /* ---------- Policy and support pages ---------- */

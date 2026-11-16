@@ -38,11 +38,11 @@ tool), update `privacy/` and `delete-data/` and the Play Data safety form togeth
 ## Current state
 
 The app isn't published yet (see `RELEASE_GUIDE.md`, still pre-Closed-testing), so
-there's no Play Store link to send visitors to. Early access is an EmailOctopus list.
-The form is EmailOctopus's own inline embed, pasted into `#signup` in `index.html`; it
-shows its success message only after EmailOctopus has accepted the address. Until the
-embed is pasted in, a `mailto:` button stands in. Include the embed only once per page.
-Style it (colors, font) in EmailOctopus's form editor, not here. **Swap the section for
+there's no Play Store link to send visitors to. Early access is an EmailOctopus pop-up form
+(tagged "streakaholic" in EmailOctopus). Its script and the "Get early access" toggle
+button live in `#signup` in `index.html`; the form shows its success message only after
+EmailOctopus has accepted the address. Include the script only once per page. Style
+the pop-up (colors, font, copy) in EmailOctopus's form editor, not here. **Swap the section for
 a Play Store badge/link once the app is public**: search `#get-access` in `index.html`.
 
 The page opens with a dark hero that keeps copy and a phone preview in one desktop
