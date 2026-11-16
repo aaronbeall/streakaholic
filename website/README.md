@@ -25,9 +25,12 @@ Point any static host (Vercel, Netlify, GitHub Pages, Cloudflare Pages) at this
 ## Current state
 
 The app isn't published yet (see `RELEASE_GUIDE.md` — still pre-Closed-testing), so
-there's no Play Store link to send visitors to. The primary CTA is a `mailto:` to
-`support@metamodernmonkey.com` asking to join early testing. **Swap this for a real Play
-Store badge/link once the app is public** — search `#get-access` in `index.html`.
+there's no Play Store link to send visitors to. Early access is an on-page email form
+that posts to [FormSubmit](https://formsubmit.co) and lands in
+`support@metamodernmonkey.com`. The first submission from a new hosting domain asks that
+inbox to confirm once; after that, each signup arrives as a normal email. A `mailto:`
+fallback stays under the form. **Swap the form for a Play Store badge/link once the app
+is public** — search `#get-access` in `index.html`.
 
 The page is a short sequence of the real app: a looping completion video
 (`assets/complete.mp4`) and stills in `assets/screens/`. Those frames were captured from

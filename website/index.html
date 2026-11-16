@@ -42,6 +42,10 @@
       <div class="wrap hero-copy">
         <p class="eyebrow">For Android</p>
         <h1>Build streaks worth celebrating.</h1>
+        <p class="lede">
+          A playful habit tracker that turns small daily wins into visible streaks,
+          milestones, and a Trophy Case — while your data stays on your device.
+        </p>
       </div>
 
       <figure class="phone phone-hero">
@@ -64,50 +68,110 @@
       <p class="quiet">No account. No cloud. No subscription.</p>
     </section>
 
-    <section class="shot">
-      <div class="wrap">
-        <h2>How far it's gone.</h2>
+    <section class="shot shot-frame">
+      <div class="wrap shot-inner">
+        <div class="shot-copy">
+          <h2>Make it yours.</h2>
+          <p>Name it, pick an icon and color, then choose daily, specific days, or a weekly or monthly goal. Reminders stay optional.</p>
+        </div>
+        <figure class="phone">
+          <img src="assets/screens/create-habit.png" width="786" height="1704" alt="The New habit screen with name, icon, color, and schedule options for Walk the dog.">
+        </figure>
+      </div>
+    </section>
+
+    <section class="shot shot-frame shot-alt shot-flip">
+      <div class="wrap shot-inner">
+        <div class="shot-copy">
+          <h2>How far it's gone.</h2>
+          <p>Current and best streaks, plus the full history of every run — not just today's number.</p>
+        </div>
         <figure class="phone">
           <img src="assets/screens/streaks.png" width="786" height="1704" alt="A 132-day best streak for Morning Workout, with the streak history underneath.">
         </figure>
       </div>
     </section>
 
-    <section class="shot shot-alt">
-      <div class="wrap">
-        <h2>Which days matter.</h2>
+    <section class="shot shot-frame">
+      <div class="wrap shot-inner">
+        <div class="shot-copy">
+          <h2>Which days matter.</h2>
+          <p>Miss a day that wasn't due and the streak holds. Catch up early and it counts. Skip on purpose when you need to.</p>
+        </div>
         <figure class="phone">
           <img src="assets/screens/calendar-grid.png" width="786" height="1704" alt="A November calendar of six habits. Daily dots, weekday dots, a few days a week, and days that were never due.">
         </figure>
       </div>
     </section>
 
-    <section class="shot">
-      <div class="wrap">
-        <h2>All of it at once.</h2>
+    <section class="shot shot-frame shot-alt shot-flip">
+      <div class="wrap shot-inner">
+        <div class="shot-copy">
+          <h2>All of it at once.</h2>
+          <p>A flowing view of every habit across the month, so the whole routine is visible in one glance.</p>
+        </div>
         <figure class="phone">
           <img src="assets/screens/calendar-stream.png" width="786" height="1704" alt="A flowing chart of every habit across the days of November, each habit in its own color.">
         </figure>
       </div>
     </section>
 
-    <section class="shot shot-alt">
-      <div class="wrap">
-        <h2>What you've earned.</h2>
+    <section class="shot shot-frame">
+      <div class="wrap shot-inner">
+        <div class="shot-copy">
+          <h2>What you've earned.</h2>
+          <p>Milestones, perfect weeks, comebacks, and more — collectible progress without a complicated game on top.</p>
+        </div>
         <figure class="phone">
           <img src="assets/screens/trophies.png" width="786" height="1704" alt="The Trophy Case, with unlocked milestones including a 100-day streak, a new best streak, and Night Owl.">
         </figure>
       </div>
     </section>
 
+    <section class="features" id="features">
+      <div class="wrap">
+        <h2>Everything a streak needs.</h2>
+        <p class="features-lede">Focused on the habit — not a to-do list wearing a streak counter.</p>
+        <ul class="feature-list">
+          <li>Flexible schedules — daily, chosen days, or days per week or month</li>
+          <li>Multiple completions a day for habits with a real quota</li>
+          <li>Fair streaks — non-due days don't break the chain</li>
+          <li>Skip a day on purpose without losing progress</li>
+          <li>Press-and-hold to complete, with a ring that fills in</li>
+          <li>Achievements and a Trophy Case</li>
+          <li>Dashboard calendars, charts, and streak history</li>
+          <li>Custom icon and color for every habit</li>
+          <li>Reminders from a gentle nudge to a persistent one</li>
+          <li>Light and dark mode</li>
+          <li>Export and import anytime</li>
+          <li>No account, ads, tracking, or subscription</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="cta" id="get-access">
       <div class="wrap">
         <h2>Keep it alive.</h2>
-        <p>Your habits stay on your device. Export them whenever you want.</p>
-        <a class="btn btn-large"
-           href="mailto:support@metamodernmonkey.com?subject=Notify%20me%20when%20Streakaholic%20launches&body=Hi%2C%20I%27d%20like%20to%20get%20early%20access%20to%20Streakaholic%20on%20Android.">
-          Get early access
-        </a>
+        <p>Your habits stay on your device. Leave your email and we'll invite you when testing opens.</p>
+
+        <form class="waitlist" id="waitlist-form" novalidate>
+          <label class="sr-only" for="waitlist-email">Email</label>
+          <input
+            id="waitlist-email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            inputmode="email"
+            required
+            placeholder="you@example.com"
+          >
+          <button class="btn btn-large" type="submit">Get early access</button>
+          <p class="form-status" id="waitlist-status" role="status" aria-live="polite" hidden></p>
+          <p class="form-note">
+            Or email
+            <a href="mailto:support@metamodernmonkey.com?subject=Notify%20me%20when%20Streakaholic%20launches">support@metamodernmonkey.com</a>
+          </p>
+        </form>
       </div>
     </section>
 
