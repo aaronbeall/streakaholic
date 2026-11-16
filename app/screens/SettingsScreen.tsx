@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import * as StoreReview from 'expo-store-review';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Platform, ScrollView, Share, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useShallow } from 'zustand/react/shallow';
 import { BRAND_TAGLINE } from '../constants/brand';
@@ -27,11 +27,7 @@ import { createTasksExport, ParsedTasksImport, parseTasksImport } from '../utils
 import { ONBOARDING_HINT_IDS } from '../utils/onboardingHints';
 import { isTaskCompleted } from '../utils/streaks';
 
-// react-native-web's Switch splits the thumb color into two props: `thumbColor` (off state)
-// and `activeThumbColor` (on state, defaulting to Material teal if unset). Native RN's own
-// Switch type doesn't know about `activeThumbColor` since it's a web-only extension, so it's
-// typed here rather than reached for with `any`.
-const WebSwitch = Switch as React.ComponentType<React.ComponentProps<typeof Switch> & { activeThumbColor?: string }>;
+import { WebSwitch } from '../components/WebSwitch';
 
 const THEME_MODE_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: 'system', label: 'System' },

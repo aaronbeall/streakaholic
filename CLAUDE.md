@@ -224,6 +224,28 @@ Settings' "Unsnooze All Celebrations."
 **No revocation on Undo, no automatic historical backfill** (only via the explicit retroactive
 scan) — both stated design decisions, not gaps.
 
+## Ironman mode (`app/utils/ironman.ts`)
+
+This is an opt-in, per-habit commitment, offered at creation as a promoted card in `AddTaskScreen`.
+`Task.ironman` is set once and never changes: `taskStore.updateTask` runs every edit through
+`preserveIronmanFields`, so an edit can't turn it on or off. Import merge (`mergeIronmanFields`)
+also keeps it one-way. Past days are locked from creation on, with no backfill (removed by
+explicit decision, so an Ironman streak only ever holds days checked off on the day itself), and
+skips are never allowed. The rules are pure functions
+(`canEditCompletionOn`/`canSkipOn`), checked twice. The UI checks them so it can explain a
+blocked tap with a toast, and every `taskStore` completion and skip mutator checks them again as a
+backstop. Badging (`IronmanBadge.tsx`) uses a custom-drawn SVG shield with a negative-space flame cut out of it,
+because no MaterialCommunityIcons glyph combines the two. It has its own two-tone palette, separate
+from the app theme: polished gold in light mode and gold-rimmed gunmetal in dark mode. Share cards
+always use dark. The badge appears as an emblem on the habit tile, a nameplate under the
+`TaskHeader` icon ring, an Ironman variant of `StreakCountBadge`, and Ironman wording on every
+habit and achievement share card. Achievements: three Ironman-only kinds (Forged 7, Iron Will 30,
+Unbroken = first-ever streak reaching 100, via the `firstStreak` fixed-threshold metric) gated by
+the `requiresIronman` meta flag; every trophy snapshots `ironman` at earn time (like `taskName`),
+read through `isIronmanAchievement`; Trophy Case has an Ironman filter chip and corner emblems.
+Paid revives are planned but deliberately absent from the UI. See
+COMMITMENT_MODE.md.
+
 ## Notifications (`app/utils/notifications.ts`)
 
 Per-task escalating reminders (Level 0–4: none/dismissable/repeated/persistent/alarm-style).

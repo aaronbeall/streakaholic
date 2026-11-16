@@ -1,0 +1,44 @@
+# Publishes the static marketing site in website/ to the root of the gh-pages branch,
+# which GitHub Pages serves at https://streakaholic.app.
+# PR previews live under pr-preview/ on the same branch (see website-preview.yml), so this
+# deploy leaves that folder alone.
+#
+# One-time setup: repo Settings → Pages → Build and deployment →
+#   Source: "Deploy from a branch", Branch: gh-pages, folder: / (root)
+# (the gh-pages branch appears after this workflow's first run).
+name: Deploy website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: website-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pages reads the custom domain from a CNAME file at the branch root, and .nojekyll
+      # serves the files as-is. Written here so the domain survives whichever version of
+      # website/ is on main.
+      - name: Add Pages control files
+        run: |
+          echo "streakaholic.app" > website/CNAME
+          touch website/.nojekyll
+
+      - uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: website
+          branch: gh-pages
+          clean-exclude: pr-preview/

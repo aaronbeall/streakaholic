@@ -45,6 +45,9 @@ export interface Task {
   // doesn't add a completion, and isn't visually distinguished from an ordinary non-due day (the
   // existing "pass-through" calendar treatment already covers it correctly).
   skippedDates?: string[];
+  // Ironman mode -- set only at creation, never turned off (see app/utils/ironman.ts). Absent
+  // means a standard habit. Past days are locked from the start; only today can change.
+  ironman?: boolean;
 }
 
 export interface TaskCompletion {

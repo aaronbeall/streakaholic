@@ -717,6 +717,7 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                             <StreakCountBadge
                               value={connection.badgeValue!}
                               iconSize={8}
+                              ironman={task.ironman === true}
                               style={styles.streakBadgePosition}
                             />
                           )}
@@ -763,7 +764,7 @@ export const DashboardCalendarView: React.FC<{ tasks: Task[] }> = ({ tasks }) =>
                 <Text style={styles.dayTooltipTaskName} numberOfLines={1}>{entry.task.name}</Text>
                 {/* Streak-ending days get their final count called out separately from the plain
                     completion dot below -- the same StreakCountBadge the calendars use elsewhere. */}
-                {entry.badgeValue && <StreakCountBadge value={entry.badgeValue} iconSize={10} />}
+                {entry.badgeValue && <StreakCountBadge value={entry.badgeValue} iconSize={10} ironman={entry.task.ironman === true} />}
                 <View style={styles.dayTooltipState}>
                   <MaterialCommunityIcons
                     name={entry.isPassThrough ? 'link-variant' : entry.isCompleted ? 'check-circle' : 'progress-check'}

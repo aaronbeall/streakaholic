@@ -28,7 +28,7 @@ import { useAchievementsStore } from '../stores/achievementsStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { MaterialCommunityIconName } from '../types';
 import { formatAchievementCount, getAchievementCountUpDuration } from '../utils/achievementCountUp';
-import { ACHIEVEMENT_META, Achievement, AchievementKind, getRibbonText } from '../utils/achievements';
+import { ACHIEVEMENT_META, Achievement, AchievementKind, getRibbonText, isIronmanAchievement } from '../utils/achievements';
 import { getPendingAchievementPresentation, PendingAchievementPresentation as PendingAchievementPresentationModel } from '../utils/achievementCelebrations';
 import { prepareCelebrationImpact } from '../utils/sounds';
 import {
@@ -882,6 +882,9 @@ const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () =>
   const viewedIndices = useRef(new Set([0]));
   const hasNavigated = useRef(false);
   const achievement = achievements[Math.min(pageIndex, achievements.length - 1)];
+  // Snapshotted on the record at earn time (survives the habit being deleted); an Ironman-only
+  // kind is Ironman by definition, which also covers its locked previews.
+  const isAchievementTaskIronman = isIronmanAchievement(achievement);
   const isLockedPreview = achievement.dedupScope === 'locked-preview';
   const isLockedPreviewBatch = achievements[0].dedupScope === 'locked-preview';
   const firstAchievementMeta = ACHIEVEMENT_META[achievements[0].kind];
@@ -1092,6 +1095,7 @@ const CelebrationBatch: React.FC<{ achievements: Achievement[]; onDismiss: () =>
         <AchievementShareCard
           achievement={achievement}
           includeTaskName={includeTaskNameInShare}
+          ironman={isAchievementTaskIronman}
         />
       </SharePreviewModal>
     </Reanimated.View>
