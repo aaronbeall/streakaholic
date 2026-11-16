@@ -5,6 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AchievementBadgeCard } from '../components/AchievementCard';
+import { IronmanIcon, useIronmanPalette } from '../components/IronmanBadge';
 import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useTaskStore } from '../stores/taskStore';
 import {
@@ -13,8 +14,13 @@ import {
   AchievementCardStatus,
   TASK_SCOPED_KIND_ORDER,
   getGroupedAchievementCardStatuses,
+  isIronmanAchievement,
 } from '../utils/achievements';
 import { useAchievementsStore } from '../stores/achievementsStore';
+import { isIronman } from '../utils/ironman';
+
+// Filter-row value for "every Ironman habit" -- not a task id, so it can't collide with one.
+const IRONMAN_FILTER = '__ironman__';
 
 // Same responsive breakpoints HomeScreen's own task grid uses (2/3/4 columns) -- kept identical
 // rather than inventing a new set, so the app's grid density feels consistent screen to screen.
@@ -100,21 +106,26 @@ export const TrophiesScreen: React.FC = () => {
     () => (selectedTaskId ? activeTasks.find(t => t.id === selectedTaskId) : undefined),
     [selectedTaskId, activeTasks]
   );
+  const ironmanTasks = useMemo(() => activeTasks.filter(isIronman), [activeTasks]);
+  const ironmanFilterOn = selectedTaskId === IRONMAN_FILTER;
+  const ironmanPalette = useIronmanPalette();
 
   // Achievements attributed to any *other* task (or no task at all) are excluded outright rather
   // than left to read as "not yet earned by this task" -- global achievement records carry no
   // taskId at all, so they're excluded here regardless (`a.taskId === selectedTask.id` is always
   // false for them), same as a genuinely different task's own records.
   const filteredAchievements = useMemo(
-    () => (selectedTask ? achievements.filter(a => a.taskId === selectedTask.id) : achievements),
-    [achievements, selectedTask]
+    () => (selectedTask
+      ? achievements.filter(a => a.taskId === selectedTask.id)
+      : ironmanFilterOn ? achievements.filter(isIronmanAchievement) : achievements),
+    [achievements, selectedTask, ironmanFilterOn]
   );
   // Scopes every "closest task" progress calculation down to just this one task, so a locked
   // kind's progress bar reads as "how close is *this* task" instead of "how close is whichever
   // task happens to be closest across the whole list."
   const activeTasksForGroups = useMemo(
-    () => (selectedTask ? [selectedTask] : activeTasks),
-    [selectedTask, activeTasks]
+    () => (selectedTask ? [selectedTask] : ironmanFilterOn ? ironmanTasks : activeTasks),
+    [selectedTask, ironmanFilterOn, ironmanTasks, activeTasks]
   );
 
   const groups = useMemo(() => {
@@ -135,9 +146,9 @@ export const TrophiesScreen: React.FC = () => {
       filteredAchievements,
       activeTasksForGroups,
       undefined,
-      selectedTask ? TASK_SCOPED_KIND_ORDER : undefined
+      selectedTask || ironmanFilterOn ? TASK_SCOPED_KIND_ORDER : undefined
     );
-  }, [filteredAchievements, activeTasksForGroups, selectedTask]);
+  }, [filteredAchievements, activeTasksForGroups, selectedTask, ironmanFilterOn]);
 
   const columnCount = getColumnCount(width);
   const availableWidth = width - SIDE_PADDING * 2 - GRID_SPACING * (columnCount - 1);
@@ -219,7 +230,7 @@ export const TrophiesScreen: React.FC = () => {
         )}
       </View>
 
-      {activeTasks.length > 1 && (
+      {(activeTasks.length > 1 || ironmanTasks.length > 0) && (
         <View style={styles.taskFilterContainer}>
           <TouchableOpacity
             style={[styles.taskFilterChip, !selectedTaskId && styles.taskFilterChipActive]}
@@ -230,6 +241,21 @@ export const TrophiesScreen: React.FC = () => {
           >
             <Text style={[styles.taskFilterChipText, !selectedTaskId && styles.taskFilterChipTextActive]}>All</Text>
           </TouchableOpacity>
+          {ironmanTasks.length > 0 && (
+            <TouchableOpacity
+              style={[
+                styles.taskFilterIconChip,
+                { backgroundColor: colors.overlay },
+                ironmanFilterOn && { backgroundColor: ironmanPalette.accent },
+              ]}
+              onPress={() => handleSelectTask(IRONMAN_FILTER)}
+              accessibilityRole="radio"
+              accessibilityLabel="Ironman habits"
+              accessibilityState={{ checked: ironmanFilterOn }}
+            >
+              <IronmanIcon size={17} color={ironmanFilterOn ? ironmanPalette.onAccent : ironmanPalette.accent} />
+            </TouchableOpacity>
+          )}
           {activeTasks.map(task => (
             <TouchableOpacity
               key={task.id}
@@ -256,7 +282,7 @@ export const TrophiesScreen: React.FC = () => {
       {listItems.length === 0 ? (
         <View style={styles.emptyState}>
           <MaterialCommunityIcons name="trophy-outline" size={40} color={colors.textTertiary} />
-          <Text style={styles.emptyStateText}>No trophies yet for {selectedTask?.name}</Text>
+          <Text style={styles.emptyStateText}>No trophies yet for {selectedTask?.name ?? 'Ironman habits'}</Text>
         </View>
       ) : (
         <FlatList

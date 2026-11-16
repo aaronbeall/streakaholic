@@ -1,4 +1,5 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -11,8 +12,10 @@ import { ThemeColors, useThemeColors } from '../hooks/useThemeColors';
 import { useTaskStore } from '../stores/taskStore';
 import { Task } from '../types';
 import { formatFrequencyLabel } from '../utils/formatFrequency';
+import { canSkipOn } from '../utils/ironman';
 import { isTaskCompleted } from '../utils/streaks';
 import { getTaskStatusInfo } from '../utils/taskStatusSummary';
+import { IronmanBadge } from './IronmanBadge';
 import { ParticleSystem } from './ParticleSystem';
 import { TaskProgressIcon } from './TaskProgressIcon';
 
@@ -193,6 +196,7 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
               </TouchableOpacity>
             )}
             <Pressable
+              style={task.ironman ? styles.ironmanIconSpacing : undefined}
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
               onLongPress={handleLongPress}
@@ -220,6 +224,14 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
                 color="#fff"
                 onColor={task.color}
               />
+              {/* Ironman nameplate: hung on the bottom of the icon ring, centered, like a medal
+                  ribbon -- kept out of the badges row below so the frequency and streak badges
+                  keep their own spacing. */}
+              {task.ironman && (
+                <View style={styles.ironmanPlate} pointerEvents="none">
+                  <IronmanBadge size={12} />
+                </View>
+              )}
             </Pressable>
             {onNextTask && (
               <TouchableOpacity
@@ -403,7 +415,7 @@ export const TaskHeader: React.FC<TaskHeaderProps> = ({ task, activeTab, onTabCh
                 control" here, the same affordance every other tappable row in this app already
                 uses (e.g. Settings). canSkipToday/isSkippedToday are mutually exclusive (see
                 taskStatusSummary.ts), so this is always exactly one state or the other, never both. */}
-            {(statusInfo.canSkipToday || statusInfo.isSkippedToday) && (
+            {(statusInfo.canSkipToday || (statusInfo.isSkippedToday && canSkipOn(task, format(new Date(), 'yyyy-MM-dd')))) && (
               <TouchableOpacity
                 style={styles.summarySkipAction}
                 onPress={handleToggleSkipToday}
@@ -462,6 +474,17 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   iconSection: {
     alignItems: 'center',
     gap: 16,
+  },
+  // Room for the nameplate hanging below the ring, so it doesn't crowd the badges row.
+  ironmanIconSpacing: {
+    marginBottom: 8,
+  },
+  ironmanPlate: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: -11,
+    alignItems: 'center',
   },
   iconRow: {
     flexDirection: 'row',

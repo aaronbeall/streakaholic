@@ -8,11 +8,11 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Switch,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { WebSwitch } from './WebSwitch';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Reanimated, {
   Easing,
@@ -393,12 +393,13 @@ export const SharePreviewModal: React.FC<SharePreviewModalProps> = ({
           {option && (
             <View style={styles.optionRow}>
               <Text style={styles.optionLabel}>{option.label}</Text>
-              <Switch
+              <WebSwitch
                 value={option.value}
                 onValueChange={option.onValueChange}
                 disabled={isSharing}
                 trackColor={{ false: '#3A3D46', true: '#007AFF' }}
                 thumbColor="#fff"
+                activeThumbColor="#fff"
                 accessibilityLabel={option.label}
               />
             </View>

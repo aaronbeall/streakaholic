@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { PersistStorage, persist } from 'zustand/middleware';
 import { Task, TaskCompletion } from '../types';
 import { mergeTaskLists } from '../utils/importExport';
+import { canEditCompletionOn, canSkipOn, preserveIronmanFields } from '../utils/ironman';
 import { cancelTaskNotifications, rescheduleAllTaskNotifications, scheduleTaskNotifications } from '../utils/notifications';
 import { calculateTaskStats, getCachedCompletionCountsByDate, isScheduledOnDate } from '../utils/streaks';
 import { useAchievementsStore } from './achievementsStore';
@@ -204,7 +205,9 @@ export const useTaskStore = create<TaskStore>()(
       },
 
       updateTask: (task) => {
-        const updatedTask = withUpdatedStats(task);
+        const previous = get().tasks.find(t => t.id === task.id);
+        // Ironman can't be turned on or off by an edit -- see preserveIronmanFields.
+        const updatedTask = withUpdatedStats(previous ? preserveIronmanFields(previous, task) : task);
         set({ tasks: get().tasks.map(t => t.id === task.id ? updatedTask : t) });
         rescheduleFor(updatedTask);
       },
@@ -233,6 +236,9 @@ export const useTaskStore = create<TaskStore>()(
         set({
           tasks: get().tasks.map(task => {
             if (task.id !== taskId) return task;
+            // Ironman habits lock past days (see app/utils/ironman.ts) -- the calendar explains
+            // this with a toast; this is the defense-in-depth backstop.
+            if (!canEditCompletionOn(task, dateString)) return task;
             prevTask = task;
 
             const existing = (task.completions || []).find(c => c.date === dateString);
@@ -327,6 +333,7 @@ export const useTaskStore = create<TaskStore>()(
         set({
           tasks: get().tasks.map(task => {
             if (task.id !== taskId) return task;
+            if (!canEditCompletionOn(task, dateString)) return task;
             const newCompletions = (task.completions || []).filter(c => c.date !== dateString);
             updatedTask = withUpdatedStats({ ...task, completions: newCompletions });
             return updatedTask;
@@ -345,6 +352,7 @@ export const useTaskStore = create<TaskStore>()(
         set({
           tasks: get().tasks.map(task => {
             if (task.id !== taskId) return task;
+            if (!canEditCompletionOn(task, dateString)) return task;
 
             const existing = (task.completions || []).find(c => c.date === dateString);
             if (!existing) return task;
@@ -371,6 +379,7 @@ export const useTaskStore = create<TaskStore>()(
         set({
           tasks: get().tasks.map(task => {
             if (task.id !== taskId) return task;
+            if (!canEditCompletionOn(task, completion.date)) return task;
             const withoutDate = (task.completions || []).filter(c => c.date !== completion.date);
             // Same mutual-exclusivity guard completeTask applies -- see its own comment.
             const clearedSkip = task.skippedDates?.includes(completion.date)
@@ -390,6 +399,7 @@ export const useTaskStore = create<TaskStore>()(
           tasks: get().tasks.map(task => {
             if (task.id !== taskId) return task;
             if (task.frequency !== 'daily' && task.frequency !== 'specific_days_of_week') return task;
+            if (!canSkipOn(task, dateString)) return task;
             if (task.skippedDates?.includes(dateString)) return task;
             // Skipping a day that was never actually scheduled is redundant -- per explicit user
             // direction (a Weekday-only task shouldn't allow "skipping" a Saturday, an M/W/F task
@@ -418,6 +428,7 @@ export const useTaskStore = create<TaskStore>()(
           tasks: get().tasks.map(task => {
             if (task.id !== taskId) return task;
             if (!task.skippedDates?.includes(dateString)) return task;
+            if (!canSkipOn(task, dateString)) return task;
             updatedTask = withUpdatedStats({
               ...task,
               skippedDates: task.skippedDates.filter(d => d !== dateString),
