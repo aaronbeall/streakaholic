@@ -32,9 +32,14 @@ Then open `http://localhost:8080/`.
 
 ## Hosting: GitHub Pages at streakaholic.app
 
-`.github/workflows/website.yml` publishes this folder to GitHub Pages on every push to
-`main` that touches `website/`. It can also be run by hand from the Actions tab. The
-`CNAME` file here tells Pages to serve the site at `https://streakaholic.app`.
+Two workflows publish this folder to the `gh-pages` branch, which GitHub Pages serves:
+
+- `.github/workflows/website.yml` deploys `website/` to the branch root on every push to
+  `main` that touches it (or by hand from the Actions tab). It writes `CNAME`
+  (`streakaholic.app`) and `.nojekyll` at deploy time.
+- `.github/workflows/website-preview.yml` deploys each pull request that changes `website/`
+  to `https://streakaholic.app/pr-preview/pr-<number>/`, comments the link on the PR,
+  refreshes it on every push, and removes it when the PR closes.
 
 One-time setup:
 
@@ -44,15 +49,17 @@ One-time setup:
    - `CNAME` for `www` → `aaronbeall.github.io`
 
    Remove any other `A`/`AAAA` records on `@` (e.g. a registrar parking page).
-2. **Turn on Pages.** Repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. **Deploy.** Merge to `main` (or run "Deploy website" from the Actions tab).
-4. **Custom domain.** In **Settings → Pages**, enter `streakaholic.app` and save. GitHub
-   checks DNS; once it shows the domain is verified and the certificate is issued, tick
-   **Enforce HTTPS**. `.app` domains only work over HTTPS, so the site won't load until then.
+2. **Create the branch.** Merge the workflows to `main`, or run "Deploy website" from the
+   Actions tab. The first run creates `gh-pages`.
+3. **Turn on Pages.** Repo **Settings → Pages → Build and deployment → Source: Deploy from a
+   branch**, branch `gh-pages`, folder `/ (root)`.
+4. **Custom domain.** On the same page, enter `streakaholic.app` and save. Once the DNS check
+   passes and the certificate is issued, tick **Enforce HTTPS**. `.app` domains only work over
+   HTTPS, so the site won't load until then.
 5. (Optional, recommended) **Verify the domain** for your account in GitHub
    **Settings → Pages → Add a domain**, so nobody else can claim it for another Pages site.
 
-Pages-specific files: `CNAME` (custom domain), `404.html` (served for any missing path; it
+Pages-specific files: `CNAME` (custom domain, also written by the deploy), `404.html` (served for any missing path; it
 uses root-absolute links, so it only works at the domain root), `robots.txt` and `sitemap.xml`.
 Canonical and Open Graph URLs point at `https://streakaholic.app`. Everything else uses
 relative links and also works when previewed locally.
