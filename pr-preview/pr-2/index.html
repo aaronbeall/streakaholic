@@ -9,7 +9,9 @@
   <meta property="og:type" content="website">
   <meta property="og:title" content="Streakaholic — Build streaks worth celebrating">
   <meta property="og:description" content="A playful habit tracker for Android. Streaks you can see, milestones worth keeping, and your data stays on your device.">
-  <meta property="og:image" content="assets/og-image.png">
+  <meta property="og:image" content="https://streakaholic.app/assets/og-image.png">
+  <meta property="og:url" content="https://streakaholic.app/">
+  <link rel="canonical" href="https://streakaholic.app/">
   <meta name="twitter:card" content="summary_large_image">
 
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
@@ -317,24 +319,14 @@
         <h2>Keep it alive.</h2>
         <p>Your habits stay on your device. Leave your email and we'll invite you when testing opens.</p>
 
-        <form class="waitlist" id="waitlist-form" novalidate>
-          <label class="sr-only" for="waitlist-email">Email</label>
-          <input
-            id="waitlist-email"
-            name="email"
-            type="email"
-            autocomplete="email"
-            inputmode="email"
-            required
-            placeholder="you@example.com"
-          >
-          <button class="btn btn-large" type="submit">Get early access</button>
-          <p class="form-status" id="waitlist-status" role="status" aria-live="polite" hidden></p>
-          <p class="form-note">
-            Or email
-            <a href="mailto:support@metamodernmonkey.com?subject=Notify%20me%20when%20Streakaholic%20launches">support@metamodernmonkey.com</a>
-          </p>
-        </form>
+        <div class="signup" id="signup">
+          <!-- EmailOctopus inline form. Paste the embed from EmailOctopus (Forms -> Add to your website)
+               here, replacing the fallback below. Include it only once on the page. -->
+          <div class="signup-fallback">
+            <a class="btn btn-large" href="mailto:support@metamodernmonkey.com?subject=Notify%20me%20when%20Streakaholic%20launches">Email me when it opens</a>
+          </div>
+        </div>
+        <p class="form-note">We'll only email you about Streakaholic. Unsubscribe anytime. See our <a href="privacy/">privacy policy</a>.</p>
       </div>
     </section>
 
@@ -347,8 +339,10 @@
         <span>Streakaholic</span>
       </a>
       <ul class="footer-links">
-        <li><a href="https://www.metamodernmonkey.com/privacy/streakaholic">Privacy Policy</a></li>
-        <li><a href="mailto:support@metamodernmonkey.com">support@metamodernmonkey.com</a></li>
+        <li><a href="support/">Support</a></li>
+        <li><a href="privacy/">Privacy policy</a></li>
+        <li><a href="terms/">Terms of service</a></li>
+        <li><a href="delete-data/">Delete your data</a></li>
       </ul>
       <p class="footer-fineprint">A Meta Modern Monkey app. Android habit &amp; streak tracker, in development.</p>
     </div>
