@@ -1,9 +1,11 @@
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const video = document.querySelector('.demo');
+const demos = document.querySelectorAll('video.demo');
 
-if (video && reduceMotion) {
-  video.removeAttribute('autoplay');
-  video.pause();
+if (reduceMotion) {
+  demos.forEach(video => {
+    video.removeAttribute('autoplay');
+    video.pause();
+  });
 }
 
 document.querySelectorAll('a[href^="#"]').forEach(link => {
