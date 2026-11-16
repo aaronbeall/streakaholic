@@ -30,25 +30,32 @@ python3 -m http.server 8080
 
 Then open `http://localhost:8080/`.
 
-## Hosting: GitHub Pages
+## Hosting: GitHub Pages at streakaholic.app
 
 `.github/workflows/website.yml` publishes this folder to GitHub Pages on every push to
-`main` that touches `website/`. It can also be run by hand from the Actions tab.
+`main` that touches `website/`. It can also be run by hand from the Actions tab. The
+`CNAME` file here tells Pages to serve the site at `https://streakaholic.app`.
 
-**One-time setup:** repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-After the first deploy, the site is at `https://aaronbeall.github.io/streakaholic/`.
+One-time setup:
 
-**Custom domain (`streakaholic.app`, from MARKETING.md):** once the domain is registered,
+1. **DNS at the registrar.** Add the apex records for `streakaholic.app` (host `@`):
+   - `A`: `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`
+   - `AAAA`: `2606:50c0:8000::153`, `2606:50c0:8001::153`, `2606:50c0:8002::153`, `2606:50c0:8003::153`
+   - `CNAME` for `www` → `aaronbeall.github.io`
 
-1. Add a file `website/CNAME` containing just `streakaholic.app`.
-2. At the domain registrar, add `A` records for `@` pointing to GitHub Pages
-   (`185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`) and a
-   `CNAME` record for `www` pointing to `aaronbeall.github.io`.
-3. In **Settings → Pages**, enter the domain and tick **Enforce HTTPS** once the certificate
-   is ready. `.app` domains require HTTPS, so wait for this before sharing links.
+   Remove any other `A`/`AAAA` records on `@` (e.g. a registrar parking page).
+2. **Turn on Pages.** Repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+3. **Deploy.** Merge to `main` (or run "Deploy website" from the Actions tab).
+4. **Custom domain.** In **Settings → Pages**, enter `streakaholic.app` and save. GitHub
+   checks DNS; once it shows the domain is verified and the certificate is issued, tick
+   **Enforce HTTPS**. `.app` domains only work over HTTPS, so the site won't load until then.
+5. (Optional, recommended) **Verify the domain** for your account in GitHub
+   **Settings → Pages → Add a domain**, so nobody else can claim it for another Pages site.
 
-All links in the site are relative, so it works both at the `github.io/streakaholic/`
-subpath and at a custom domain root without changes.
+Pages-specific files: `CNAME` (custom domain), `404.html` (served for any missing path; it
+uses root-absolute links, so it only works at the domain root), `robots.txt` and `sitemap.xml`.
+Canonical and Open Graph URLs point at `https://streakaholic.app`. Everything else uses
+relative links and also works when previewed locally.
 
 ## Before launch
 
@@ -59,8 +66,6 @@ subpath and at a custom domain root without changes.
   `metamodernmonkey.com/privacy/streakaholic` (see `PUBLISHING.md`). This site's version is
   more complete: it covers notifications, Android device backup, the tip jar, and ratings.
   Pick one URL for Play Console and update the other to match or redirect to it.
-- **Social preview.** `og:image` is a relative path, which some link previewers ignore.
-  Once the final domain is set, make it absolute (e.g. `https://streakaholic.app/assets/og-image.png`).
 - **Legal review.** The privacy policy and terms are written from the app's actual
   behavior, but are worth a lawyer's read before submission (as `TODO.md` notes for the
   in-app copy).
