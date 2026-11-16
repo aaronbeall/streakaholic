@@ -32,13 +32,15 @@ inbox to confirm once; after that, each signup arrives as a normal email. A `mai
 fallback stays under the form. **Swap the form for a Play Store badge/link once the app
 is public** — search `#get-access` in `index.html`.
 
-The page is a short sequence of the real app: six muted looping clips
+The page opens with a dark hero that keeps copy and a phone preview in one desktop
+viewport, then a short sequence of the real app: six muted looping clips
 (`assets/demo-*.mp4`) with poster frames in `assets/screens/`. Each clip shows the
 feature that section describes — card flips + a completion celebration in the hero,
-create-habit options, streaks, calendar, streamgraph, Trophy Case. Captured from the
-web build with `demo-data/streakaholic-demo-data.json` loaded, in dark mode, at a
-phone-sized viewport. Regenerate them from a fresh `npm run demo-data` when the UI
-changes — don't draw mock screens on top of the product.
+creating a habit end-to-end, streak history, calendar drill-in, streamgraph toggles,
+Trophy Case. Videos only play while in view. Captured from the web build with
+`demo-data/streakaholic-demo-data.json` loaded, in dark mode, at a phone-sized
+viewport. Regenerate them from a fresh `npm run demo-data` when the UI changes —
+don't draw mock screens on top of the product.
 
 ## Content source of truth
 
