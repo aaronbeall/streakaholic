@@ -18,19 +18,32 @@ Then open `http://localhost:8080/`.
 
 ## Deploy
 
-Point any static host (Vercel, Netlify, GitHub Pages, Cloudflare Pages) at this
-`website/` directory as its project root — there's nothing to build. The domain
-`streakaholic.app` is the one referenced in [`MARKETING.md`](../MARKETING.md).
+Merging to `main` publishes this folder to GitHub Pages at <https://streakaholic.app>
+(`.github/workflows/website.yml`). Every pull request that touches `website/` gets a
+preview at `https://streakaholic.app/pr-preview/pr-<number>/`, linked in a PR comment
+(`.github/workflows/website-preview.yml`). There's nothing to build.
+
+## Pages for Google Play
+
+Play Console asks for these URLs. Keep them live and up to date:
+
+- Privacy policy: <https://streakaholic.app/privacy/>
+- Data deletion: <https://streakaholic.app/delete-data/>
+- Support / contact: <https://streakaholic.app/support/>
+- Terms of service: <https://streakaholic.app/terms/>
+
+If the app or the site starts handling data differently (sync, analytics, a new email
+tool), update `privacy/` and `delete-data/` and the Play Data safety form together.
 
 ## Current state
 
-The app isn't published yet (see `RELEASE_GUIDE.md` — still pre-Closed-testing), so
-there's no Play Store link to send visitors to. Early access is an on-page email form
-that posts to [FormSubmit](https://formsubmit.co) and lands in
-`support@metamodernmonkey.com`. The first submission from a new hosting domain asks that
-inbox to confirm once; after that, each signup arrives as a normal email. A `mailto:`
-fallback stays under the form. **Swap the form for a Play Store badge/link once the app
-is public** — search `#get-access` in `index.html`.
+The app isn't published yet (see `RELEASE_GUIDE.md`, still pre-Closed-testing), so
+there's no Play Store link to send visitors to. Early access is an EmailOctopus list.
+The form is EmailOctopus's own inline embed, pasted into `#signup` in `index.html`; it
+shows its success message only after EmailOctopus has accepted the address. Until the
+embed is pasted in, a `mailto:` button stands in. Include the embed only once per page.
+Style it (colors, font) in EmailOctopus's form editor, not here. **Swap the section for
+a Play Store badge/link once the app is public**: search `#get-access` in `index.html`.
 
 The page opens with a dark hero that keeps copy and a phone preview in one desktop
 viewport, then a short sequence of the real app: six muted looping clips
