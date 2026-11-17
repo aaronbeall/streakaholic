@@ -55,6 +55,22 @@ Trophy Case. Videos only play while in view. Captured from the web build with
 viewport. Regenerate them from a fresh `npm run demo-data` when the UI changes —
 don't draw mock screens on top of the product.
 
+## SEO
+
+- Each page has its own `<title>`, meta description, canonical URL on `streakaholic.app`,
+  and Open Graph/Twitter tags. The home page also carries JSON-LD (`Organization`,
+  `WebSite`, `MobileApplication`). Add `offers` and the Play Store URL (`sameAs`/
+  `installUrl`) there once the app is public.
+- `robots.txt` blocks `/pr-preview/`; `sitemap.xml` lists every public page. Add new pages
+  to the sitemap and bump `lastmod` when a page changes meaningfully.
+- Video posters are JPEGs; keep new ones small (under ~50 KB).
+
+## Analytics
+
+Every page loads Google Tag Manager container `GTM-KVFJDTRJ` (head snippet plus the
+`<noscript>` iframe right after `<body>`). GA4 itself is configured inside that container,
+not in this repo. New pages need both snippets. PR previews load it too.
+
 ## Content source of truth
 
 Don't let copy drift — when brand language changes, update the source doc first, then
