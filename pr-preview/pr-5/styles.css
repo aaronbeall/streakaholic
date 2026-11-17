@@ -10,7 +10,6 @@
   --accent-soft: rgba(240, 138, 107, 0.16);
   --accent-2: #d98bb8;
   --hero-base: #3a2a4e;
-  --header-base: #0f0b16;
   --font: "Manrope", "Segoe UI", system-ui, sans-serif;
   color-scheme: light;
 }
@@ -77,8 +76,8 @@ p { margin: 0; }
   position: sticky;
   top: 0;
   z-index: 10;
-  /* Near-black plum so the logo gradient keeps its contrast; still reads as part of the hero. */
-  background: color-mix(in srgb, var(--header-base) 88%, transparent);
+  /* The logo gradient's pink → magenta → violet end, behind the white logo and wordmark. */
+  background: linear-gradient(90deg, #F7215E 0%, #D1169B 55%, #6A2AF0 100%);
   backdrop-filter: blur(18px) saturate(1.15);
   -webkit-backdrop-filter: blur(18px) saturate(1.15);
   border-bottom: 1px solid rgba(255, 214, 232, 0.08);
