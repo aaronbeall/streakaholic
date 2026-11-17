@@ -8,6 +8,7 @@ import Reanimated, {
   runOnJS,
   type SharedValue,
   useAnimatedProps,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -98,7 +99,10 @@ const LOCKED_PREVIEW_GLOW = '#a0a0a8';
 const LOCKED_PREVIEW_ACCENT = '#d0d0d5';
 
 type NativeSvgTextAnimatedProps = { content?: string };
-const AnimatedSvgTSpan = Reanimated.createAnimatedComponent(RNSVGTSpan);
+// RNSVGTSpan is a native-only SVG host. On web it is undefined, and createAnimatedComponent
+// crashes the whole app at import time (this file is pulled in by the root layout). Web falls
+// back to a text node driven by the same elapsed-time clock.
+const AnimatedSvgTSpan = RNSVGTSpan ? Reanimated.createAnimatedComponent(RNSVGTSpan) : null;
 
 // Reanimated updates an SVG text span's native `content` prop directly on the UI thread. The
 // displayed value is derived from the celebration's one elapsed-time clock, so it neither
@@ -107,21 +111,71 @@ const AnimatedSvgTSpan = Reanimated.createAnimatedComponent(RNSVGTSpan);
 // Android EditText: native input controls maintain selection, scrolling, and editable line-box
 // state even when marked non-editable, which made rapidly replaced centered text drift or clip.
 // SVG recomputes and center-anchors each new glyph run inside the same fixed viewport instead.
-const AchievementCount: React.FC<{
+const countFromTimeline = (timeline: number, startTime: number, duration: number, value: number) => {
+  'worklet';
+  const linearProgress = getAchievementRevealProgress(timeline, startTime, duration);
+  const progress = Easing.inOut(Easing.cubic)(linearProgress);
+  const count = value <= 1
+    ? (timeline >= startTime ? Math.max(0, value) : 0)
+    : value * progress;
+  return formatAchievementCount(count);
+};
+
+const WebAchievementCount: React.FC<{
   value: number;
   duration: number;
   color: string;
   timeline: SharedValue<number>;
   startTime: number;
 }> = React.memo(({ value, duration, color, timeline, startTime }) => {
-  const animatedProps = useAnimatedProps<NativeSvgTextAnimatedProps>(() => {
-    const linearProgress = getAchievementRevealProgress(timeline.value, startTime, duration);
-    const progress = Easing.inOut(Easing.cubic)(linearProgress);
-    const count = value <= 1
-      ? (timeline.value >= startTime ? Math.max(0, value) : 0)
-      : value * progress;
-    return { content: formatAchievementCount(count) };
-  });
+  const [label, setLabel] = useState('0');
+  const labelRef = useRef('0');
+  const publish = useCallback((next: string) => {
+    if (labelRef.current === next) return;
+    labelRef.current = next;
+    setLabel(next);
+  }, []);
+
+  useAnimatedReaction(
+    () => countFromTimeline(timeline.value, startTime, duration, value),
+    (next) => {
+      runOnJS(publish)(next);
+    },
+  );
+
+  return (
+    <Text
+      style={{ width: 260, height: 76, fontSize: 58, lineHeight: 76, fontWeight: '900', color, textAlign: 'center' }}
+      accessible={false}
+      importantForAccessibility="no"
+    >
+      {label}
+    </Text>
+  );
+});
+
+const AchievementCount: React.FC<{
+  value: number;
+  duration: number;
+  color: string;
+  timeline: SharedValue<number>;
+  startTime: number;
+}> = React.memo((props) => {
+  if (!AnimatedSvgTSpan) return <WebAchievementCount {...props} />;
+
+  return <NativeAchievementCount {...props} />;
+});
+
+const NativeAchievementCount: React.FC<{
+  value: number;
+  duration: number;
+  color: string;
+  timeline: SharedValue<number>;
+  startTime: number;
+}> = React.memo(({ value, duration, color, timeline, startTime }) => {
+  const animatedProps = useAnimatedProps<NativeSvgTextAnimatedProps>(() => ({
+    content: countFromTimeline(timeline.value, startTime, duration, value),
+  }));
 
   return (
     <Svg
@@ -133,7 +187,7 @@ const AchievementCount: React.FC<{
       importantForAccessibility="no"
     >
       <SvgText x={130} y={59} textAnchor="middle" fill={color} fontSize={58} fontWeight="900">
-        <AnimatedSvgTSpan animatedProps={animatedProps} content="0" />
+        {AnimatedSvgTSpan ? <AnimatedSvgTSpan animatedProps={animatedProps} content="0" /> : null}
       </SvgText>
     </Svg>
   );
