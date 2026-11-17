@@ -10,7 +10,7 @@
   --accent-soft: rgba(240, 138, 107, 0.16);
   --accent-2: #d98bb8;
   --hero-base: #3a2a4e;
-  --header-base: #2b2138;
+  --header-base: #0f0b16;
   --font: "Manrope", "Segoe UI", system-ui, sans-serif;
   color-scheme: light;
 }
@@ -77,7 +77,7 @@ p { margin: 0; }
   position: sticky;
   top: 0;
   z-index: 10;
-  /* Same family as the hero plum, a touch deeper/cooler so it sits above without matching. */
+  /* Near-black plum so the logo gradient keeps its contrast; still reads as part of the hero. */
   background: color-mix(in srgb, var(--header-base) 88%, transparent);
   backdrop-filter: blur(18px) saturate(1.15);
   -webkit-backdrop-filter: blur(18px) saturate(1.15);
@@ -101,6 +101,8 @@ p { margin: 0; }
   color: #f7f0f6;
 }
 
+
+.site-header .brand-mark { width: 32px; height: 32px; }
 
 .site-header .btn {
   background: rgba(255, 255, 255, 0.12);
