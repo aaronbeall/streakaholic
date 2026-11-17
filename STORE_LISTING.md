@@ -135,9 +135,13 @@ Nothing outstanding here.
 
 ## Privacy Policy URL
 
-Live: https://www.metamodernmonkey.com/privacy/streakaholic — paste directly into Play
-Console's store listing. Source of truth is that hosted page, not any copy in this repo;
-see PUBLISHING.md for how it's kept in sync with the in-app About screen.
+Live (after marketing site deploys from `main`): https://streakaholic.app/privacy/ —
+paste directly into Play Console's store listing. Related Play URLs:
+https://streakaholic.app/terms/, https://streakaholic.app/delete-data/,
+https://streakaholic.app/support/. Source of truth is `website/privacy/` in this repo;
+see PUBLISHING.md and `website/README.md`. The old
+`https://www.metamodernmonkey.com/privacy/streakaholic` page is superseded — prefer a
+redirect there to the new privacy URL when convenient.
 
 ## Future: App Store (not started)
 
