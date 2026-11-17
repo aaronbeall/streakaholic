@@ -100,8 +100,13 @@ aurora "logo4" files in `design/logo/` are history and nothing in the app or web
   version (gradient circle and check only, no flame) for the smallest sizes.
 
 Where each is used:
-- App icon (`assets/images/icon.png`, `design/AppIcons/*`), the website's `favicon-192.png` and
-  `apple-touch-icon.png`, and the site header's `mark-square.png`: white mark on the gradient.
+- **Rule of thumb:** use the circular logo mark wherever it can stand on its own, and use the
+  square app icon only where the platform forces a shape (app and store icons, the adaptive
+  icon, touch and home-screen icons).
+- App icon (`assets/images/icon.png`, `design/AppIcons/*`) and the website's `favicon-192.png`
+  and `apple-touch-icon.png`: white mark on the gradient.
+- The website header and footer (`website/assets/mark.png`): the full-color mark on
+  transparent.
 - Android adaptive icon: `adaptive-icon.png` (white foreground) on
   `adaptive-icon-background.png` (the gradient), plus `adaptive-icon-monochrome.png` for
   Android 13+ themed icons.
