@@ -2,233 +2,405 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <!-- Google Tag Manager -->
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','GTM-KVFJDTRJ');</script>
+  <!-- End Google Tag Manager -->
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Streakaholic — Build streaks worth celebrating</title>
-  <meta name="description" content="Streakaholic is a playful, privacy-first habit tracker for Android. Daily streaks and satisfying celebrations help the habit actually stick — no account, no cloud, no subscription.">
+  <title>Streakaholic: Habit Tracker with Streaks for Android</title>
+  <meta name="description" content="Streakaholic is a playful, private habit tracker for Android. Build daily habits, keep streaks alive, and earn achievements in your Trophy Case. No account, no cloud, no subscription.">
+  <link rel="canonical" href="https://streakaholic.app/">
+  <meta name="theme-color" content="#0f0b16">
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Streakaholic — Build streaks worth celebrating">
-  <meta property="og:description" content="Daily streaks and satisfying celebrations that help the habit actually stick. No account, no cloud, no subscription.">
-  <meta property="og:image" content="assets/og-image.png">
+  <meta property="og:title" content="Streakaholic: build streaks worth celebrating">
+  <meta property="og:description" content="A playful habit tracker for Android. Streaks you can see, milestones worth keeping, and your data stays on your device.">
+  <meta property="og:image" content="https://streakaholic.app/assets/og-image.png">
+  <meta property="og:url" content="https://streakaholic.app/">
+  <meta property="og:image:width" content="1024">
+  <meta property="og:image:height" content="500">
+  <meta property="og:image:alt" content="Streakaholic: build streaks worth celebrating">
+  <meta property="og:site_name" content="Streakaholic">
+  <meta property="og:locale" content="en_US">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Streakaholic: build streaks worth celebrating">
+  <meta name="twitter:description" content="A playful habit tracker for Android. Streaks you can see, milestones worth keeping, and your data stays on your device.">
+  <meta name="twitter:image" content="https://streakaholic.app/assets/og-image.png">
 
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
 
+  <link rel="preload" as="image" href="assets/screens/demo-home-poster.jpg" fetchpriority="high">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://streakaholic.app/#org",
+        "name": "Meta Modern Monkey",
+        "url": "https://www.metamodernmonkey.com/",
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "contactType": "customer support",
+          "email": "support@streakaholic.app",
+          "url": "https://streakaholic.app/support/"
+        }
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://streakaholic.app/#website",
+        "name": "Streakaholic",
+        "url": "https://streakaholic.app/",
+        "inLanguage": "en",
+        "publisher": {
+          "@id": "https://streakaholic.app/#org"
+        }
+      },
+      {
+        "@type": "MobileApplication",
+        "@id": "https://streakaholic.app/#app",
+        "name": "Streakaholic",
+        "operatingSystem": "Android",
+        "applicationCategory": "LifestyleApplication",
+        "description": "A playful, private habit tracker for Android. Frequency-aware streaks, reminders, achievements and a Trophy Case, with all data kept on your device.",
+        "url": "https://streakaholic.app/",
+        "image": "https://streakaholic.app/assets/og-image.png",
+        "publisher": {
+          "@id": "https://streakaholic.app/#org"
+        },
+        "featureList": [
+          "Frequency-aware streaks for daily, specific-day, weekly and monthly habits",
+          "Optional escalating reminders",
+          "Achievements and a Trophy Case",
+          "Shareable streak cards",
+          "Ironman mode",
+          "Calendar, stats and streak history",
+          "Export and import your data",
+          "No account, works offline"
+        ]
+      }
+    ]
+  }
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Google Tag Manager (noscript) -->
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-KVFJDTRJ"
+  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <!-- End Google Tag Manager (noscript) -->
 
   <a class="skip-link" href="#main">Skip to content</a>
 
   <header class="site-header">
     <div class="wrap header-inner">
       <a class="brand" href="#top">
-        <img src="assets/mark-square.png" alt="" width="32" height="32" class="brand-mark">
+        <img src="assets/mark-square.png" alt="" width="28" height="28" class="brand-mark">
         <span>Streakaholic</span>
       </a>
-      <nav class="site-nav" aria-label="Primary">
-        <a href="#features">Features</a>
-        <a href="#why-streaks">Why streaks work</a>
-        <a href="#privacy">Privacy</a>
-      </nav>
-      <a class="btn btn-small" href="#get-access">Get early access</a>
+      <a class="btn" href="#get-access">Get early access</a>
     </div>
   </header>
 
   <main id="main">
 
     <section class="hero" id="top">
-      <div class="wrap hero-inner">
+      <div class="wrap hero-layout">
         <div class="hero-copy">
-          <p class="eyebrow">Coming soon to Android</p>
-          <h1>Build streaks<br>worth celebrating.</h1>
+          <p class="eyebrow">For Android</p>
+          <h1>Build streaks worth celebrating.</h1>
           <p class="lede">
-            Streakaholic turns daily habits into motivating streaks and satisfying
-            celebrations — the playful nudge that actually makes them stick.
+            A playful habit tracker that turns small daily wins into visible streaks,
+            milestones, and a Trophy Case — while your data stays on your device.
           </p>
-          <div class="hero-actions">
-            <a class="btn btn-primary" href="#get-access">Get early access</a>
-            <a class="btn btn-ghost" href="#how-it-works">See how it works ↓</a>
-          </div>
-          <p class="hero-fineprint">No account. No cloud. No subscription.</p>
+          <p class="quiet">No account. No cloud. No subscription.</p>
+          <a class="btn btn-large hero-cta" href="#get-access">Get early access</a>
         </div>
-        <div class="hero-art" aria-hidden="true">
-          <img src="assets/hero-mark.png" alt="" width="1000" height="1000">
-        </div>
+
+        <figure class="phone phone-hero">
+          <video
+            class="demo"
+            poster="assets/screens/demo-home-poster.jpg"
+            width="392"
+            height="852"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="auto"
+            aria-label="Flipping habit cards to calendar and stats, then holding to complete one for a streak milestone celebration"
+          >
+            <source src="assets/demo-home.mp4" type="video/mp4">
+          </video>
+        </figure>
       </div>
     </section>
 
-    <div class="wrap">
-      <ul class="strip">
-        <li>Daily streaks</li>
-        <li>Playful celebrations</li>
-        <li>Fair tracking</li>
-        <li>Private by design</li>
-      </ul>
-    </div>
+    <section class="shot shot-frame">
+      <div class="wrap shot-inner">
+        <div class="shot-copy">
+          <h2>Make it yours.</h2>
+          <p>Name it, pick an icon and color, then choose daily, specific days, or a weekly or monthly goal. Reminders stay optional.</p>
+        </div>
+        <figure class="phone">
+          <video
+            class="demo"
+            poster="assets/screens/demo-create-poster.jpg"
+            width="392"
+            height="852"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            aria-label="Creating a habit: name, icon, color, schedule, reminders, then saving"
+          >
+            <source src="assets/demo-create.mp4" type="video/mp4">
+          </video>
+        </figure>
+      </div>
+    </section>
 
-    <section class="section" id="how-it-works">
+    <section class="shot shot-frame shot-alt shot-flip">
+      <div class="wrap shot-inner">
+        <div class="shot-copy">
+          <h2>How far it's gone.</h2>
+          <p>Current and best streaks, plus the full history of every run — not just today's number.</p>
+        </div>
+        <figure class="phone">
+          <video
+            class="demo"
+            poster="assets/screens/demo-streaks-poster.jpg"
+            width="392"
+            height="852"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            aria-label="Streaks tab scrolling through current and past streak runs"
+          >
+            <source src="assets/demo-streaks.mp4" type="video/mp4">
+          </video>
+        </figure>
+      </div>
+    </section>
+
+    <section class="shot shot-frame">
+      <div class="wrap shot-inner">
+        <div class="shot-copy">
+          <h2>Which days matter.</h2>
+          <p>Miss a day that wasn't due and the streak holds. Catch up early and it counts. Skip on purpose when you need to.</p>
+        </div>
+        <figure class="phone">
+          <video
+            class="demo"
+            poster="assets/screens/demo-calendar-poster.jpg"
+            width="392"
+            height="852"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            aria-label="Dashboard calendar scrolling, then opening a habit calendar to edit days"
+          >
+            <source src="assets/demo-calendar.mp4" type="video/mp4">
+          </video>
+        </figure>
+      </div>
+    </section>
+
+    <section class="shot shot-frame shot-alt shot-flip">
+      <div class="wrap shot-inner">
+        <div class="shot-copy">
+          <h2>All of it at once.</h2>
+          <p>A flowing view of every habit across the month, so the whole routine is visible in one glance.</p>
+        </div>
+        <figure class="phone">
+          <video
+            class="demo"
+            poster="assets/screens/demo-stream-poster.jpg"
+            width="392"
+            height="852"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            aria-label="Streamgraph scrolling across the month, then toggling habits in the filter"
+          >
+            <source src="assets/demo-stream.mp4" type="video/mp4">
+          </video>
+        </figure>
+      </div>
+    </section>
+
+    <section class="shot shot-frame">
+      <div class="wrap shot-inner">
+        <div class="shot-copy">
+          <h2>What you've earned.</h2>
+          <p>Milestones, perfect weeks, comebacks, and more — collectible progress without a complicated game on top.</p>
+        </div>
+        <figure class="phone">
+          <video
+            class="demo"
+            poster="assets/screens/demo-trophies-poster.jpg"
+            width="392"
+            height="852"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            aria-label="Trophy Case browsing unlocked achievements and filtering by habit"
+          >
+            <source src="assets/demo-trophies.mp4" type="video/mp4">
+          </video>
+        </figure>
+      </div>
+    </section>
+
+    <section class="features" id="features">
       <div class="wrap">
-        <h2>The loop that keeps you going</h2>
-        <p class="section-lede">
-          Every habit follows the same satisfying rhythm — simple enough to repeat
-          every single day.
-        </p>
-        <ol class="loop">
+        <h2>Everything a streak needs.</h2>
+        <p class="features-lede">Focused on the habit — not a to-do list wearing a streak counter.</p>
+        <ul class="feature-grid">
           <li>
-            <span class="loop-num">1</span>
-            <h3>Complete a habit</h3>
-            <p>Press and hold — feel the ring fill in. It takes a second, and it
-              feels like it counts.</p>
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+            </span>
+            <span class="feature-text">
+              <strong>Flexible schedules</strong>
+              <span>Daily, chosen days, or days per week or month</span>
+            </span>
           </li>
           <li>
-            <span class="loop-num">2</span>
-            <h3>Extend the streak</h3>
-            <p>Momentum builds day after day, with a streak count that's honestly,
-              visibly yours.</p>
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            </span>
+            <span class="feature-text">
+              <strong>Multiple completions a day</strong>
+              <span>For habits with a real quota</span>
+            </span>
           </li>
           <li>
-            <span class="loop-num">3</span>
-            <h3>Celebrate</h3>
-            <p>A flame bursts, an achievement unlocks, your Trophy Case fills in.
-              Small wins get a real reaction.</p>
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M8 14c0 2.2 1.8 4 4 4s4-1.8 4-4V8a4 4 0 1 0-8 0v6z"/><path d="M8 10h8"/></svg>
+            </span>
+            <span class="feature-text">
+              <strong>Fair streaks</strong>
+              <span>Non-due days don't break the chain</span>
+            </span>
           </li>
           <li>
-            <span class="loop-num">4</span>
-            <h3>See real progress</h3>
-            <p>Calendars, charts, and streak history turn "I've been consistent"
-              into something you can actually see.</p>
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+            </span>
+            <span class="feature-text">
+              <strong>Skip on purpose</strong>
+              <span>Miss a day without losing progress</span>
+            </span>
           </li>
-        </ol>
-      </div>
-    </section>
-
-    <section class="section section-alt" id="why-streaks">
-      <div class="wrap why-grid">
-        <div class="why-copy">
-          <h2>Small wins, repeated daily, become the habit.</h2>
-          <p>
-            Habits form through repetition and reward — do the thing, feel good
-            about it, want to do it again tomorrow. A streak makes that repetition
-            visible. A celebration makes the reward immediate. Neither one is a
-            gimmick; together, they're the actual mechanism that turns a one-off
-            action into something automatic.
-          </p>
-          <p>
-            Streakaholic is built entirely around that loop, not around
-            productivity-app busywork — no to-do lists, no project management,
-            just the habit, the streak, and the moment it clicks.
-          </p>
-        </div>
-        <div class="why-points">
-          <div class="why-point">
-            <h3>Make it visible</h3>
-            <p>A live streak count and a full calendar history turn quiet
-              consistency into something you can see growing.</p>
-          </div>
-          <div class="why-point">
-            <h3>Make it rewarding</h3>
-            <p>Press-and-hold animations, streak rings, flame bursts, and
-              collectible achievements give every completion a real payoff.</p>
-          </div>
-          <div class="why-point">
-            <h3>Make it forgiving</h3>
-            <p>Miss a day that wasn't due and your streak doesn't break. Catch up
-              early and it counts right away. Skip a day on purpose and keep your
-              streak intact.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="features">
-      <div class="wrap">
-        <h2>Everything a streak needs, nothing it doesn't</h2>
-        <p class="section-lede">
-          A focused feature set, built for the habit — not a to-do list wearing a
-          streak counter.
-        </p>
-        <div class="feature-grid">
-
-          <article class="feature-card">
-            <div class="feature-icon" data-icon="calendar"></div>
-            <h3>Flexible schedules</h3>
-            <p>Daily, chosen days of the week, or a set number of days per week or
-              month — track it however it actually fits your life.</p>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon" data-icon="layers"></div>
-            <h3>Multiple completions a day</h3>
-            <p>For habits you do more than once — water intake, exercise sets,
-              anything with a real daily quota.</p>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon" data-icon="shield"></div>
-            <h3>Streak tracking that's actually fair</h3>
-            <p>Non-due days don't break your streak. Catching up early counts
-              immediately. Skip a day on purpose without losing your progress.</p>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon" data-icon="ring"></div>
-            <h3>A playful home screen</h3>
-            <p>At-a-glance cards with satisfying animations — press-and-hold to
-              complete, a ring that fills in, a flip to reveal the full story.</p>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon" data-icon="trophy"></div>
-            <h3>Achievements &amp; Trophy Case</h3>
-            <p>Milestones, perfect weeks, comebacks, and more — collectible
-              progress without a complicated game layered on top.</p>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon" data-icon="chart"></div>
-            <h3>A real dashboard</h3>
-            <p>Aggregate stats and charts across every habit — completion trends,
-              best days, and the whole-routine view.</p>
-          </article>
-
-        </div>
-      </div>
-    </section>
-
-    <section class="section section-alt" id="privacy">
-      <div class="wrap privacy-inner">
-        <h2>Your data stays yours</h2>
-        <p class="section-lede">
-          Streakaholic doesn't require an account, doesn't use the cloud, and
-          doesn't track you. Every habit, streak, and completion lives only on
-          your device.
-        </p>
-        <ul class="badge-row">
-          <li>No account</li>
-          <li>No cloud sync</li>
-          <li>No ads</li>
-          <li>No tracking</li>
-          <li>Export anytime</li>
+          <li>
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v2"/></svg>
+            </span>
+            <span class="feature-text">
+              <strong>Press-and-hold</strong>
+              <span>Complete with a ring that fills in</span>
+            </span>
+          </li>
+          <li>
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H5a2 2 0 0 0 2 4"/><path d="M17 6h2a2 2 0 0 1-2 4"/></svg>
+            </span>
+            <span class="feature-text">
+              <strong>Trophy Case</strong>
+              <span>Achievements you can collect and replay</span>
+            </span>
+          </li>
+          <li>
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M7 15l3-4 3 2 4-6"/></svg>
+            </span>
+            <span class="feature-text">
+              <strong>Dashboard views</strong>
+              <span>Calendars, charts, and streak history</span>
+            </span>
+          </li>
+          <li>
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M3 12h2M19 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            </span>
+            <span class="feature-text">
+              <strong>Custom look</strong>
+              <span>Icon and color for every habit</span>
+            </span>
+          </li>
+          <li>
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M6 9a6 6 0 0 1 12 0c0 7-6 8-6 12H6c0-4-6-5-6-12a6 6 0 0 1 6 0z" transform="translate(3 1)"/><path d="M10 22h4"/></svg>
+            </span>
+            <span class="feature-text">
+              <strong>Reminders</strong>
+              <span>From a gentle nudge to a persistent one</span>
+            </span>
+          </li>
+          <li>
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18"/></svg>
+            </span>
+            <span class="feature-text">
+              <strong>Light and dark</strong>
+              <span>Follows your system theme</span>
+            </span>
+          </li>
+          <li>
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 19h14"/></svg>
+            </span>
+            <span class="feature-text">
+              <strong>Export and import</strong>
+              <span>Your data, anytime you want it</span>
+            </span>
+          </li>
+          <li>
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+            </span>
+            <span class="feature-text">
+              <strong>Private by design</strong>
+              <span>No account, ads, tracking, or subscription</span>
+            </span>
+          </li>
         </ul>
       </div>
     </section>
 
-    <section class="cta-band" id="get-access">
-      <div class="wrap cta-inner">
-        <h2>Ready to build a streak worth celebrating?</h2>
-        <p>Streakaholic is in development for Android. Ask to join early testing
-          and be the first to know when it launches.</p>
-        <a class="btn btn-primary btn-large"
-           href="mailto:support@metamodernmonkey.com?subject=Notify%20me%20when%20Streakaholic%20launches&body=Hi%2C%20I%27d%20like%20to%20get%20early%20access%20to%20Streakaholic%20on%20Android.">
-          Email us to get early access
-        </a>
+    <section class="cta" id="get-access">
+      <div class="wrap">
+        <h2>Get early access.</h2>
+        <p>Your habits stay on your device. Leave your email and we'll invite you when testing opens.</p>
+
+        <div class="signup" id="signup">
+          <!-- EmailOctopus pop-up form. The script must appear only once on the page. -->
+          <script async src="https://eocampaign1.com/form/0e3d070e-e21a-11f1-9fe1-13efbccc0c2f.js" data-form="0e3d070e-e21a-11f1-9fe1-13efbccc0c2f"></script>
+          <a class="btn btn-large" data-eo-form-toggle-id="0e3d070e-e21a-11f1-9fe1-13efbccc0c2f" href="#">Get early access</a>
+        </div>
+        <p class="form-note">We'll only email you about Streakaholic. Unsubscribe anytime. See our <a href="privacy/">privacy policy</a>.<br>
+          Or email <a href="mailto:support@metamodernmonkey.com?subject=Notify%20me%20when%20Streakaholic%20launches">support@metamodernmonkey.com</a></p>
       </div>
     </section>
 
@@ -237,12 +409,14 @@
   <footer class="site-footer">
     <div class="wrap footer-inner">
       <a class="brand" href="#top">
-        <img src="assets/mark-square.png" alt="" width="24" height="24" class="brand-mark">
+        <img src="assets/mark-square.png" alt="" width="22" height="22" class="brand-mark">
         <span>Streakaholic</span>
       </a>
       <ul class="footer-links">
-        <li><a href="https://www.metamodernmonkey.com/privacy/streakaholic">Privacy Policy</a></li>
-        <li><a href="mailto:support@metamodernmonkey.com">support@metamodernmonkey.com</a></li>
+        <li><a href="support/">Support</a></li>
+        <li><a href="privacy/">Privacy policy</a></li>
+        <li><a href="terms/">Terms of service</a></li>
+        <li><a href="delete-data/">Delete your data</a></li>
       </ul>
       <p class="footer-fineprint">A Meta Modern Monkey app. Android habit &amp; streak tracker, in development.</p>
     </div>
