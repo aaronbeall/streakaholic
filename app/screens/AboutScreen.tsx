@@ -77,17 +77,35 @@ export const AboutScreen: React.FC = () => {
             server involved. Exporting your data creates a local file that only ever leaves this
             device if you choose to share it yourself.
           </Text>
+          <TouchableOpacity
+            style={styles.policyLinkRow}
+            onPress={() => Linking.openURL('https://streakaholic.app/privacy/')}
+            accessibilityRole="link"
+            accessibilityLabel="Open full privacy policy"
+          >
+            <Text style={styles.policyLinkText}>Full privacy policy</Text>
+            <MaterialCommunityIcons name="open-in-new" size={18} color="#007AFF" />
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionTitle}>Terms of Service</Text>
         <View style={styles.card}>
           <Text style={styles.bodyText}>
             {appName} is provided as-is, without warranty of any kind. Since your data lives only
-            on this device, you’re responsible for backing it up (Settings → Export Data) —
+            on this device, you’re responsible for backing it up (Settings → Export data) —
             reinstalling the app, switching devices, or clearing app data will erase it. The
             developer isn’t liable for any lost data or missed streaks. By using this app, you
             agree to these terms.
           </Text>
+          <TouchableOpacity
+            style={styles.policyLinkRow}
+            onPress={() => Linking.openURL('https://streakaholic.app/terms/')}
+            accessibilityRole="link"
+            accessibilityLabel="Open full terms of service"
+          >
+            <Text style={styles.policyLinkText}>Full terms of service</Text>
+            <MaterialCommunityIcons name="open-in-new" size={18} color="#007AFF" />
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionTitle}>Open Source</Text>
@@ -217,6 +235,19 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     lineHeight: 21,
     color: colors.text,
     padding: 16,
+  },
+  policyLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    marginTop: -4,
+  },
+  policyLinkText: {
+    fontSize: 15,
+    color: '#007AFF',
   },
   divider: {
     height: 1,

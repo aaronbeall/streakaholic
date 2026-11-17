@@ -29,13 +29,19 @@ own Google/Play Console login left undone — see below for exactly what those a
   actually imported anywhere in `app/` (`react-native-circular-progress`,
   `react-native-circular-progress-indicator`, `react-native-confetti-cannon`,
   `react-native-particle-system`, `react-native-progress`) have been removed.
-- **Privacy Policy is hosted and live**: https://www.metamodernmonkey.com/privacy/streakaholic
-  — a dedicated page (not a shared/generic URL — each Meta Modern Monkey app gets its own
-  under `/privacy/<slug>`, matching the `id` slugs already used in that site's
-  `data/projects.json`), built in the `metamodernmonkey/website` repo to match its
-  existing Next.js/Tailwind "synthwave" design system, mirroring the About screen's
-  Privacy Policy/Terms of Service text word-for-word. Committed and pushed to that repo's
-  `main` (commit `99af5bf`), which deploys to Netlify automatically — confirmed live.
+- **Privacy Policy / Terms / data-deletion pages** live on the marketing site under
+  `website/` and publish to GitHub Pages at:
+  - Privacy: https://streakaholic.app/privacy/
+  - Terms: https://streakaholic.app/terms/
+  - Delete your data: https://streakaholic.app/delete-data/
+  - Support: https://streakaholic.app/support/
+  These supersede the earlier Meta Modern Monkey page at
+  `https://www.metamodernmonkey.com/privacy/streakaholic` (which only mirrored the short
+  in-app About blurbs). The new pages cover that content and the fuller disclosures Play
+  expects (on-device storage, notifications, export/share, tip jar via Play Billing,
+  website waitlist via EmailOctopus, hosting/fonts, children, deletion). After merge to
+  `main`, paste the privacy URL into Play Console; use `delete-data/` if Console asks for
+  a data-deletion link (not required as an account-deletion URL — the app has no accounts).
 
 ### Fixed (fully done, nothing left to do)
 1. **Adaptive icon foreground upscaled** 500×500 → 1024×1024 via a high-quality Lanczos
@@ -45,11 +51,10 @@ own Google/Play Console login left undone — see below for exactly what those a
    touching the actual design.
 2. **`@types/jest` version mismatch** — pinned to `29.5.14`.
 3. **Unused dependencies bloating the bundle** — all five removed via `npm uninstall`.
-4. **Hosted Privacy Policy URL** — live at
-   https://www.metamodernmonkey.com/privacy/streakaholic (see above). Ready to paste into
-   Play Console's store listing. The `privacy-policy.html` scaffold this repo briefly had
-   at its root has been removed now that the real hosted version exists — that website
-   page is the single source of truth going forward, not this repo.
+4. **Hosted Privacy Policy URL** — https://streakaholic.app/privacy/ (see above). Ready
+   to paste into Play Console once the marketing site is live on `main`. Source of truth
+   is `website/privacy/` (plus `website/terms/` and `website/delete-data/`) in this repo;
+   keep the short About-screen summaries in sync and link out to those pages.
 
 ### Prepped — ready for you, but finishing needs your Play Console/Google login
 5. **Store listing assets**, mostly closed — the actual copy/assets moved to a dedicated
@@ -91,13 +96,15 @@ that copy can drift out of date.
 
 ### Data Safety & content rating cheat sheet
 
-**Data Safety** (Play Console → App content → Data safety): since Streakaholic collects,
-stores, and transmits nothing off-device, this is the simplest version of this form —
-answer **"No"** to "Does your app collect or share any of the required user data types?"
-and you're done with that section. (If analytics is ever added later, this answer changes
-and both Privacy Policy copies — in-app and the hosted page — need updating to match; a
-mismatch between disclosed and actual behavior is a real policy risk, not just a copy
-nitpick.)
+**Data Safety** (Play Console → App content → Data safety): since the app collects,
+stores, and transmits nothing off-device, answer **"No"** to "Does your app collect or
+share any of the required user data types?" Tip-jar purchases and ratings go through
+Google Play (declared in the privacy policy; Google handles that data under Play, not
+as your app collecting it). The website waitlist email is **not** app-collected data —
+don't declare it on this form. For data deletion: the app has **no accounts**, so the
+account-deletion URL field does not apply; if Console still asks for a deletion
+resource, use https://streakaholic.app/delete-data/. (If analytics or sync is added
+later, update Data Safety, `website/privacy/`, and the About summary together.)
 
 **Content rating questionnaire** (Play Console → App content → Content ratings): a habit
 tracker with no user-generated content, no violence, no gambling references, and no
