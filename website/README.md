@@ -55,6 +55,12 @@ Trophy Case. Videos only play while in view. Captured from the web build with
 viewport. Regenerate them from a fresh `npm run demo-data` when the UI changes —
 don't draw mock screens on top of the product.
 
+## Analytics
+
+Every page loads Google Tag Manager container `GTM-KVFJDTRJ` (head snippet plus the
+`<noscript>` iframe right after `<body>`). GA4 itself is configured inside that container,
+not in this repo. New pages need both snippets. PR previews load it too.
+
 ## Content source of truth
 
 Don't let copy drift — when brand language changes, update the source doc first, then
