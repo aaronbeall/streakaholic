@@ -137,8 +137,8 @@ export const SettingsScreen: React.FC = () => {
       ?? (androidPackage ? `https://play.google.com/store/apps/details?id=${androidPackage}` : null);
     const appStoreUrl = Constants.expoConfig?.ios?.appStoreUrl;
     const destinationUrl = Platform.OS === 'ios'
-      ? (appStoreUrl ?? 'https://metamodernmonkey.com')
-      : (playStoreUrl ?? 'https://metamodernmonkey.com');
+      ? (appStoreUrl ?? 'https://streakaholic.app')
+      : (playStoreUrl ?? 'https://streakaholic.app');
 
     try {
       await Share.share({

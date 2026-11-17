@@ -60,12 +60,12 @@ export const AboutScreen: React.FC = () => {
         <View style={styles.card}>
           <TouchableOpacity
             style={styles.contactRow}
-            onPress={() => Linking.openURL('mailto:support@metamodernmonkey.com')}
+            onPress={() => Linking.openURL('mailto:support@streakaholic.app')}
             accessibilityRole="link"
-            accessibilityLabel="Email support@metamodernmonkey.com"
+            accessibilityLabel="Email support@streakaholic.app"
           >
             <MaterialCommunityIcons name="email-outline" size={22} color={colors.textSecondary} />
-            <Text style={styles.contactText}>support@metamodernmonkey.com</Text>
+            <Text style={styles.contactText}>support@streakaholic.app</Text>
           </TouchableOpacity>
         </View>
 

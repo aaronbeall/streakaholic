@@ -1,4 +1,4 @@
-export const SUPPORT_EMAIL = 'support@metamodernmonkey.com';
+export const SUPPORT_EMAIL = 'support@streakaholic.app';
 
 export interface FeedbackEmailDetails {
   appName: string;
