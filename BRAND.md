@@ -78,101 +78,42 @@ store listing, website, and this guide before release.
 
 ## Visual identity status
 
-The verbal identity above is final. **The canonical mark is chosen (2026-08-19): "logo4"** —
-a circular aurora-gradient (magenta → violet → cyan → mint) flame wrapping a checkmark ring,
-on a starfield texture. Source art lives in `design/logo/` and gets iterated on directly there
-(files get renamed/replaced/deleted outside of any derivation script) — treat this list as a
-snapshot, not a stable catalog, and re-check `ls design/logo/` before assuming a named file still
-exists. Currently used by a derived asset below:
-- `logo4.png` — mark on a near-white background (the original, as generated)
-- `logo4-thematic.png` — mark on a full starfield/nebula background with an added glowing rim —
-  the richest, most "illustration-grade" treatment, used wherever we own the whole canvas and
-  nothing downstream is going to re-crop or mask it (see "Where the free-form shape is safe to
-  use" below)
-- `logo4-thematic-transparent.png` — an alpha cutout of the mark alone (same underlying mark
-  colors as `logo4.png`'s own cutout would be — a transparent cutout only ever preserves the
-  mark's own pixels, so the "thematic" background richness doesn't carry into cutout versions).
-  The source for every asset that needs the free-form mark on a non-navy or variable background:
-  `logo-mark.png` (Home empty state), `splash-icon.png`, and the feature graphic's icon.
-- `logo4-solid.png` — a flat, single-color (white) line-art rendition of the mark on a flat color
-  background, purpose-built for small sizes where the gradient/starfield detail turns to mush
-- `logo4-solid-transparent.png` / `logo4-solid-white-only.png` — derived *in this repo* (not
-  supplied) via flood-fill + chroma-key on `logo4-solid.png`, regenerate these two if that source
-  ever changes rather than trusting stale copies. The former keeps the mark's own interior fill
-  opaque (fine where only the alpha channel is read, e.g. Android's notification icon); the latter
-  chroma-keys that fill out too, leaving pure white line art with nothing but the glyph itself
-  opaque — needed for compositing onto a *new* background, since the interior fill would
-  otherwise show through as a mismatched patch. Feeds `notification-icon.png` and
-  `logo-mark-solid.png` (ShareCards' brand footer).
-- `logo4-solid-vibrant.png` — flat mint-on-violet two-tone rendition of the mark, full-bleed (no
-  centered-safe-zone padding needed, since favicons pass through no OS/store masking). The
-  **current favicon source** for both `assets/images/favicon.png` (the Expo web build's browser-tab
-  icon, `app.json`'s `expo.web.favicon` — not the marketing site) and `website/assets/favicon-32.png`
-  / `favicon-192.png` / `apple-touch-icon.png`. Chosen **2026-08-19** over the app-icon's own
-  `logo4-aurora-solid-white.png` specifically because a favicon renders as small as 16px, where the
-  aurora gradient's soft multi-hue blend turns muddy — flat, high-contrast, two-color art stays
-  legible at that size. A `logo4-solid-vibrant-gradient.png` sibling exists (same mark, gradient
-  background instead of flat violet) but wasn't used here.
-- `logo4-aurora-solid-white.png` — the **current app-icon source**: `logo4-solid-white-only.png`'s
-  line art, scaled to ~53% of canvas height, centered horizontally and shifted up by 10% of the
-  mark's own height (not dead-center — reads better slightly above center), composited onto
-  `aurora-background-soft.png` (a supplied gradient/starfield plate, softer/lower-noise than the
-  original `aurora-background.png`, with no mark baked in). First regenerated **2026-08-19** after
-  the prior edge-to-edge version (mark nearly filling the full 1254px canvas, off-center) clipped badly
-  on real Android launchers — the mark's flame tips and ring bottom extended well past Android's
-  adaptive-icon safe zone (a centered ~66dp-diameter circle within the 108dp foreground canvas;
-  anything outside it is fair game for any launcher's mask, up to the most aggressive case of a
-  circle tangent to all four edges). Tuned twice more the same day after on-device review: smaller
-  + shifted up + softer background, then nudged back down slightly for final balance. Every pass
-  was verified against the worst-case full-bleed circle mask (`-compose CopyOpacity` simulation)
-  with zero clipping — the current composition sits outside the conservative 66dp *guideline*
-  circle but stays well inside the true worst-case boundary, the same tradeoff made on the first
-  fix. Regenerate the same way from `aurora-background-soft.png` + `logo4-solid-white-only.png` if
-  either changes, rather than hand-editing this file.
+The verbal identity above is final. **The canonical mark (2026-11-16) is "logo4-centered"**
+(`design/logo/logo4-centered.png`, plus `-transparent.png`). It's the logo4 shape (a checkmark
+inside a ring, inside a disc, with a flame breaking out of the top-right) redrawn so the check
+ring is concentric with the disc, and filled with logo3's flat gradient: amber `#FCB90F` →
+orange `#FD7F02` → red `#FC3041` → pink `#F7215E` → magenta `#D1169B` → violet `#4E2EF6`,
+running top to bottom at a slight angle (~79°). It has no texture or starfield. The older
+aurora "logo4" files in `design/logo/` are history and nothing in the app or website uses them.
 
-**App icon redesigned 2026-08-19, replacing the circular "coin + escaping flame" composition**
-for `icon.png`, `adaptive-icon.png`, and the Play/App Store hi-res icons: on-device, the flame
-licking out past its own circular badge got inconsistently clipped by Android's adaptive-icon
-mask (which crops to a circle/squircle/rounded-square depending on launcher, independent of the
-mark's own circular boundary) — an escaping element reads as broken once a *second*, unrelated
-circular crop lands on top of it. `logo4-aurora-solid-white.png` avoids this entirely: it's a
-complete, full-bleed square design with no element needing to escape its own shape, so any
-adaptive mask just crops the square normally, the same unremarkable way every other app icon
-gets cropped. Verified by simulating a circular mask directly (`magick ... -compose
-CopyOpacity`) before committing to the source swap, and again after the source was updated to
-add the starfield texture.
+`design/logo/branding/` holds the approved derived set:
+- `mark-color-*`: the full-color mark on white, cream, ink (`#141022`), navy and transparent.
+- `mark-white-*`, `mark-ink-*`, `mark-flat-pink-*`: one-color versions (white on the gradient,
+  white on ink, ink on white, flat pink on white, white and ink on transparent).
+- `appicon-*`: full-bleed square app icons. The mark's circle is dead-center at 60% of the
+  canvas, and the flames trail up and to the right, so they may be cropped by the edge or by a
+  launcher mask. That's intended. The circle stays inside Android's adaptive-icon safe zone.
+- `adaptive-foreground-*`: transparent foregrounds for Android's 108dp adaptive canvas (circle
+  at 40% of the canvas, so it lands at the same visual size once the launcher crops to the
+  center 72dp).
+- `favicon-*`: the full mark at 16 to 512px, on the gradient square, and a simplified 16px
+  version (gradient circle and check only, no flame) for the smallest sizes.
 
-**Where the free-form shape (the flame breaking out of its own circle) is safe to use**: only
-where this repo owns the entire rendered canvas and nothing external — an OS launcher mask, a
-store's own listing-icon cropper — is going to re-crop or mask it afterward. That's the splash
-screen, the feature graphic, the Home empty state, and the About screen's 72×72 icon display
-(a plain React Native `<Image>` on our own themed card background — no OS/store masking
-involved); it is deliberately *not* used for any of the four release-facing icon contexts (app
-icon, adaptive icon, Play/App Store listing icons), all of which use the full-bleed
-`logo4-aurora-solid-white.png` instead since those genuinely are rendered through masking we
-don't control.
+Where each is used:
+- App icon (`assets/images/icon.png`, `design/AppIcons/*`), the website's `favicon-192.png` and
+  `apple-touch-icon.png`, and the site header's `mark-square.png`: white mark on the gradient.
+- Android adaptive icon: `adaptive-icon.png` (white foreground) on
+  `adaptive-icon-background.png` (the gradient), plus `adaptive-icon-monochrome.png` for
+  Android 13+ themed icons.
+- Splash, the Home empty state and the About screen (`splash-icon.png`, `logo-mark.png`): the
+  full-color mark on transparent. It reads on both the white and black splash backgrounds.
+- Share cards' brand footer (`logo-mark-solid.png`) and the notification small icon: the white
+  silhouette. Android flattens the notification icon to a one-color mask anyway. The
+  notification accent color (`expo-notifications` `color`) and the adaptive-icon fallback
+  `backgroundColor` are the gradient's pink, `#F7215E`.
+- Web favicons (`assets/images/favicon.png`, `website/assets/favicon-32.png`): the full-color
+  mark on transparent.
+- Feature graphic and the website's `og-image.png`: the full-color mark, the white
+  "Streakaholic" wordmark and an amber tagline on navy `#01073B`.
 
-Every app icon, the Android adaptive-icon foreground/background, the web favicon, the splash
-screen, the Play/App Store hi-res icons, and the feature graphic are all derived from these
-files (`assets/images/icon.png`, `adaptive-icon.png`, `favicon.png`, `splash-icon.png`,
-`logo-mark.png`, `logo-mark-solid.png`, `notification-icon.png`; `design/AppIcons/*`;
-`design/store-assets/feature-graphic.png`) — regenerate from the `design/logo/` files above if
-the mark ever changes, rather than hand-editing any derived export directly. `#01073B` is the
-canonical navy brand background color (Android adaptive-icon `backgroundColor`, feature graphic
-background); `#65FC7C` (the flame's own mint-green) is the accent used for tagline/accent text
-against navy.
-
-**`assets/images/notification-icon.png` stays a plain white silhouette on transparent, not the
-aurora-solid treatment** — this is an Android platform constraint, not a design choice: the OS
-renders every app's status-bar/notification small icon as a flat monochrome alpha mask regardless
-of what color the source image actually is, so a colorful source there would just get its color
-silently discarded at render time. The one lever that *does* reach the actual notification
-presentation is the `expo-notifications` plugin's `color` field (`app.json`) — set to `#A110D4`
-(vivid violet, sampled from the real mark), used by Android for the icon's accent backdrop/LED
-color where the OS/launcher supports it. A genuinely colorful notification would need a separate
-runtime *large icon* (Android's expanded-notification-body image, which does render full color) —
-not built, since that's a `app/utils/notifications.ts` scheduling-code change, not an asset swap.
-
-Not yet done: light/dark-background variants beyond what's listed above, a maskable-safe web
-favicon set, and formal clear-space/minimum-size rules — revisit if the mark shows up somewhere
-new that these derived assets don't already cover.
+Regenerate derived files from the canonical mark rather than hand-editing exports.

@@ -123,8 +123,7 @@ supports separate caption text, but written as short, standalone lines either wa
 ## Feature graphic (1024×500)
 
 Built at `design/store-assets/feature-graphic.png` — mark + name + tagline on the brand
-navy (`#01073B`), tagline in the flame's mint-green (`#65FC7C`), using the current
-canonical "logo4" mark (see BRAND.md). Treat as a solid first pass — swapping in a real
+navy (`#01073B`), tagline in amber, using the canonical centered logo (see BRAND.md). Treat as a solid first pass — swapping in a real
 in-app screenshot once screenshots exist would likely be more compelling than a logo
 card alone.
 

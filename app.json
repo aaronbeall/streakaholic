@@ -14,7 +14,9 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#01073B"
+        "backgroundImage": "./assets/images/adaptive-icon-background.png",
+        "monochromeImage": "./assets/images/adaptive-icon-monochrome.png",
+        "backgroundColor": "#F7215E"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.metamodernmonkey.Streakaholic",
@@ -45,7 +47,7 @@
         "expo-notifications",
         {
           "icon": "./assets/images/notification-icon.png",
-          "color": "#A110D4"
+          "color": "#F7215E"
         }
       ],
       "expo-iap",
